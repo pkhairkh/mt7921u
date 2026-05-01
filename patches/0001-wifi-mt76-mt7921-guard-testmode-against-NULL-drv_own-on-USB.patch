@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mt7921u-ai <patch-engineer@mt7921u.local>
+Date: Fri, 2 May 2026 00:00:00 +0000
+Subject: [PATCH 1/6] wifi: mt76: mt7921: guard testmode against NULL drv_own
+ on USB
+
+The mt7921_tm_set() function calls __mt792x_mcu_drv_pmctrl(dev) which
+expands to (dev)->hif_ops->drv_own(dev). On USB, the hif_ops struct
+does not set .drv_own or .fw_own (both remain NULL) because power
+management ownership transfer is not needed for USB devices — PM is
+intentionally disabled for USB at init time.
+
+However, testmode is registered unconditionally for all bus types. When
+a testmode command is issued on a USB-attached MT7921 device, the call
+chain reaches __mt792x_mcu_drv_pmctrl(dev) which dereferences the NULL
+function pointer, causing an immediate kernel NULL pointer dereference
+panic.
+
+Add a NULL check before calling __mt792x_mcu_drv_pmctrl(). If drv_own
+is not implemented for the current bus (i.e., USB), return -EOPNOTSUPP
+with proper mutex release, since testmode requires full power management
+control which USB does not provide.
+
+This is consistent with how other PM-related paths handle USB: the
+init code explicitly disables PM for USB devices (pm.enable = false)
+and the PCIe-specific drv_own/fw_own functions are never registered
+for USB.
+
+Predicted crash signature (unpatched):
+  BUG: kernel NULL pointer dereference, address: 0000000000000000
+  RIP: 0010:0x0
+  Call Trace:
+   mt7921_tm_set+0xXX/0xXXX [mt7921u]
+   mt7921_testmode_cmd+0xXX/0xXXX [mt7921u]
+
+Fixes: bf32e8629f7d ("mt76: mt7921: add testmode support")
+Cc: stable@vger.kernel.org
+Signed-off-by: mt7921u-ai <patch-engineer@mt7921u.local>
+---
+ drivers/net/wireless/mediatek/mt76/mt7921/testmode.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/testmode.c b/drivers/net/wireless/mediatek/mt76/mt7921/testmode.c
+index 1234567..abcdef1 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/testmode.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/testmode.c
+@@ -57,7 +57,12 @@ mt7921_tm_set(struct mt792x_dev *dev, struct mt7921_tm_cmd *req)
+ 	if (testmode) {
+ 		/* Make sure testmode running on full power mode */
+ 		pm->enable = false;
+ 		cancel_delayed_work_sync(&pm->ps_work);
+ 		cancel_work_sync(&pm->wake_work);
+-		__mt792x_mcu_drv_pmctrl(dev);
++		if (dev->hif_ops->drv_own) {
++			__mt792x_mcu_drv_pmctrl(dev);
++		} else {
++			ret = -EOPNOTSUPP;
++			goto out;
++		}
++
+ 		phy->test.state = MT76_TM_STATE_ON;
+ 	}
+
+--
+2.47.0
