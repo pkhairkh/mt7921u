@@ -526,7 +526,92 @@ trace-cmd report
 
 ---
 
-## 7. Reporting Results
+## 7. Additional Test Cases (TASK-012, TASK-017, TASK-018)
+
+### TEST-T8: Hardware Timestamping (TASK-012)
+
+**Purpose:** Verify PTP hardware timestamping works end-to-end.
+
+**Prerequisites:** `linuxptp` package installed, wired PTP grandmaster on network.
+
+**Procedure:**
+```bash
+# Check that HW timestamping is advertised
+ethtool -T wlan0 | grep "hardware transmit"
+# Should show: hardware transmit, hardware receive
+
+# Run PTP daemon
+ptp4l -i wlan0 -m -S
+
+# Measure synchronization accuracy over 5 minutes
+# Expected: sub-microsecond offset after convergence
+```
+
+**Expected result:** `ptp4l` reports master offset < 10 microseconds after 60 seconds of convergence.
+
+**Module parameters:** None (TIMING_DEVICE is always enabled).
+
+---
+
+### TEST-T9: Multi-Endpoint TX QoS (TASK-017)
+
+**Purpose:** Verify 6-endpoint TX QoS mapping reduces jitter under concurrent traffic.
+
+**Prerequisites:** MT7921U adapter, iperf3, two machines.
+
+**Procedure:**
+```bash
+# Check endpoint configuration
+cat /sys/module/mt76/parameters/force_num_out_eps
+# Default: 0 (auto-detect)
+
+# Verify 6-endpoint mapping detected
+dmesg | grep "6 OUT endpoints"
+
+# Test 1: Baseline (2-3 endpoints)
+modprobe mt7921u force_num_out_eps=0
+iperf3 -c <server> -u -b 50M -t 30 --json | jq '.end.sum.jitter_ms'
+
+# Test 2: Force 6-endpoint mapping
+modprobe mt7921u force_num_out_eps=6
+iperf3 -c <server> -u -b 50M -t 30 --json | jq '.end.sum.jitter_ms'
+
+# Test 3: Concurrent bulk + VoIP
+# Terminal 1: Bulk transfer
+iperf3 -c <server> -t 30
+# Terminal 2: VoIP simulation (small packets, high priority)
+iperf3 -c <server> -u -b 1M -t 30 --dscp 46
+```
+
+**Expected result:** With 6 endpoints, jitter for DSCP 46 (VoIP) traffic under concurrent bulk load should be measurably lower than with 2-3 endpoints.
+
+---
+
+### TEST-T10: Per-Chunk Firmware Download ACK (TASK-018)
+
+**Purpose:** Verify `fw_ack_enable` module parameter improves firmware download reliability.
+
+**Prerequisites:** MT7921U adapter, USB hub with per-port power switching (optional).
+
+**Procedure:**
+```bash
+# Test 1: Default (fire-and-forget)
+modprobe mt7921u fw_ack_enable=0
+dmesg | grep "firmware"
+
+# Test 2: Per-chunk ACK enabled
+modprobe mt7921u fw_ack_enable=1
+dmesg | grep "firmware"
+
+# Test 3: Under USB errors (if USB hub with power switching available)
+# Toggle port power during firmware download, observe recovery
+```
+
+**Expected result:** With `fw_ack_enable=1`, dmesg shows `DL_MODE_NEED_RSP` or `ACK` in firmware download messages. If chunks are lost, retry occurs instead of opaque MCU timeout.
+
+---
+
+## 8. Reporting Results
 
 For each test, record:
 

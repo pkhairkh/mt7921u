@@ -15,6 +15,17 @@ static bool disable_usb_sg;
 module_param_named(disable_usb_sg, disable_usb_sg, bool, 0644);
 MODULE_PARM_DESC(disable_usb_sg, "Disable usb scatter-gather support");
 
+/* TASK-017: Multi-Endpoint TX QoS — force the number of OUT endpoints
+ * used for TX queue mapping. 0 = auto-detect from USB descriptor.
+ * Values 2-6 override the detected count, enabling testing of different
+ * endpoint configurations. The 6-endpoint mapping gives each AC its own
+ * USB bulk OUT pipe, preventing AC_BE from blocking AC_VO.
+ */
+static int force_num_out_eps;
+module_param_named(force_num_out_eps, force_num_out_eps, int, 0644);
+MODULE_PARM_DESC(force_num_out_eps,
+                 "Force number of USB OUT endpoints for TX QoS (0=auto, 2-6)");
+
 int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
                            u16 val, u16 offset, void *buf, size_t len)
 {
@@ -940,7 +951,8 @@ mt76u_ac_to_hwq(struct mt76_dev *dev, struct mt76_queue *q, u8 qid)
         case 0x7961:
         case 0x7925:
                 /* TASK-017: Multi-Endpoint TX QoS */
-                if (dev->usb.num_out_eps >= 6) {
+                if ((force_num_out_eps >= 6 || dev->usb.num_out_eps >= 6) &&
+                    force_num_out_eps != 2 && force_num_out_eps != 3) {
                         /* 6-endpoint mapping: each AC + MCU + FWDL
                          * gets its own endpoint.
                          * EP0: BK (AC_BK)

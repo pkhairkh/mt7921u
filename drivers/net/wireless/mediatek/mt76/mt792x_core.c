@@ -703,6 +703,13 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
 
         ieee80211_hw_set(hw, CHANCTX_STA_CSA);
 
+        /* TASK-012: HW Timestamping — advertise TIMING_DEVICE so mac80211
+         * uses hardware TSF for RX/TX timestamps. Combined with
+         * NL80211_FEATURE_HW_TIMESTAMP (set above), this enables PTP
+         * (IEEE 1588) support for industrial IoT applications.
+         * RUNTIME_VERIFY: use linuxptp ptp4l to measure sync accuracy
+         */
+        ieee80211_hw_set(hw, TIMING_DEVICE);
 
         if (dev->pm.enable)
                 ieee80211_hw_set(hw, CONNECTION_MONITOR);

@@ -435,9 +435,9 @@ Call Trace:
 **Description:** The mainline driver uses 2-3 bulk OUT endpoints via `mt76u_ac_to_hwq()`. The vendor driver uses 6 separate bulk OUT endpoints (EP4-EP9) mapping 6 traffic classes. With the current 2-3 endpoint setup, AC_BE traffic can block AC_VO frames, increasing jitter for latency-sensitive applications.
 
 **Sub-tasks:**
-- [ ] TASK-017a: Document vendor driver's 6-endpoint mapping (EP4-EP9 to AC mappings)
-- [ ] TASK-017b: Extend `mt76u_ac_to_hwq()` to support 6 USB endpoints
-- [ ] TASK-017c: Add endpoint configuration in `mt7921u_probe()` / USB descriptor parsing
+- [x] TASK-017a: Document vendor driver's 6-endpoint mapping (EP4-EP9 to AC mappings)
+- [x] TASK-017b: Extend `mt76u_ac_to_hwq()` to support 6 USB endpoints
+- [x] TASK-017c: Add endpoint configuration in USB descriptor parsing + `force_num_out_eps` module parameter
 - [ ] TASK-017d: Test latency-sensitive traffic (VoIP, gaming) under concurrent bulk load
 - [ ] TASK-017e: Benchmark jitter reduction with 6-endpoint mapping
 
@@ -467,8 +467,8 @@ Call Trace:
 **Connection to BUG-04:** The fire-and-forget firmware download is a contributing factor to the MCU timeout problem. If a firmware download chunk is lost due to a USB error, the firmware enters an inconsistent state and may not respond to subsequent MCU commands. Adding per-chunk ACK would provide early detection of download failures, allowing a clean retry rather than an opaque MCU timeout that forces a full chip reset.
 
 **Sub-tasks:**
-- [ ] TASK-018a: Add `DOWNLOAD_CONFIG_ACK_OPTION = BIT(31)` to firmware download command
-- [ ] TASK-018b: Change `wait_resp=false` to `wait_resp=true` for firmware download
+- [x] TASK-018a: Add `DOWNLOAD_CONFIG_ACK_OPTION = BIT(31)` to firmware download command (`fw_ack_enable` module param in `mt76_connac_mcu.c`)
+- [x] TASK-018b: Change `wait_resp=false` to `wait_resp=true` for firmware download (when `fw_ack_enable` is set)
 - [ ] TASK-018c: Add retry logic for individual chunk download failures
 - [ ] TASK-018d: Test firmware download reliability on USB with induced errors
 
@@ -563,7 +563,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (`.get_survey` wired + BPF stub header created, kernel BPF type pending) |
 | **Source** | ISSUES.md ENHANCE-01 |
 | **Assigned** | `patch-engineer` + `research-scout` |
 | **Dependencies** | `.get_survey` implementation |
@@ -578,8 +578,8 @@ supports but the driver does not expose.
 - **Phase 3:** Add nl80211 interface for attaching/detaching BPF programs, modify hostapd to query BPF-provided channel recommendations
 
 **Sub-tasks:**
-- [ ] TASK-009a: Implement `.get_survey` to populate `survey_info` from `mt76_channel_state`
-- [ ] TASK-009b: Define `BPF_PROG_TYPE_WIFI_SURVEY` hook type (kernel patch required)
+- [x] TASK-009a: Implement `.get_survey` to populate `survey_info` from `mt76_channel_state`
+- [x] TASK-009b: Define `BPF_PROG_TYPE_WIFI_SURVEY` hook type stub (`survey_bpf.h` — kernel patch required for full registration)
 - [ ] TASK-009c: Add BPF hook that fires when survey data is updated
 - [ ] TASK-009d: Implement userspace BPF program for ML-based channel selection
 - [ ] TASK-009e: Add nl80211 channel recommendation interface
@@ -660,7 +660,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (HW timestamping implemented, awaiting hardware validation) |
+| **Status** | `[~]` (HW timestamping fully implemented with TIMING_DEVICE, awaiting hardware validation) |
 | **Source** | ISSUES.md ENHANCE-06 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -677,7 +677,7 @@ supports but the driver does not expose.
 
 **Sub-tasks:**
 - [x] TASK-012a: Implement TSF extraction from RX descriptor (`status->mactime`)
-- [x] TASK-012b: Add `NL80211_FEATURE_HW_TIMESTAMP` + `SOF_TIMESTAMPING_RX_HARDWARE`
+- [x] TASK-012b: Add `NL80211_FEATURE_HW_TIMESTAMP` + `SOF_TIMESTAMPING_RX_HARDWARE` + `IEEE80211_HW_TIMING_DEVICE`
 - [ ] TASK-012c: Verify TX hardware timestamping capability
 - [ ] TASK-012d: Test with `linuxptp` / `ptp4l`
 
