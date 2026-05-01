@@ -1,0 +1,28 @@
+name: checkpatch
+on:
+  pull_request:
+    paths:
+      - 'patches/**'
+  push:
+    paths:
+      - 'patches/**'
+
+jobs:
+  checkpatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install checkpatch dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y linux-source
+      - name: Run checkpatch on patches
+        run: |
+          # Download checkpatch.pl from kernel.org
+          curl -sL https://raw.githubusercontent.com/torvalds/linux/master/scripts/checkpatch.pl -o checkpatch.pl
+          chmod +x checkpatch.pl
+          curl -sL https://raw.githubusercontent.com/torvalds/linux/master/scripts/spelling.txt -o spelling.txt
+          for patch in patches/*.patch; do
+            echo "=== Checking $patch ==="
+            perl checkpatch.pl --strict --no-tree "$patch" || true
+          done

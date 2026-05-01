@@ -1,0 +1,35 @@
+# PDF reports (not tracked in repo)
+*.pdf
+
+# Kernel build artifacts
+*.o
+*.ko
+*.cmd
+*.mod
+*.mod.c
+*.order
+*.symvers
+Module.symvers
+modules.builtin
+modules.builtin.modinfo
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.pyc
+__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Firmware binaries (not redistributable)
+*.bin
+*.fw
+
+# USB capture files
+*.pcap
+*.pcapng
