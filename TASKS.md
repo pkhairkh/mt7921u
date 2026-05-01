@@ -44,7 +44,7 @@ non-compliance. They require no feature work as a prerequisite.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[x]` |
 | **Source** | ISSUES.md BUG-02 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -59,13 +59,13 @@ non-compliance. They require no feature work as a prerequisite.
 --- a/drivers/net/wireless/mediatek/mt76/mt7921/testmode.c
 +++ b/drivers/net/wireless/mediatek/mt76/mt7921/testmode.c
 @@ -58,6 +58,10 @@
- 	drv_own = mt792x_dev_own(dev);
-+	if (!drv_own) {
-+		dev_warn(dev->mt76.dev,
-+			 "testmode not supported on USB bus\n");
-+		return -EOPNOTSUPP;
-+	}
- 	drv_own->state = DRV_OWN_BUSY;
+        drv_own = mt792x_dev_own(dev);
++       if (!drv_own) {
++               dev_warn(dev->mt76.dev,
++                        "testmode not supported on USB bus\n");
++               return -EOPNOTSUPP;
++       }
+        drv_own->state = DRV_OWN_BUSY;
 ```
 
 **Acceptance criteria:**
@@ -91,7 +91,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[x]` |
 | **Source** | ISSUES.md BUG-03 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -106,14 +106,14 @@ Call Trace:
 --- a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
 +++ b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
 @@ -20,7 +20,12 @@
--	if (!mt76_poll(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_BUSY,
--		       0, 5000))
-+	u32 wtbl_timeout = 5000; /* 5ms default for PCIe/SDIO */
-+	if (dev->mt76.bus_type == MT76_BUS_TYPE_USB)
-+		wtbl_timeout = 50000; /* 50ms for USB bulk transport */
+-       if (!mt76_poll(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_BUSY,
+-                      0, 5000))
++       u32 wtbl_timeout = 5000; /* 5ms default for PCIe/SDIO */
++       if (dev->mt76.bus_type == MT76_BUS_TYPE_USB)
++               wtbl_timeout = 50000; /* 50ms for USB bulk transport */
 +
-+	if (!mt76_poll(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_BUSY,
-+		       0, wtbl_timeout))
++       if (!mt76_poll(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_BUSY,
++                      0, wtbl_timeout))
 ```
 
 **Acceptance criteria:**
@@ -129,7 +129,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[x]` |
 | **Source** | ISSUES.md BUG-04 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -144,25 +144,25 @@ Call Trace:
 --- a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
 +++ b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
 @@ -24,7 +24,16 @@
- 	if (ret == -ETIMEDOUT) {
--		dev_err(dev->mt76.dev, "MCU command timeout\n");
--		mt7921_mac_reset_work(&dev->mt76);
--		return ret;
-+		int retries = (dev->mt76.bus_type == MT76_BUS_TYPE_USB) ? 3 : 0;
-+		while (retries-- > 0) {
-+			dev_warn(dev->mt76.dev,
-+				 "MCU command timeout, retrying (%d left)\n",
-+				 retries);
-+			ret = __mt76_mcu_send_msg(&dev->mt76, ...);
-+			if (ret != -ETIMEDOUT)
-+				break;
-+		}
-+		if (ret == -ETIMEDOUT) {
-+			dev_err(dev->mt76.dev, "MCU command timeout after retries\n");
-+			mt7921_mac_reset_work(&dev->mt76);
-+		}
-+		return ret;
- 	}
+        if (ret == -ETIMEDOUT) {
+-               dev_err(dev->mt76.dev, "MCU command timeout\n");
+-               mt7921_mac_reset_work(&dev->mt76);
+-               return ret;
++               int retries = (dev->mt76.bus_type == MT76_BUS_TYPE_USB) ? 3 : 0;
++               while (retries-- > 0) {
++                       dev_warn(dev->mt76.dev,
++                                "MCU command timeout, retrying (%d left)\n",
++                                retries);
++                       ret = __mt76_mcu_send_msg(&dev->mt76, ...);
++                       if (ret != -ETIMEDOUT)
++                               break;
++               }
++               if (ret == -ETIMEDOUT) {
++                       dev_err(dev->mt76.dev, "MCU command timeout after retries\n");
++                       mt7921_mac_reset_work(&dev->mt76);
++               }
++               return ret;
+        }
 ```
 
 **Acceptance criteria:**
@@ -179,7 +179,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[x]` |
 | **Source** | ISSUES.md BUG-06 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -196,9 +196,9 @@ Call Trace:
 --- a/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
 +++ b/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
 @@ cleanup function @@
-+	timer_delete_sync(&dev->phy.roc_timer);
-+	cancel_work_sync(&dev->phy.roc_work);
- 	/* existing cleanup continues */
++       timer_delete_sync(&dev->phy.roc_timer);
++       cancel_work_sync(&dev->phy.roc_work);
+        /* existing cleanup continues */
 ```
 
 **Acceptance criteria:**
@@ -214,7 +214,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[x]` (experimental — requires firmware testing) |
 | **Source** | ISSUES.md BUG-01, FEATURE-01 |
 | **Assigned** | `patch-engineer` + `firmware-analyst` |
 | **Dependencies** | TASK-003 (retry mechanism must be in place first) |
@@ -229,10 +229,10 @@ Call Trace:
 --- a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
 +++ b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
 @@ -424,8 +424,6 @@
--	if (dev->mt76.bus_type == MT76_BUS_TYPE_USB)
--		return 0;
-+	/* Allow CLC for USB — firmware acceptance tested via Patch 3 retry */
-+	/* If SET_CLC times out over USB bulk, retry mechanism mitigates */
+-       if (dev->mt76.bus_type == MT76_BUS_TYPE_USB)
+-               return 0;
++       /* Allow CLC for USB — firmware acceptance tested via Patch 3 retry */
++       /* If SET_CLC times out over USB bulk, retry mechanism mitigates */
 ```
 
 **Sub-tasks:**
@@ -261,7 +261,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[x]` |
 | **Source** | ISSUES.md BUG-05 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -276,12 +276,12 @@ Call Trace:
 --- a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
 +++ b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
 @@ -678,6 +678,8 @@
- 	if (ret) {
- 		dev_err(dev->mt76.dev, "MAC reset failed\n");
-+		ieee80211_wake_queues(dev->mt76.hw);
-+		mt76_queue_wake(dev, ...);
- 		return ret;
- 	}
+        if (ret) {
+                dev_err(dev->mt76.dev, "MAC reset failed\n");
++               ieee80211_wake_queues(dev->mt76.hw);
++               mt76_queue_wake(dev, ...);
+                return ret;
+        }
 ```
 
 **Acceptance criteria:**
