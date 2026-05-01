@@ -280,6 +280,9 @@ struct mt792x_dev {
 
         struct dentry *debugfs_dir;
 
+        /* TASK-003: MCU command retry state */
+        u8 mcu_timeout_count;
+
         /* TASK-016: BT Coexistence Detection */
         bool bt_coex_supported;
 

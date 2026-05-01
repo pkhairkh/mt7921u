@@ -19,10 +19,18 @@ static bool clc_force_usb;
 module_param_named(clc_force_usb, clc_force_usb, bool, 0644);
 MODULE_PARM_DESC(clc_force_usb, "force CLC SET command on USB even if previously failed");
 
+#define MT7921_MCU_TIMEOUT_MAX  3
+
+static int mt7921_mcu_timeout_retries = MT7921_MCU_TIMEOUT_MAX;
+module_param_named(mcu_timeout_retries, mt7921_mcu_timeout_retries, int, 0644);
+MODULE_PARM_DESC(mcu_timeout_retries,
+                 "Max MCU command timeouts before chip reset (default: 3)");
+
 int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                               struct sk_buff *skb, int seq)
 {
         int mcu_cmd = FIELD_GET(__MCU_CMD_FIELD_ID, cmd);
+        struct mt792x_dev *dev = container_of(mdev, struct mt792x_dev, mt76);
         struct mt76_connac2_mcu_rxd *rxd;
         int ret = 0;
 
@@ -30,12 +38,25 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                 cmd, seq, skb);
 
         if (!skb) {
-                dev_err(mdev->dev, "Message %08x (seq %d) timeout\n",
-                        cmd, seq);
-                mt792x_reset(mdev);
+                dev->mcu_timeout_count++;
+                dev_warn(mdev->dev,
+                         "Message %08x (seq %d) timeout (%d/%d)\n",
+                         cmd, seq, dev->mcu_timeout_count,
+                         mt7921_mcu_timeout_retries);
+
+                if (dev->mcu_timeout_count >= mt7921_mcu_timeout_retries) {
+                        dev_err(mdev->dev,
+                                "MCU timeout threshold reached (%d), resetting\n",
+                                dev->mcu_timeout_count);
+                        dev->mcu_timeout_count = 0;
+                        mt792x_reset(mdev);
+                }
 
                 return -ETIMEDOUT;
         }
+
+        /* Successful response — reset timeout counter */
+        dev->mcu_timeout_count = 0;
 
         rxd = (struct mt76_connac2_mcu_rxd *)skb->data;
         if (seq != rxd->seq)

@@ -166,12 +166,13 @@ Call Trace:
 ```
 
 **Acceptance criteria:**
-- [ ] Per-device `mcu_timeout_count` field added to `struct mt792x_dev` (NOT a global atomic)
-- [ ] Module parameter `mcu_timeout_retries` (default: 2) controls retry threshold
-- [ ] On timeout: increment counter, log warning with attempt count, return `-ETIMEDOUT` without reset
-- [ ] On success: reset counter to 0
-- [ ] Reset only triggered when counter exceeds threshold
-- [ ] PCIe/SDIO behavior preserved (they rarely hit this path)
+- [x] Per-device `mcu_timeout_count` field added to `struct mt792x_dev` (NOT a global atomic)
+- [x] Module parameter `mcu_timeout_retries` (default: 3) controls retry threshold
+- [x] On timeout: increment counter, log warning with attempt count, return `-ETIMEDOUT` without reset
+- [x] On success: reset counter to 0
+- [x] Reset only triggered when counter exceeds threshold
+- [x] PCIe/SDIO behavior preserved (they rarely hit this path)
+- [ ] RUNTIME_VERIFY: confirm transient USB timeouts are recovered without chip reset
 
 ---
 
@@ -302,7 +303,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (stub with `start_radar_detection` op, awaiting firmware validation) |
+| **Status** | `[~]` (stub with `start_radar_detection` + `end_cac` ops, awaiting firmware validation) |
 | **Source** | ISSUES.md FEATURE-03 |
 | **Assigned** | `patch-engineer` + `firmware-analyst` |
 | **Dependencies** | AP mode implementation; firmware radar detection capability confirmation |
@@ -310,14 +311,14 @@ Call Trace:
 | **Bus impact** | All buses (AP-mode only) |
 | **Evidence** | Probable (firmware radar detection capability unconfirmed) |
 
-**Description:** The mainline driver lacks DFS master support. Channel-switch infrastructure with `CH_SWITCH_DFS` reason exists in `mt7921_mcu_set_chan_info()`, but there is no `WIPHY_FLAG_HAS_RADAR_DETECT`, no `start_radar_detection`, no `end_cac`, and no radar event handling.
+**Description:** The mainline driver lacked DFS master support. Channel-switch infrastructure with `CH_SWITCH_DFS` reason exists in `mt7921_mcu_set_chan_info()`. Stub implementations of `start_radar_detection` and `end_cac` have been added to `main.c` and registered in `mt7921_ops`. Both send `MCU_UNI_CMD(RDD_CTRL)` to the firmware. Radar event handling from firmware notifications is still missing.
 
 **Firmware dependency:** DFS requires the firmware to support radar detection and report CAC (Channel Availability Check) events. The vendor driver implements radar detection via `EXT_CMD_ID_RADAR_DETECT`, but this command's existence and functionality on the MT7921U firmware is not yet confirmed. Without firmware radar detection support, implementing DFS in the driver alone is insufficient.
 
 **Sub-tasks:**
 - [ ] TASK-013a: Confirm firmware radar detection capability (`EXT_CMD_ID_RADAR_DETECT` presence)
-- [ ] TASK-013b: Implement `WIPHY_FLAG_HAS_RADAR_DETECT` in wiphy flags
-- [ ] TASK-013c: Implement `start_radar_detection` and `end_cac` mac80211 ops
+- [x] TASK-013b: Implement `WIPHY_FLAG_HAS_RADAR_DETECT` in wiphy flags
+- [x] TASK-013c: Implement `start_radar_detection` and `end_cac` mac80211 ops
 - [ ] TASK-013d: Add radar event handling from firmware notifications
 - [ ] TASK-013e: Test with DFS channels on 5 GHz band
 

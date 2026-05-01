@@ -1594,6 +1594,37 @@ mt7921_start_radar_detection(struct ieee80211_hw *hw,
         return ret;
 }
 
+static void
+mt7921_end_cac(struct ieee80211_hw *hw,
+               struct ieee80211_vif *vif)
+{
+        struct mt792x_phy *phy = mt792x_hw_phy(hw);
+        struct mt792x_dev *dev = phy->dev;
+        struct {
+                __le16 tag;
+                __le16 len;
+                u8 rdd_idx;
+                u8 enable;
+                u8 rsv[2];
+        } __packed req = {
+                .tag = cpu_to_le16(UNI_RDD_ON_OFF_CTRL),
+                .len = cpu_to_le16(sizeof(req) - 4),
+                .rdd_idx = 0,
+                .enable = 0,
+        };
+
+        /* RUNTIME_VERIFY: CAC cancellation depends on firmware */
+        phy->dfs_state.radar_detected = false;
+        phy->dfs_state.cac_time_ms = 0;
+
+        mt792x_mutex_acquire(dev);
+        mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
+                          &req, sizeof(req), true);
+        mt792x_mutex_release(dev);
+
+        dev_dbg(dev->mt76.dev, "CAC ended, radar detection stopped\n");
+}
+
 const struct ieee80211_ops mt7921_ops = {
         .tx = mt792x_tx,
         .start = mt7921_start,
@@ -1663,6 +1694,7 @@ const struct ieee80211_ops mt7921_ops = {
         .twt_teardown_request = mt7921_twt_teardown_request,
         /* TASK-013: DFS Master Preparation */
         .start_radar_detection = mt7921_start_radar_detection,
+        .end_cac = mt7921_end_cac,
 };
 EXPORT_SYMBOL_GPL(mt7921_ops);
 

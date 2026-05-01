@@ -158,10 +158,17 @@ for test_id in $RUN_TESTS; do
 
     TOTAL=$((TOTAL + 1))
 
-    # Run the test script
-    if bash "$script" --interface "$INTERFACE" --log-dir "$LOG_DIR" 2>&1 | tee -a "$MASTER_LOG"; then
-        # Check the last line of the test output for result
-        LAST_LINES=$(bash "$script" --interface "$INTERFACE" --log-dir "$LOG_DIR" 2>&1 | tail -5)
+    # Run the test script — capture output once to avoid double-execution
+    output=$(bash "$script" --interface "$INTERFACE" --log-dir "$LOG_DIR" 2>&1)
+    exit_code=$?
+
+    # Append captured output to master log
+    echo "$output" >> "$MASTER_LOG"
+    echo "$output"
+
+    # Determine result from exit code and output content
+    LAST_LINES=$(echo "$output" | tail -5)
+    if [[ $exit_code -eq 0 ]]; then
         if echo "$LAST_LINES" | grep -q "\\[PASS\\]"; then
             TEST_RESULT[$test_id]="PASS"
             PASSED=$((PASSED + 1))
@@ -174,8 +181,7 @@ for test_id in $RUN_TESTS; do
             PASSED=$((PASSED + 1))
         fi
     else
-        exit_code=$?
-        if echo "$MASTER_LOG" | grep -q "\\[SKIP\\]"; then
+        if echo "$LAST_LINES" | grep -q "\\[SKIP\\]"; then
             TEST_RESULT[$test_id]="SKIP"
             SKIPPED=$((SKIPPED + 1))
         else
