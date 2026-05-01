@@ -29,15 +29,30 @@
 static bool test_trigger_enable;
 module_param_named(test_trigger_enable, test_trigger_enable, bool, 0644);
 MODULE_PARM_DESC(test_trigger_enable,
-		 "enable test trigger debugfs entries (default: N, for dev/QA only)");
+                 "enable test trigger debugfs entries (default: N, for dev/QA only)");
 
 /* ---- helper: return human-readable result string ----------------------- */
 
 static const char *result_str(int err)
 {
-	if (!err)
-		return "OK";
-	return ERR_PTR(err) ? ERR_PTR(err) : "UNKNOWN";
+        if (!err)
+                return "OK";
+        switch (err) {
+        case -ETIMEDOUT: return "ETIMEDOUT";
+        case -ENOMEM:    return "ENOMEM";
+        case -EINVAL:    return "EINVAL";
+        case -EIO:       return "EIO";
+        case -EAGAIN:    return "EAGAIN";
+        case -EBUSY:     return "EBUSY";
+        case -ENOENT:    return "ENOENT";
+        case -EOPNOTSUPP: return "EOPNOTSUPP";
+        case -EPERM:     return "EPERM";
+        default:         {
+                static char buf[16];
+                snprintf(buf, sizeof(buf), "ERR%d", err);
+                return buf;
+        }
+        }
 }
 
 /* ---- trigger_testmode_null  (TEST-T1) ---------------------------------- */
@@ -56,34 +71,34 @@ static const char *result_str(int err)
 
 static int test_trigger_testmode_null_show(struct seq_file *s, void *data)
 {
-	struct mt792x_dev *dev = s->private;
+        struct mt792x_dev *dev = s->private;
 
-	if (!test_trigger_enable) {
-		seq_puts(s,
-			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
-		return 0;
-	}
+        if (!test_trigger_enable) {
+                seq_puts(s,
+                         "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
+                return 0;
+        }
 
-	seq_printf(s, "drv_own pointer: %pS\n", dev->hif_ops->drv_own);
-	seq_printf(s, "fw_own pointer:  %pS\n", dev->hif_ops->fw_own);
+        seq_printf(s, "drv_own pointer: %pS\n", dev->hif_ops->drv_own);
+        seq_printf(s, "fw_own pointer:  %pS\n", dev->hif_ops->fw_own);
 
-	if (dev->hif_ops->drv_own) {
-		int ret;
+        if (dev->hif_ops->drv_own) {
+                int ret;
 
-		mt792x_mutex_acquire(dev);
-		ret = __mt792x_mcu_drv_pmctrl(dev);
-		mt792x_mutex_release(dev);
-		seq_printf(s, "drv_own() returned: %d (%s)\n", ret,
-			   ret ? "error" : "success");
-	} else {
-		seq_puts(s,
-			 "drv_own is NULL — BUG-01 fix verified: no crash.\n"
-			 "Without the patch, a NULL dereference would occur here.\n"
-			 "Predicted crash: BUG: kernel NULL pointer dereference "
-			 "in mt7921_testmode_cmd\n");
-	}
+                mt792x_mutex_acquire(dev);
+                ret = __mt792x_mcu_drv_pmctrl(dev);
+                mt792x_mutex_release(dev);
+                seq_printf(s, "drv_own() returned: %d (%s)\n", ret,
+                           ret ? "error" : "success");
+        } else {
+                seq_puts(s,
+                         "drv_own is NULL — BUG-01 fix verified: no crash.\n"
+                         "Without the patch, a NULL dereference would occur here.\n"
+                         "Predicted crash: BUG: kernel NULL pointer dereference "
+                         "in mt7921_testmode_cmd\n");
+        }
 
-	return 0;
+        return 0;
 }
 
 DEFINE_SHOW_ATTRIBUTE(test_trigger_testmode_null);
@@ -100,30 +115,30 @@ DEFINE_SHOW_ATTRIBUTE(test_trigger_testmode_null);
 
 static int test_trigger_wtbl_poll_show(struct seq_file *s, void *data)
 {
-	struct mt792x_dev *dev = s->private;
-	ktime_t t0, t1;
-	bool ok;
+        struct mt792x_dev *dev = s->private;
+        ktime_t t0, t1;
+        bool ok;
 
-	if (!test_trigger_enable) {
-		seq_puts(s,
-			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
-		return 0;
-	}
+        if (!test_trigger_enable) {
+                seq_puts(s,
+                         "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
+                return 0;
+        }
 
-	mt792x_mutex_acquire(dev);
-	t0 = ktime_get();
-	ok = mt7921_mac_wtbl_update(dev, 0, MT_WTBL_UPDATE_WDTCR);
-	t1 = ktime_get();
-	mt792x_mutex_release(dev);
+        mt792x_mutex_acquire(dev);
+        t0 = ktime_get();
+        ok = mt7921_mac_wtbl_update(dev, 0, MT_WTBL_UPDATE_WDTCR);
+        t1 = ktime_get();
+        mt792x_mutex_release(dev);
 
-	seq_printf(s, "WTBL poll completed in %lld us\n",
-		   ktime_us_delta(t1, t0));
-	seq_printf(s, "Result: %s\n", ok ? "success (BUSY cleared)" :
-		   "timeout (BUSY still set)");
-	seq_printf(s, "Timeout threshold: %d us (USB) / %d us (PCIe/SDIO)\n",
-		   50000, 5000);
+        seq_printf(s, "WTBL poll completed in %lld us\n",
+                   ktime_us_delta(t1, t0));
+        seq_printf(s, "Result: %s\n", ok ? "success (BUSY cleared)" :
+                   "timeout (BUSY still set)");
+        seq_printf(s, "Timeout threshold: %d us (USB) / %d us (PCIe/SDIO)\n",
+                   50000, 5000);
 
-	return 0;
+        return 0;
 }
 
 DEFINE_SHOW_ATTRIBUTE(test_trigger_wtbl_poll);
@@ -139,26 +154,26 @@ DEFINE_SHOW_ATTRIBUTE(test_trigger_wtbl_poll);
 
 static int test_trigger_mcu_retry_show(struct seq_file *s, void *data)
 {
-	struct mt792x_dev *dev = s->private;
-	int ret;
+        struct mt792x_dev *dev = s->private;
+        int ret;
 
-	if (!test_trigger_enable) {
-		seq_puts(s,
-			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
-		return 0;
-	}
+        if (!test_trigger_enable) {
+                seq_puts(s,
+                         "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
+                return 0;
+        }
 
-	mt792x_mutex_acquire(dev);
-	ret = mt7921_mcu_fw_log_2_host(dev, 0);
-	mt792x_mutex_release(dev);
+        mt792x_mutex_acquire(dev);
+        ret = mt7921_mcu_fw_log_2_host(dev, 0);
+        mt792x_mutex_release(dev);
 
-	seq_printf(s, "MCU FWLOG_2_HOST(0) result: %d (%s)\n",
-		   ret, ret ? "error" : "success");
-	seq_puts(s,
-		 "Check dmesg for 'mcu_send' / 'mcu_resp' lines to see "
-		 "retry behavior.\n");
+        seq_printf(s, "MCU FWLOG_2_HOST(0) result: %d (%s)\n",
+                   ret, ret ? "error" : "success");
+        seq_puts(s,
+                 "Check dmesg for 'mcu_send' / 'mcu_resp' lines to see "
+                 "retry behavior.\n");
 
-	return 0;
+        return 0;
 }
 
 DEFINE_SHOW_ATTRIBUTE(test_trigger_mcu_retry);
@@ -173,34 +188,34 @@ DEFINE_SHOW_ATTRIBUTE(test_trigger_mcu_retry);
 
 static int test_trigger_clc_load_show(struct seq_file *s, void *data)
 {
-	struct mt792x_dev *dev = s->private;
-	int ret;
+        struct mt792x_dev *dev = s->private;
+        int ret;
 
-	if (!test_trigger_enable) {
-		seq_puts(s,
-			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
-		return 0;
-	}
+        if (!test_trigger_enable) {
+                seq_puts(s,
+                         "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
+                return 0;
+        }
 
-	seq_printf(s, "clc_force_usb=%d bus=%s\n",
-		   clc_force_usb,
-		   mt76_is_usb(&dev->mt76) ? "USB" :
-		   mt76_is_sdio(&dev->mt76) ? "SDIO" : "MMIO");
+        seq_printf(s, "clc_force_usb=%d bus=%s\n",
+                   clc_force_usb,
+                   mt76_is_usb(&dev->mt76) ? "USB" :
+                   mt76_is_sdio(&dev->mt76) ? "SDIO" : "MMIO");
 
-	mt792x_mutex_acquire(dev);
-	ret = mt7921_mcu_set_clc(dev, "00", ENVIRON_INDOOR);
-	mt792x_mutex_release(dev);
+        mt792x_mutex_acquire(dev);
+        ret = mt7921_mcu_set_clc(dev, "00", ENVIRON_INDOOR);
+        mt792x_mutex_release(dev);
 
-	seq_printf(s, "mt7921_mcu_set_clc(\"00\", INDOOR) result: %d (%s)\n",
-		   ret, ret ? "error" : "success");
-	seq_printf(s, "clc_chan_conf: 0x%02x\n", dev->phy.clc_chan_conf);
+        seq_printf(s, "mt7921_mcu_set_clc(\"00\", INDOOR) result: %d (%s)\n",
+                   ret, ret ? "error" : "success");
+        seq_printf(s, "clc_chan_conf: 0x%02x\n", dev->phy.clc_chan_conf);
 
-	if (ret && mt76_is_usb(&dev->mt76) && !clc_force_usb)
-		seq_puts(s,
-			 "NOTE: USB CLC failure with fallback is expected "
-			 "if CLC firmware data is missing.\n");
+        if (ret && mt76_is_usb(&dev->mt76) && !clc_force_usb)
+                seq_puts(s,
+                         "NOTE: USB CLC failure with fallback is expected "
+                         "if CLC firmware data is missing.\n");
 
-	return 0;
+        return 0;
 }
 
 /* We need access to the clc_force_usb module param from mcu.c */
@@ -218,25 +233,25 @@ DEFINE_SHOW_ATTRIBUTE(test_trigger_clc_load);
 
 static int test_trigger_roc_timer_show(struct seq_file *s, void *data)
 {
-	struct mt792x_dev *dev = s->private;
-	struct mt792x_phy *phy = &dev->phy;
+        struct mt792x_dev *dev = s->private;
+        struct mt792x_phy *phy = &dev->phy;
 
-	if (!test_trigger_enable) {
-		seq_puts(s,
-			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
-		return 0;
-	}
+        if (!test_trigger_enable) {
+                seq_puts(s,
+                         "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
+                return 0;
+        }
 
-	seq_printf(s, "ROC state: %s\n",
-		   test_bit(MT76_STATE_ROC, &phy->mt76->state) ?
-		   "ACTIVE" : "INACTIVE");
-	seq_printf(s, "roc_grant: %d\n", phy->roc_grant);
-	seq_printf(s, "roc_token_id: %d\n", phy->roc_token_id);
-	seq_printf(s, "roc_timer pending: %d\n",
-		   timer_pending(&phy->roc_timer));
-	seq_printf(s, "pm.suspended: %d\n", dev->pm.suspended);
+        seq_printf(s, "ROC state: %s\n",
+                   test_bit(MT76_STATE_ROC, &phy->mt76->state) ?
+                   "ACTIVE" : "INACTIVE");
+        seq_printf(s, "roc_grant: %d\n", phy->roc_grant);
+        seq_printf(s, "roc_token_id: %d\n", phy->roc_token_id);
+        seq_printf(s, "roc_timer pending: %d\n",
+                   timer_pending(&phy->roc_timer));
+        seq_printf(s, "pm.suspended: %d\n", dev->pm.suspended);
 
-	return 0;
+        return 0;
 }
 
 DEFINE_SHOW_ATTRIBUTE(test_trigger_roc_timer);
@@ -252,27 +267,27 @@ DEFINE_SHOW_ATTRIBUTE(test_trigger_roc_timer);
  */
 int mt7921_test_trigger_debugfs_init(struct mt792x_dev *dev)
 {
-	struct dentry *dir;
+        struct dentry *dir;
 
-	if (!dev->debugfs_dir)
-		return -ENOENT;
+        if (!dev->debugfs_dir)
+                return -ENOENT;
 
-	dir = debugfs_create_dir("test_trigger", dev->debugfs_dir);
-	if (IS_ERR_OR_NULL(dir))
-		return dir ? PTR_ERR(dir) : -ENOMEM;
+        dir = debugfs_create_dir("test_trigger", dev->debugfs_dir);
+        if (IS_ERR_OR_NULL(dir))
+                return dir ? PTR_ERR(dir) : -ENOMEM;
 
-	debugfs_create_file("trigger_testmode_null", 0400, dir, dev,
-			    &test_trigger_testmode_null_fops);
-	debugfs_create_file("trigger_wtbl_poll", 0400, dir, dev,
-			    &test_trigger_wtbl_poll_fops);
-	debugfs_create_file("trigger_mcu_retry", 0400, dir, dev,
-			    &test_trigger_mcu_retry_fops);
-	debugfs_create_file("trigger_clc_load", 0400, dir, dev,
-			    &test_trigger_clc_load_fops);
-	debugfs_create_file("trigger_roc_timer", 0400, dir, dev,
-			    &test_trigger_roc_timer_fops);
+        debugfs_create_file("trigger_testmode_null", 0400, dir, dev,
+                            &test_trigger_testmode_null_fops);
+        debugfs_create_file("trigger_wtbl_poll", 0400, dir, dev,
+                            &test_trigger_wtbl_poll_fops);
+        debugfs_create_file("trigger_mcu_retry", 0400, dir, dev,
+                            &test_trigger_mcu_retry_fops);
+        debugfs_create_file("trigger_clc_load", 0400, dir, dev,
+                            &test_trigger_clc_load_fops);
+        debugfs_create_file("trigger_roc_timer", 0400, dir, dev,
+                            &test_trigger_roc_timer_fops);
 
-	return 0;
+        return 0;
 }
 EXPORT_SYMBOL_GPL(mt7921_test_trigger_debugfs_init);
 
@@ -286,6 +301,6 @@ EXPORT_SYMBOL_GPL(mt7921_test_trigger_debugfs_init);
  */
 void mt7921_test_trigger_debugfs_remove(struct mt792x_dev *dev)
 {
-	/* debugfs_remove_recursive is handled by the parent dir cleanup */
+        /* debugfs_remove_recursive is handled by the parent dir cleanup */
 }
 EXPORT_SYMBOL_GPL(mt7921_test_trigger_debugfs_remove);

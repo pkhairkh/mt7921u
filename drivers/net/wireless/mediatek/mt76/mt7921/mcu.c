@@ -354,6 +354,13 @@ mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
         case MCU_EVENT_RSSI_NOTIFY:
                 mt7921_mcu_rssi_monitor_event(dev, skb);
                 break;
+        case 0x3C: /* EVENT_ID_CSI_DATA — firmware CSI capture event */
+                mt7921_mcu_csi_event(dev, skb);
+                return;
+        case 0x85: /* TWT SP event — firmware TWT service period notification */
+                skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
+                mt7921_twt_sp_event(dev, skb);
+                break;
         default:
                 break;
         }
@@ -406,6 +413,7 @@ void mt7921_mcu_rx_event(struct mt792x_dev *dev, struct sk_buff *skb)
             rxd->eid == MCU_EVENT_DBG_MSG ||
             rxd->eid == MCU_EVENT_COREDUMP ||
             rxd->eid == MCU_EVENT_LP_INFO ||
+            rxd->eid == 0x85 ||
             !rxd->seq)
                 mt7921_mcu_rx_unsolicited_event(dev, skb);
         else
@@ -534,10 +542,48 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
                 dev_warn(mdev->dev,
                          "CLC SET failed on USB (err=%d); CLC unavailable over USB, "
                          "falling back to conservative channel config\n", ret);
-                /* FIXME: port vendor CMD_ID_CAL_BACKUP_IN_HOST_V2 + rlmDomainGetChnlList() */
-                dev->phy.clc_chan_conf = 0x00;
-                dev_warn(mdev->dev,
-                         "6 GHz disabled until vendor CLC path is ported\n");
+                /* Construct a conservative channel list from the CLC binary
+                 * data we already loaded. The CLC binary contains per-country
+                 * rules; when the SET command fails on USB, we scan the loaded
+                 * CLC data for the default ("00") country entry and extract
+                 * which UNII bands are permitted. If no CLC data is available
+                 * at all, we conservatively disable 6 GHz entirely.
+                 */
+                if (dev->phy.clc[MT792x_CLC_POWER]) {
+                        const struct mt7921_clc *clc =
+                                dev->phy.clc[MT792x_CLC_POWER];
+                        const struct mt7921_clc_rule *rule;
+                        int offset = 0;
+
+                        /* Walk the CLC data looking for the "00" wildcard rule */
+                        while (offset + sizeof(*rule) <= clc->len) {
+                                rule = (const struct mt7921_clc_rule *)
+                                        (clc->data + offset);
+                                if (offset + sizeof(*rule) +
+                                    le16_to_cpu(rule->len) > clc->len)
+                                        break;
+                                if (rule->alpha2[0] == '0' &&
+                                    rule->alpha2[1] == '0') {
+                                        /* Found the wildcard rule — extract
+                                         * channel configuration from its data.
+                                         * Each bit in the rule data corresponds
+                                         * to a UNII band permission.
+                                         */
+                                        if (le16_to_cpu(rule->len) >= 1)
+                                                dev->phy.clc_chan_conf =
+                                                        rule->data[0];
+                                        break;
+                                }
+                                offset += sizeof(*rule) +
+                                          le16_to_cpu(rule->len);
+                        }
+                } else {
+                        /* No CLC data at all — disable 6 GHz */
+                        dev->phy.clc_chan_conf = 0x00;
+                }
+                if (!(dev->phy.clc_chan_conf & 0x1E))
+                        dev_warn(mdev->dev,
+                                 "6 GHz disabled — no UNII-5/6/7/8 in channel config\n");
                 ret = 0;
         } else if (!ret) {
                 dev_dbg(mdev->dev, "load_clc: CLC loaded successfully\n");

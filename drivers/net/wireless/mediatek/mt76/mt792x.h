@@ -59,6 +59,32 @@
 struct mt792x_vif;
 struct mt792x_sta;
 
+/* ACS (Automatic Channel Selection) channel score entry */
+#define MT792X_ACS_MAX_CHANNELS         256
+
+struct mt792x_acs_chan_score {
+        u32 center_freq;
+        enum nl80211_band band;
+        u32 hw_value;
+        s32 score;
+        u32 busy_pct;
+        s8 noise;
+        bool dfs;
+        bool wide_capable;
+};
+
+struct mt792x_acs_info {
+        u32 recommended_freq;
+        u32 recommended_hw_value;
+        s32 recommended_score;
+        unsigned long last_update_jiffies;
+        bool enabled;
+        struct dentry *debugfs_dir;
+
+        struct mt792x_acs_chan_score scores[MT792X_ACS_MAX_CHANNELS];
+        unsigned int num_scores;
+};
+
 struct mt792x_realease_info {
         __le16 len;
         u8 pad_len;
@@ -225,6 +251,7 @@ struct mt792x_hif_ops {
         int (*mcu_init)(struct mt792x_dev *dev);
         int (*drv_own)(struct mt792x_dev *dev);
         int (*fw_own)(struct mt792x_dev *dev);
+        void (*chip_cleanup)(struct mt792x_dev *dev);
 };
 
 struct mt792x_dev {
@@ -276,6 +303,7 @@ struct mt792x_dev {
         struct {
                 u16 table_mask;
                 u8 n_agrt;
+                struct mt7921_twt_agrt_stats stats;
         } twt;
 
         struct dentry *debugfs_dir;
@@ -288,6 +316,9 @@ struct mt792x_dev {
 
         /* CSI (Channel State Information) — TASK-008 */
         struct mt7921_csi_info csi;
+
+        /* ACS (Automatic Channel Selection) */
+        struct mt792x_acs_info acs;
 };
 
 static inline struct mt792x_bss_conf *

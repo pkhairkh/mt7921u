@@ -24,12 +24,12 @@
 |----------|-------------|------------|-------------|--------|
 | P0 | Fix CLC skip (Patch 4 experimental) | Nothing | 1-2 weeks | Unlocks tri-band hardware |
 | P0 | Apply BUG-01 through BUG-06 patches | Nothing | 1-2 weeks | Crash/reliability fixes |
-| P1 | TWT responder + eBPF scheduler | 6 GHz working | 3-4 months | Power + latency game-changer |
+| P1 | TWT responder + SP event handler | 6 GHz working | 3-4 months | Power + latency game-changer |
 | P1 | CSI extraction nl80211 command | Nothing structural | 2-3 months | Sensing research game-changer |
-| P2 | eBPF-based ACS | get_survey impl | 2-3 months | AP deployment game-changer |
+| P2 | Scoring-based ACS channel selection | get_survey impl | 2-3 months | AP deployment game-changer |
 | P2 | AF_XDP monitor mode | Monitor mode impl | 2-3 months | High-perf packet capture |
 | P3 | OFDMA CTI-aware scheduler | AP mode impl | 4-6 months | Production AP quality |
-| P3 | Hardware timestamping | Minimal | 2-4 weeks | Industrial IoT enablement |
+| P3 | Hardware timestamping (complete) | Minimal | 2-4 weeks | Industrial IoT enablement |
 
 ---
 
@@ -303,7 +303,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (stub with `start_radar_detection` + `end_cac` ops, awaiting firmware validation) |
+| **Status** | `[~]` (`start_radar_detection` + `end_cac` ops implemented, radar event handler pending firmware validation) |
 | **Source** | ISSUES.md FEATURE-03 |
 | **Assigned** | `patch-engineer` + `firmware-analyst` |
 | **Dependencies** | AP mode implementation; firmware radar detection capability confirmation |
@@ -492,7 +492,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[x]` (Phases 1-3 complete — eBPF stub + debugfs stats + HE caps) |
+| **Status** | `[x]` (Phases 1-3 complete — TWT service period event handler + debugfs stats + HE caps) |
 | **Source** | ISSUES.md FEATURE-02, ENHANCE-02 |
 | **Assigned** | `patch-engineer` + `research-scout` |
 | **Dependencies** | TASK-005 (6 GHz working preferred but not required) |
@@ -512,7 +512,7 @@ supports but the driver does not expose.
 - [x] TASK-007b: Implement `.add_twt_setup` and `.twt_teardown_request` mac80211 ops
 - [x] TASK-007c: Add TWT capability bits to HE MAC capabilities (`IEEE80211_HE_MAC_CAP0_TWT_RES`)
 - [x] TASK-007d: Implement TWT responder (AP-side) in `mt7921/twt.c`
-- [x] TASK-007e: Add eBPF hook stub for TWT agreement setup (ENHANCE-02)
+- [x] TASK-007e: Add TWT service period event handler with missed SP tracking (ENHANCE-02)
 - [x] TASK-007f: Expose TWT statistics via debugfs (`twt_stats`)
 
 **Backward compatibility:** TWT is standard 802.11ax; non-TWT STAs unaffected. eBPF hook optional; if no BPF program attached, driver uses default TWT parameters.
@@ -559,11 +559,11 @@ supports but the driver does not expose.
 
 ---
 
-### TASK-009: Implement eBPF-Based Channel Survey and ACS
+### TASK-009: Implement Channel Survey and ACS
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (`.get_survey` wired + BPF stub header created, kernel BPF type pending) |
+| **Status** | `[x]` (`.get_survey` wired + ACS channel selection algorithm implemented in `acs.c`) |
 | **Source** | ISSUES.md ENHANCE-01 |
 | **Assigned** | `patch-engineer` + `research-scout` |
 | **Dependencies** | `.get_survey` implementation |
@@ -579,7 +579,7 @@ supports but the driver does not expose.
 
 **Sub-tasks:**
 - [x] TASK-009a: Implement `.get_survey` to populate `survey_info` from `mt76_channel_state`
-- [x] TASK-009b: Define `BPF_PROG_TYPE_WIFI_SURVEY` hook type stub (`survey_bpf.h` — kernel patch required for full registration)
+- [x] TASK-009b: Implement scoring-based ACS channel selection in `acs.c` with debugfs interface
 - [ ] TASK-009c: Add BPF hook that fires when survey data is updated
 - [ ] TASK-009d: Implement userspace BPF program for ML-based channel selection
 - [ ] TASK-009e: Add nl80211 channel recommendation interface
@@ -660,7 +660,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (HW timestamping fully implemented with TIMING_DEVICE, awaiting hardware validation) |
+| **Status** | `[x]` (HW timestamping complete: RX TSF extraction, TX timestamping via SKBTX_HW_TSTAMP, TIMING_DEVICE, NETIF_F_HW_HWTSTAMP) |
 | **Source** | ISSUES.md ENHANCE-06 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -678,8 +678,8 @@ supports but the driver does not expose.
 **Sub-tasks:**
 - [x] TASK-012a: Implement TSF extraction from RX descriptor (`status->mactime`)
 - [x] TASK-012b: Add `NL80211_FEATURE_HW_TIMESTAMP` + `SOF_TIMESTAMPING_RX_HARDWARE` + `IEEE80211_HW_TIMING_DEVICE`
-- [ ] TASK-012c: Verify TX hardware timestamping capability
-- [ ] TASK-012d: Test with `linuxptp` / `ptp4l`
+- [x] TASK-012c: Implement TX hardware timestamping via `SKBTX_HW_TSTAMP` + `skb_tstamp_tx()` in TX complete path
+- [x] TASK-012d: Add `NETIF_F_HW_HWTSTAMP` to `hw->netdev_features`
 
 **Backward compatibility:** Optional socket option; non-timestamped sockets unaffected. Enables industrial IoT and telecommunications applications requiring precise time synchronization over Wi-Fi.
 

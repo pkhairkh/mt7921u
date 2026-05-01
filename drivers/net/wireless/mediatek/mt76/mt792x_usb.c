@@ -104,6 +104,10 @@ static void mt792xu_cleanup(struct mt792x_dev *dev)
         timer_delete_sync(&dev->phy.roc_timer);
         cancel_work_sync(&dev->phy.roc_work);
 
+        /* Chip-specific cleanup (CSI, TWT teardown, etc.) */
+        if (dev->hif_ops && dev->hif_ops->chip_cleanup)
+                dev->hif_ops->chip_cleanup(dev);
+
         mt792xu_wfsys_reset(dev);
         skb_queue_purge(&dev->mt76.mcu.res_q);
         mt76u_queues_deinit(&dev->mt76);

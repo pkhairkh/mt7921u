@@ -1545,7 +1545,7 @@ static void mt7921_rfkill_poll(struct ieee80211_hw *hw)
         wiphy_rfkill_set_hw_state(hw->wiphy, ret ? false : true);
 }
 
-/* TASK-013: DFS Master Preparation — start_radar_detection stub.
+/* TASK-013: DFS Master Preparation — start_radar_detection implementation.
  * Sends UNI_RDD_ON_OFF_CTRL to firmware to enable radar detection,
  * records the CAC request, and returns success.
  * CAC timing depends on firmware — actual wait is handled by

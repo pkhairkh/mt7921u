@@ -145,6 +145,35 @@ out:
         return err;
 }
 
+static void mt7921u_chip_cleanup(struct mt792x_dev *dev)
+{
+        /* Stop ACS before chip reset */
+        mt7921_acs_cleanup(dev);
+
+        /* Stop CSI capture and wake any waiters before chip reset */
+        mt7921_csi_cleanup(dev);
+
+        /* Tear down all TWT agreements before chip reset */
+        mt792x_mutex_acquire(dev);
+        if (dev->twt.n_agrt) {
+                struct mt76_wcid *wcid;
+                struct mt792x_sta *msta;
+                int i, j;
+
+                for (i = 0; i < MT76_N_WCIDS; i++) {
+                        wcid = rcu_dereference(dev->mt76.wcid[i]);
+                        if (!wcid || !wcid->sta)
+                                continue;
+                        msta = container_of(wcid, struct mt792x_sta, deflink.wcid);
+                        for (j = 0; j < MT7921_MAX_STA_TWT_AGRT; j++) {
+                                if (msta->twt.flowid_mask & BIT(j))
+                                        mt7921_twt_teardown_flow(dev, msta, j);
+                        }
+                }
+        }
+        mt792x_mutex_release(dev);
+}
+
 static int mt7921u_probe(struct usb_interface *usb_intf,
                          const struct usb_device_id *id)
 {
@@ -170,6 +199,7 @@ static int mt7921u_probe(struct usb_interface *usb_intf,
                 .mcu_init = mt7921u_mcu_init,
                 .init_reset = mt792xu_init_reset,
                 .reset = mt7921u_mac_reset,
+                .chip_cleanup = mt7921u_chip_cleanup,
         };
         static struct mt76_bus_ops bus_ops = {
                 .rr = mt792xu_rr,

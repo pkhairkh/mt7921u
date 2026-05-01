@@ -310,6 +310,9 @@ int mt7921_init_debugfs(struct mt792x_dev *dev)
         dev->debugfs_dir = dir;
         mt7921_twt_debugfs_init(dev);
 
+        /* ACS (Automatic Channel Selection) debugfs */
+        mt7921_acs_debugfs_init(dev);
+
         /* TASK-016: BT Coexistence Detection debugfs.
          * RUNTIME_VERIFY: verify coex capability with BT headset active
          */

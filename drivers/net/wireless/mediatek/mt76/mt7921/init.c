@@ -353,6 +353,9 @@ int mt7921_register_device(struct mt792x_dev *dev)
         if (ret)
                 dev_err(dev->mt76.dev, "CSI nl80211 register failed\n");
 
+        /* Initialize ACS (Automatic Channel Selection) */
+        mt7921_acs_init(dev);
+
         queue_work(system_percpu_wq, &dev->init_work);
 
         return 0;

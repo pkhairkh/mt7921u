@@ -631,7 +631,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
                 hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
                 hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
         }
-        hw->netdev_features = NETIF_F_RXCSUM;
+        hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_HWTSTAMP;
 
         hw->radiotap_timestamp.units_pos =
                 IEEE80211_RADIOTAP_TIMESTAMP_UNIT_US;

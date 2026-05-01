@@ -372,7 +372,10 @@ struct mt7921_twt_flow {
 
 struct mt7921_twt_agrt_stats {
         u32 n_agrt;
-        u32 n_missed_sp;  /* stub until firmware event support */
+        u32 n_missed_sp;
+        u32 missed_sp[MT7921_MAX_TWT_AGRT];
+        bool sp_active[MT7921_MAX_TWT_AGRT];
+        u64 sp_start_tsf[MT7921_MAX_TWT_AGRT];
 };
 
 void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
@@ -389,10 +392,36 @@ int mt7921_mcu_twt_agrt_update(struct mt792x_dev *dev,
                                 int cmd);
 void mt7921_twt_debugfs_init(struct mt792x_dev *dev);
 void mt7921_twt_debugfs_remove(struct mt792x_dev *dev);
+void mt7921_twt_sp_event(struct mt792x_dev *dev, struct sk_buff *skb);
+
+/* TWT Service Period event types from firmware */
+enum mt7921_twt_sp_event_type {
+        MT7921_TWT_SP_START     = 0,
+        MT7921_TWT_SP_END       = 1,
+        MT7921_TWT_SP_MISSED    = 2,
+};
+
+/* TWT SP event TLV from firmware (eid 0x85) */
+struct mt7921_twt_sp_event_hdr {
+        __le16 tag;
+        __le16 len;
+        u8 flow_id;
+        u8 event_type;
+        u8 bss_idx;
+        u8 rsv;
+        __le64 tsf;
+} __packed;
 
 /* Runtime-verification test triggers (Step 4) */
 int mt7921_test_trigger_debugfs_init(struct mt792x_dev *dev);
 void mt7921_test_trigger_debugfs_remove(struct mt792x_dev *dev);
+
+/* ACS (Automatic Channel Selection) — struct definitions in mt792x.h */
+void mt7921_acs_init(struct mt792x_dev *dev);
+void mt7921_acs_cleanup(struct mt792x_dev *dev);
+void mt7921_acs_update(struct mt792x_dev *dev);
+int mt7921_acs_get_recommendation(struct mt792x_dev *dev, u32 *freq);
+void mt7921_acs_debugfs_init(struct mt792x_dev *dev);
 
 /* CSI (Channel State Information) — TASK-008 */
 #define MT7921_CSI_RING_SIZE            1000

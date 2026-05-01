@@ -802,6 +802,9 @@ int mt7921_usb_sdio_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
         if (!wcid)
                 wcid = &dev->mt76.global_wcid;
 
+        if (skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP)
+                info->flags |= IEEE80211_TX_CTL_REQ_TX_STATUS;
+
         if (sta) {
                 struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
 
@@ -829,9 +832,37 @@ int mt7921_usb_sdio_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 }
 EXPORT_SYMBOL_GPL(mt7921_usb_sdio_tx_prepare_skb);
 
+static void mt7921_tx_hw_timestamp(struct mt792x_dev *dev, struct sk_buff *skb)
+{
+        struct skb_shared_hwtstamps shwt;
+        union {
+                u64 t64;
+                u32 t32[2];
+        } ts;
+
+        if (!(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP))
+                return;
+
+        if (!test_bit(MT76_STATE_RUNNING, &dev->mphy.state))
+                return;
+
+        /* Trigger TSF software read for HW_BSSID_0 */
+        mt76_set(dev, MT_LPON_TCR(0, HW_BSSID_0), MT_LPON_TCR_SW_MODE);
+        ts.t32[0] = mt76_rr(dev, MT_LPON_UTTR0(0));
+        ts.t32[1] = mt76_rr(dev, MT_LPON_UTTR1(0));
+
+        memset(&shwt, 0, sizeof(shwt));
+        shwt.hwtstamp = ns_to_ktime(ts.t64 * NSEC_PER_USEC);
+
+        skb_tstamp_tx(skb, &shwt);
+
+        skb_shinfo(skb)->tx_flags &= ~SKBTX_HW_TSTAMP;
+}
+
 void mt7921_usb_sdio_tx_complete_skb(struct mt76_dev *mdev,
                                      struct mt76_queue_entry *e)
 {
+        struct mt792x_dev *dev = container_of(mdev, struct mt792x_dev, mt76);
         __le32 *txwi = (__le32 *)(e->skb->data + MT_SDIO_HDR_SIZE);
         unsigned int headroom = MT_SDIO_TXD_SIZE + MT_SDIO_HDR_SIZE;
         struct ieee80211_sta *sta;
@@ -846,6 +877,7 @@ void mt7921_usb_sdio_tx_complete_skb(struct mt76_dev *mdev,
                 mt76_connac2_tx_check_aggr(sta, txwi);
 
         skb_pull(e->skb, headroom);
+        mt7921_tx_hw_timestamp(dev, e->skb);
         mt76_tx_complete_skb(mdev, e->wcid, e->skb);
 }
 EXPORT_SYMBOL_GPL(mt7921_usb_sdio_tx_complete_skb);
