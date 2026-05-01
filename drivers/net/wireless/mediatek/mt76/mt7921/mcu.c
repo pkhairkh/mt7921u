@@ -15,12 +15,19 @@ static bool mt7921_disable_clc;
 module_param_named(disable_clc, mt7921_disable_clc, bool, 0644);
 MODULE_PARM_DESC(disable_clc, "disable CLC support");
 
+static bool clc_force_usb;
+module_param_named(clc_force_usb, clc_force_usb, bool, 0644);
+MODULE_PARM_DESC(clc_force_usb, "force CLC SET command on USB even if previously failed");
+
 int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                               struct sk_buff *skb, int seq)
 {
         int mcu_cmd = FIELD_GET(__MCU_CMD_FIELD_ID, cmd);
         struct mt76_connac2_mcu_rxd *rxd;
         int ret = 0;
+
+        dev_dbg(mdev->dev, "mcu_resp: cmd=0x%04x seq=%d skb=%p\n",
+                cmd, seq, skb);
 
         if (!skb) {
                 dev_err(mdev->dev, "Message %08x (seq %d) timeout\n",
@@ -421,6 +428,14 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
         int ret, i, len, offset = 0;
         u8 *clc_base = NULL, hw_encap = 0;
 
+        dev_dbg(mdev->dev, "load_clc: fw_name=%s bus=%s\n",
+                fw_name, mt76_is_usb(mdev) ? "USB" :
+                         mt76_is_sdio(mdev) ? "SDIO" : "MMIO");
+
+        if (clc_force_usb)
+                dev_info(mdev->dev,
+                         "CLC force USB mode enabled - SET_CLC errors will propagate\n");
+
         dev->phy.clc_chan_conf = 0xff;
         if (mt7921_disable_clc)
                 return 0;
@@ -487,7 +502,25 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
                         goto out;
                 }
         }
+        dev_dbg(mdev->dev, "load_clc: calling mt7921_mcu_set_clc\n");
         ret = mt7921_mcu_set_clc(dev, "00", ENVIRON_INDOOR);
+
+        /* Self-defensive fallback for USB: if SET_CLC fails over USB
+         * bulk transport, conservatively disable 6 GHz and continue.
+         * PCIe/SDIO paths remain unaffected.
+         */
+        if (ret && mt76_is_usb(mdev) && !clc_force_usb) {
+                dev_warn(mdev->dev,
+                         "CLC SET failed on USB (err=%d); CLC unavailable over USB, "
+                         "falling back to conservative channel config\n", ret);
+                /* FIXME: port vendor CMD_ID_CAL_BACKUP_IN_HOST_V2 + rlmDomainGetChnlList() */
+                dev->phy.clc_chan_conf = 0x00;
+                dev_warn(mdev->dev,
+                         "6 GHz disabled until vendor CLC path is ported\n");
+                ret = 0;
+        } else if (!ret) {
+                dev_dbg(mdev->dev, "load_clc: CLC loaded successfully\n");
+        }
 out:
         release_firmware(fw);
 
@@ -608,6 +641,17 @@ static int mt7921_mcu_get_nic_capability(struct mt792x_phy *mphy)
                         break;
                 case MT_NIC_CAP_CHIP_CAP:
                         memcpy(&mphy->chip_cap, (void *)skb->data, sizeof(u64));
+                        break;
+                /* TASK-016: BT Coexistence Detection.
+                 * Firmware reports coex capability. Store it and
+                 * log so the operator can verify with BT headset.
+                 * RUNTIME_VERIFY: verify coex capability with BT headset active
+                 */
+                case MT_NIC_CAP_COEX:
+                        phy->dev->bt_coex_supported = skb->data[0];
+                        if (phy->dev->bt_coex_supported)
+                                dev_info(phy->dev->mt76.dev,
+                                         "Bluetooth coexistence supported by firmware\n");
                         break;
                 default:
                         break;
@@ -1337,6 +1381,10 @@ int __mt7921_mcu_set_clc(struct mt792x_dev *dev, u8 *alpha2,
         u32 buf_len = 0;
         u8 *pos;
 
+        dev_dbg(dev->mt76.dev,
+                "__mt7921_mcu_set_clc: idx=%d alpha2=%c%c env_cap=%d\n",
+                idx, alpha2[0], alpha2[1], env_cap);
+
         if (!clc)
                 return 0;
 
@@ -1402,16 +1450,25 @@ int mt7921_mcu_set_clc(struct mt792x_dev *dev, u8 *alpha2,
         struct mt792x_phy *phy = (struct mt792x_phy *)&dev->phy;
         int i, ret;
 
+        dev_dbg(dev->mt76.dev,
+                "mt7921_mcu_set_clc: alpha2=%c%c env_cap=%d\n",
+                alpha2[0], alpha2[1], env_cap);
+
         /* submit all clc config */
         for (i = 0; i < ARRAY_SIZE(phy->clc); i++) {
+                dev_dbg(dev->mt76.dev, "set_clc: idx=%d alpha2=%c%c\n",
+                        i, alpha2[0], alpha2[1]);
                 ret = __mt7921_mcu_set_clc(dev, alpha2, env_cap,
                                            phy->clc[i], i);
 
                 /* If no country found, set "00" as default */
-                if (ret == -ENOENT)
+                if (ret == -ENOENT) {
+                        dev_dbg(dev->mt76.dev,
+                                "set_clc: idx=%d no match, retrying with alpha2=00\n", i);
                         ret = __mt7921_mcu_set_clc(dev, "00",
                                                    ENVIRON_INDOOR,
                                                    phy->clc[i], i);
+                }
                 if (ret < 0)
                         return ret;
         }

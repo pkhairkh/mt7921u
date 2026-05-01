@@ -1,0 +1,259 @@
+From: mt7921u Forensic Audit Project <mt7921u@project.local>
+Subject: [PATCH] wifi: mt76: mt7921: complete TWT implementation phases 2-3
+
+Implement TWT Phase 2 (station capability + debugfs) and Phase 3
+(eBPF hook stub) for the mt7921 driver.
+
+Phase 2a: Add IEEE80211_HE_MAC_CAP0_TWT_REQ and TWT_RES capability
+bits for NL80211_IFTYPE_STATION in mt7921_init_he_caps(), enabling
+the device to act as both TWT requester and responder in station mode.
+
+Phase 2b: Add twt_debugfs.c providing /sys/kernel/debug/ieee80211/phyX/
+mt76/twt_stats for visibility into active TWT agreements and service
+period counters. Iterates device wcid table to display per-flow
+parameters (wcid, table_id, flow_id, mantissa, exp, duration, tsf,
+protection, flowtype, trigger).
+
+Phase 2c: Add struct mt7921_twt_agrt_stats for tracking agreement
+count and missed service period events (stub until firmware event
+support).
+
+Phase 2d: Wire mt7921_twt_debugfs_init() into mt7921_init_debugfs()
+and store debugfs_dir in mt792x_dev for later access.
+
+Phase 3: Add eBPF TWT hook stub documentation block describing the
+intended BPF_PROG_TYPE_WIFI_TWT interface for filtering, monitoring,
+and dynamic adjustment of TWT agreements.
+
+Bus-aware: no PCIe/SDIO-specific code paths affected. All new code
+is shared across bus types.
+
+Signed-off-by: mt7921u Forensic Audit Project <mt7921u@project.local>
+---
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/Makefile b/drivers/net/wireless/mediatek/mt76/mt7921/Makefile
+index 0e40f0e..ba01b31 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/Makefile
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/Makefile
+@@ -5,7 +5,7 @@ obj-$(CONFIG_MT7921E) += mt7921e.o
+ obj-$(CONFIG_MT7921S) += mt7921s.o
+ obj-$(CONFIG_MT7921U) += mt7921u.o
+ 
+-mt7921-common-y := mac.o mcu.o main.o init.o debugfs.o twt.o csi.o
++mt7921-common-y := mac.o mcu.o main.o init.o debugfs.o twt.o twt_debugfs.o csi.o
+ mt7921-common-$(CONFIG_NL80211_TESTMODE) += testmode.o
+ mt7921e-y := pci.o pci_mac.o pci_mcu.o
+ mt7921s-y := sdio.o sdio_mac.o sdio_mcu.o
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c b/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
+index 4333005..cedcacd 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
+@@ -292,5 +292,10 @@ int mt7921_init_debugfs(struct mt792x_dev *dev)
+ 	if (mt76_is_sdio(&dev->mt76))
+ 		debugfs_create_devm_seqfile(dev->mt76.dev, "sched-quota", dir,
+ 					    mt7921s_sched_quota_read);
++
++	/* TWT debugfs statistics â TASK-007 */
++	dev->debugfs_dir = dir;
++	mt7921_twt_debugfs_init(dev);
++
+ 	return 0;
+ }
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/main.c b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+index f8e6cb2..964090b 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/main.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+@@ -93,6 +93,11 @@ mt7921_init_he_caps(struct mt792x_phy *phy, enum nl80211_band band,
+                         }
+                         break;
+                 case NL80211_IFTYPE_STATION:
++                        /* TWT requester + responder capability — TASK-007 */
++                        he_cap_elem->mac_cap_info[0] |=
++                                IEEE80211_HE_MAC_CAP0_TWT_REQ |
++                                IEEE80211_HE_MAC_CAP0_TWT_RES;
++                        /* RUNTIME_VERIFY: test with TWT-capable AP */
+                         he_cap_elem->mac_cap_info[1] |=
+                                 IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US;
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h b/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
+index fab84bf..90ae4bc 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
+@@ -370,6 +370,11 @@ struct mt7921_twt_flow {
+         u8 trigger:1;
+ };
+ 
++struct mt7921_twt_agrt_stats {
++        u32 n_agrt;
++        u32 n_missed_sp;  /* stub until firmware event support */
++};
++
+ void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
+                               struct ieee80211_sta *sta,
+                               struct ieee80211_twt_setup *twt);
+@@ -382,6 +387,8 @@ int mt7921_mcu_twt_agrt_update(struct mt792x_dev *dev,
+                                 struct mt792x_vif *mvif,
+                                 struct mt7921_twt_flow *flow,
+                                 int cmd);
++void mt7921_twt_debugfs_init(struct mt792x_dev *dev);
++void mt7921_twt_debugfs_remove(struct mt792x_dev *dev);
+ 
+ /* CSI (Channel State Information) — TASK-008 */
+ #define MT7921_CSI_RING_SIZE            1000
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/twt.c b/drivers/net/wireless/mediatek/mt76/mt7921/twt.c
+index dae0934..41dc26b 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/twt.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/twt.c
+@@ -260,3 +260,31 @@ void mt7921_twt_teardown_sta(struct mt792x_dev *dev,
+ 			mt7921_twt_teardown_flow(dev, msta, i);
+ 	}
+ }
++
++/*
++ * eBPF TWT Hook Stub â Future BPF_PROG_TYPE_WIFI_TWT attach point
++ *
++ * The intended interface would allow eBPF programs to:
++ *
++ * 1. Filter TWT setup requests before accepting/rejecting them.
++ *    - Input: struct mt7921_twt_flow (the proposed agreement)
++ *    - Return: 0 = accept, 1 = reject, 2 = modify (dictate parameters)
++ *
++ * 2. Monitor TWT service period events (wake/sleep transitions).
++ *    - Input: struct mt7921_twt_sp_event { u8 flowid; u64 tsf; bool is_wake; }
++ *    - Return: always 0 (monitoring only)
++ *
++ * 3. Dynamically adjust wake interval / duration based on traffic patterns.
++ *    - Input: struct mt7921_twt_traffic_stats { u32 tx_bytes; u32 rx_bytes; u64 tsf; }
++ *    - Return: 0 = keep current, 1 = modify (fill in new mantissa/exp)
++ *
++ * This requires a new BPF program type and attach type, plus a
++ * verification callback to ensure the program doesn't violate TWT
++ * timing constraints. The bpf_verifier_ops would need to check:
++ * - Wake interval >= min_twt_dur (MT7921_MIN_TWT_DUR = 64)
++ * - Mantissa * 2^exp results in a valid TU range
++ *
++ * For now, this is a placeholder. When implemented, the hook would be
++ * called from mt7921_mac_add_twt_setup() before accepting the agreement,
++ * and from a firmware event handler for service period monitoring.
++ */
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x.h b/drivers/net/wireless/mediatek/mt76/mt792x.h
+index e8a827e..43b7ecd 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x.h
++++ b/drivers/net/wireless/mediatek/mt76/mt792x.h
+@@ -275,6 +275,8 @@ struct mt792x_dev {
+                 u8 n_agrt;
+         } twt;
+ 
++        struct dentry *debugfs_dir;
++
+         /* CSI (Channel State Information) — TASK-008 */
+         struct mt7921_csi_info csi;
+ };
+
+--- /dev/null
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/twt_debugfs.c
+@@ -0,0 +1,104 @@
++// SPDX-License-Identifier: BSD-3-Clause-Clear
++/* Copyright (C) 2025 mt7921u Forensic Audit Project
++ *
++ * TWT (Target Wake Time) debugfs statistics for mt7921.
++ * Provides visibility into active TWT agreements and service period
++ * counters via /sys/kernel/debug/ieee80211/phyX/mt76/twt_stats.
++ */
++
++#include <linux/debugfs.h>
++#include "mt7921.h"
++
++static int
++mt7921_twt_stats_show(struct seq_file *s, void *data)
++{
++	struct mt792x_dev *dev = dev_get_drvdata(s->private);
++	struct mt7921_twt_agrt_stats stats;
++	struct mt76_wcid *wcid;
++	struct mt792x_sta *msta;
++	struct mt7921_twt_flow *flow;
++	int i, j;
++
++	/* RUNTIME_VERIFY: test with TWT-capable AP */
++
++	rcu_read_lock();
++
++	memset(&stats, 0, sizeof(stats));
++	stats.n_agrt = dev->twt.n_agrt;
++	/* n_missed_sp is stub until firmware event support */
++
++	seq_printf(s, "total agreements: %u\n", stats.n_agrt);
++	seq_printf(s, "missed SPs:       %u\n", stats.n_missed_sp);
++	seq_puts(s, "\n");
++
++	if (!stats.n_agrt)
++		goto out;
++
++	seq_puts(s, "     wcid | table_id | flow_id | mantissa | exp | duration");
++	seq_puts(s, " |            tsf | prot | type | trig\n");
++
++	for (i = 0; i < MT76_N_WCIDS; i++) {
++		wcid = rcu_dereference(dev->mt76.wcid[i]);
++		if (!wcid)
++			continue;
++
++		if (!wcid->sta)
++			continue;
++
++		msta = container_of(wcid, struct mt792x_sta, deflink.wcid);
++
++		for (j = 0; j < MT7921_MAX_STA_TWT_AGRT; j++) {
++			if (!(msta->twt.flowid_mask & BIT(j)))
++				continue;
++
++			flow = &msta->twt.flow[j];
++			seq_printf(s,
++				   "%9d | %8d | %7d | %8d | %3d | %8d | %14lld | %4c | %4c | %4c\n",
++				   flow->wcid, flow->table_id, flow->id,
++				   le16_to_cpu(flow->mantissa), flow->exp,
++				   flow->duration, flow->tsf,
++				   flow->protection ? 'p' : '-',
++				   flow->flowtype ? 'i' : 'a',
++				   flow->trigger ? 't' : '-');
++		}
++	}
++
++out:
++	rcu_read_unlock();
++
++	return 0;
++}
++
++static int
++mt7921_twt_stats_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, mt7921_twt_stats_show, inode->i_private);
++}
++
++static const struct file_operations mt7921_twt_stats_fops = {
++	.owner		= THIS_MODULE,
++	.open		= mt7921_twt_stats_open,
++	.read		= seq_read,
++	.llseek		= seq_lseek,
++	.release	= single_release,
++};
++
++void mt7921_twt_debugfs_init(struct mt792x_dev *dev)
++{
++	struct dentry *dir = dev->debugfs_dir;
++
++	if (!dir)
++		return;
++
++	/* RUNTIME_VERIFY: test with TWT-capable AP */
++	debugfs_create_file("twt_stats", 0400, dir, dev,
++			    &mt7921_twt_stats_fops);
++}
++
++void mt7921_twt_debugfs_remove(struct mt792x_dev *dev)
++{
++	/* debugfs entries are removed automatically when the parent
++	 * directory is removed, so no explicit cleanup is needed.
++	 */
++	dev->debugfs_dir = NULL;
++}

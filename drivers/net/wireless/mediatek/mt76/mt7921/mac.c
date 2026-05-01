@@ -19,6 +19,8 @@ bool mt7921_mac_wtbl_update(struct mt792x_dev *dev, int idx, u32 mask)
 {
         u32 wtbl_timeout = 5000; /* 5ms default for PCIe/SDIO */
 
+        dev_dbg(dev->mt76.dev, "wtbl_update: idx=%d mask=0x%08x\n", idx, mask);
+
         mt76_rmw(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_WLAN_IDX,
                  FIELD_PREP(MT_WTBL_UPDATE_WLAN_IDX, idx) | mask);
 
@@ -311,6 +313,16 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
         if (rxd1 & MT_RXD1_NORMAL_GROUP_2) {
                 status->timestamp = le32_to_cpu(rxd[0]);
                 status->flag |= RX_FLAG_MACTIME_START;
+
+                /* TASK-012: HW Timestamping — store the TSF from the RX
+                 * descriptor in status->mactime for hardware timestamping.
+                 * The RX descriptor Group 2 contains the timestamp low 32
+                 * bits at rxd[0] and high 32 bits at rxd[1]. Combine them
+                 * into a 64-bit TSF value for mac80211.
+                 * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
+                 */
+                status->mactime = le32_to_cpu(rxd[0]);
+                status->mactime |= ((u64)le32_to_cpu(rxd[1])) << 32;
 
                 if (!(rxd2 & MT_RXD2_NORMAL_NON_AMPDU)) {
                         status->flag |= RX_FLAG_AMPDU_DETAILS;

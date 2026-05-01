@@ -38,6 +38,9 @@ mt7921u_mcu_send_message(struct mt76_dev *mdev, struct sk_buff *skb,
         u32 pad, ep;
         int ret;
 
+        dev_dbg(mdev->dev, "mcu_send: cmd=0x%04x seq=%d\n",
+                cmd, seq ? *seq : -1);
+
         ret = mt76_connac2_mcu_fill_message(mdev, skb, cmd, seq);
         if (ret)
                 return ret;

@@ -370,6 +370,11 @@ struct mt7921_twt_flow {
         u8 trigger:1;
 };
 
+struct mt7921_twt_agrt_stats {
+        u32 n_agrt;
+        u32 n_missed_sp;  /* stub until firmware event support */
+};
+
 void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
                               struct ieee80211_sta *sta,
                               struct ieee80211_twt_setup *twt);
@@ -382,10 +387,23 @@ int mt7921_mcu_twt_agrt_update(struct mt792x_dev *dev,
                                 struct mt792x_vif *mvif,
                                 struct mt7921_twt_flow *flow,
                                 int cmd);
+void mt7921_twt_debugfs_init(struct mt792x_dev *dev);
+void mt7921_twt_debugfs_remove(struct mt792x_dev *dev);
+
+/* Runtime-verification test triggers (Step 4) */
+int mt7921_test_trigger_debugfs_init(struct mt792x_dev *dev);
+void mt7921_test_trigger_debugfs_remove(struct mt792x_dev *dev);
 
 /* CSI (Channel State Information) — TASK-008 */
 #define MT7921_CSI_RING_SIZE            1000
 #define MT7921_CSI_DATA_SIZE            256
+
+/* TASK-013: DFS Master Preparation */
+struct mt7921_dfs_state {
+        bool radar_detected;
+        u8 cac_band_idx;
+        u32 cac_time_ms;
+};
 
 enum mt7921_csi_control_mode {
         MT7921_CSI_CONTROL_STOP,
@@ -442,5 +460,44 @@ int mt7921_mcu_csi_control(struct mt792x_dev *dev, u8 band_idx,
                            enum mt7921_csi_config_item cfg_item,
                            u8 val1, u8 val2);
 void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb);
+int mt7921_csi_start(struct mt792x_dev *dev, u8 band_idx,
+                     enum mt7921_csi_output_format output_format);
+int mt7921_csi_stop(struct mt792x_dev *dev, u8 band_idx);
+void mt7921_csi_init(struct mt792x_dev *dev);
+void mt7921_csi_cleanup(struct mt792x_dev *dev);
+
+int mt7921_csi_nl80211_register(struct wiphy *wiphy);
+
+/*
+ * Radiotap vendor-extension field definition for CSI data
+ * (IEEE 802.11 Radiotap, vendor namespace)
+ *
+ * Vendor OUI: 0x00, 0x0C, 0xE7 (MediaTek)
+ * Vendor sub-namespace: 0x01 (CSI)
+ *
+ * Field format (aligned to 4 bytes):
+ *   Octets 0-2:   OUI (MediaTek: 00:0C:E7)
+ *   Octet 3:      Sub-namespace (0x01 = CSI)
+ *   Octets 4-5:   CSI skip length (for alignment)
+ *   Octet 6:      Bandwidth (20/40/80/160)
+ *   Octet 7:      Number of subcarriers (low byte)
+ *   Octet 8:      Number of subcarriers (high byte)
+ *   Octet 9:      RX mode (0=SISO, 1=MIMO, etc.)
+ *   Octet 10:     Primary channel index
+ *   Octet 11:     Reserved
+ *   Octets 12+:   CSI I/Q data (interleaved, int16 pairs)
+ *
+ * Alignment: 4-byte aligned within the radiotap header.
+ * The CSI I/Q data is in the same format as the firmware event:
+ *   - I and Q are 16-bit signed integers (little-endian)
+ *   - Subcarriers are ordered from lowest to highest frequency
+ *   - For 20 MHz: 64 subcarriers = 256 bytes of I/Q data
+ *   - For 40 MHz: 128 subcarriers = 512 bytes of I/Q data
+ *   - For 80 MHz: 256 subcarriers = 1024 bytes of I/Q data
+ *
+ * This is a definition-only comment. The actual runtime fill
+ * requires firmware event format confirmation on real hardware.
+ * RUNTIME_VERIFY: confirm CSI subcarrier count matches bandwidth
+ */
 
 #endif

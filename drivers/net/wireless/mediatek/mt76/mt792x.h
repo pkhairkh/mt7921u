@@ -195,6 +195,9 @@ struct mt792x_phy {
         wait_queue_head_t roc_wait;
         u8 roc_token_id;
         bool roc_grant;
+
+        /* TASK-013: DFS Master Preparation */
+        struct mt7921_dfs_state dfs_state;
 };
 
 struct mt792x_irq_map {
@@ -274,6 +277,11 @@ struct mt792x_dev {
                 u16 table_mask;
                 u8 n_agrt;
         } twt;
+
+        struct dentry *debugfs_dir;
+
+        /* TASK-016: BT Coexistence Detection */
+        bool bt_coex_supported;
 
         /* CSI (Channel State Information) — TASK-008 */
         struct mt7921_csi_info csi;

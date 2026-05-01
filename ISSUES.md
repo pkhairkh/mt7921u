@@ -56,7 +56,7 @@ This report supersedes the v3 forensic audit and contains one significant self-c
 | **Category** | Feature elimination / Regulatory compliance |
 | **Evidence** | `EVIDENCE: PROVEN` |
 | **Location** | `mt7921/mcu.c:425-427` |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-005 |
 
 **Call Chain:**
@@ -112,7 +112,7 @@ if (dev->mt76.bus_type == MT76_BUS_TYPE_USB)
 | **Category** | Crash |
 | **Evidence** | `EVIDENCE: PROVEN` |
 | **Location** | `mt7921/testmode.c:60` → `mt792x.h:210` → `usb.c:165-169` |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-001 |
 
 **Call chain:**
@@ -168,7 +168,7 @@ Call Trace:
 | **Category** | Reliability |
 | **Evidence** | `EVIDENCE: PROVEN` |
 | **Location** | `mt7921/mac.c:18-25` |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-002 |
 
 **Code Citation:**
@@ -221,7 +221,7 @@ if (!mt76_poll(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_BUSY,
 | **Category** | Reliability |
 | **Evidence** | `EVIDENCE: PROVEN` |
 | **Location** | `mt7921/mcu.c:25-31` |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-003 |
 
 **Code:**
@@ -285,7 +285,7 @@ if (ret == -ETIMEDOUT) {
 | **Category** | Error handling |
 | **Evidence** | `EVIDENCE: PROVEN` |
 | **Location** | `mt7921/mac.c:653-700` |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-006 |
 
 **Code Citation:**
@@ -328,7 +328,7 @@ if (ret) {
 | **Category** | Use-after-free |
 | **Evidence** | `EVIDENCE: PROVEN` (reinstated) |
 | **Location** | `mt792x_core.c:306` (timer), `mt792x_usb.c:300-318` (disconnect) |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-004 |
 
 **Description:** On USB disconnect, `mt792xu_disconnect()` does NOT cancel `phy->roc_timer` or `phy->roc_work`. If the ROC has expired from mac80211's perspective but the driver's `roc_timer` hasn't fired, there is no `ieee80211_roc` for `ieee80211_roc_purge_local()` to purge. The timer survives past `mt76_free_device()`, fires on freed memory.
@@ -420,7 +420,7 @@ The reinstatement of BUG-06 (ROC timer use-after-free) represents the most signi
 | **Category** | Missing feature |
 | **Evidence** | `EVIDENCE: PROVEN` |
 | **Root cause** | BUG-01 (CLC skip) |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-005 |
 
 **What exists:** Full 6 GHz infrastructure in mainline: `MT_NIC_CAP_6G` capability query, `NL80211_BAND_6GHZ` HE caps, UNII-5/6/7/8 channel flags, SP/VLP/LPI power type handlers.
@@ -436,7 +436,7 @@ The reinstatement of BUG-06 (ROC timer use-after-free) represents the most signi
 | **Severity** | Major |
 | **Category** | Missing feature |
 | **Evidence** | `EVIDENCE: PROVEN` (firmware cmd 0x94 exists in patch table) |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-007 |
 
 **What exists in mainline:** Nothing. No TWT mac80211 ops, no MCU command definitions, no TWT capability bits.
@@ -452,7 +452,7 @@ The reinstatement of BUG-06 (ROC timer use-after-free) represents the most signi
 | **Severity** | Major |
 | **Category** | Missing feature |
 | **Evidence** | `EVIDENCE: PROBABLE` (firmware radar detection capability unconfirmed) |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-013 |
 
 **What exists:** Channel-switch infrastructure with `CH_SWITCH_DFS` reason in `mt7921_mcu_set_chan_info()`.
@@ -470,7 +470,7 @@ The reinstatement of BUG-06 (ROC timer use-after-free) represents the most signi
 | **Severity** | Medium |
 | **Category** | Missing feature |
 | **Evidence** | `EVIDENCE: SPECULATIVE` (firmware autonomous behavior not confirmed) |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-016 |
 
 **Analysis:** The MT7921 is a combo chip. Basic TDM coexistence is likely firmware-autonomous (common for MediaTek combo chips). The vendor driver adds host-side rate-limiting hints (`EXT_CMD_ID_COEXISTENCE`, PHY rate limiting). Without these hints, WiFi works but throughput may degrade during BT activity.
@@ -488,7 +488,7 @@ The reinstatement of BUG-06 (ROC timer use-after-free) represents the most signi
 | **Severity** | Medium |
 | **Category** | Missing feature |
 | **Evidence** | `EVIDENCE: PROVEN` |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-017 |
 
 **What exists:** Mainline uses 2-3 bulk OUT endpoints via `mt76u_ac_to_hwq()`.
@@ -506,7 +506,7 @@ The reinstatement of BUG-06 (ROC timer use-after-free) represents the most signi
 | **Severity** | Low |
 | **Category** | Missing feature |
 | **Evidence** | `EVIDENCE: PROVEN` |
-| **Status** | Open |
+| **Status** | Patched |
 | **Tasks** | TASK-018 |
 
 **Mainline:** Uses `MCU_CMD(FW_SCATTER)` with `wait_resp=false` — fire-and-forget.

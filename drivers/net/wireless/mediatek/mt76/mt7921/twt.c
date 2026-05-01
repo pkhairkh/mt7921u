@@ -260,3 +260,31 @@ void mt7921_twt_teardown_sta(struct mt792x_dev *dev,
 			mt7921_twt_teardown_flow(dev, msta, i);
 	}
 }
+
+/*
+ * eBPF TWT Hook Stub â Future BPF_PROG_TYPE_WIFI_TWT attach point
+ *
+ * The intended interface would allow eBPF programs to:
+ *
+ * 1. Filter TWT setup requests before accepting/rejecting them.
+ *    - Input: struct mt7921_twt_flow (the proposed agreement)
+ *    - Return: 0 = accept, 1 = reject, 2 = modify (dictate parameters)
+ *
+ * 2. Monitor TWT service period events (wake/sleep transitions).
+ *    - Input: struct mt7921_twt_sp_event { u8 flowid; u64 tsf; bool is_wake; }
+ *    - Return: always 0 (monitoring only)
+ *
+ * 3. Dynamically adjust wake interval / duration based on traffic patterns.
+ *    - Input: struct mt7921_twt_traffic_stats { u32 tx_bytes; u32 rx_bytes; u64 tsf; }
+ *    - Return: 0 = keep current, 1 = modify (fill in new mantissa/exp)
+ *
+ * This requires a new BPF program type and attach type, plus a
+ * verification callback to ensure the program doesn't violate TWT
+ * timing constraints. The bpf_verifier_ops would need to check:
+ * - Wake interval >= min_twt_dur (MT7921_MIN_TWT_DUR = 64)
+ * - Mantissa * 2^exp results in a valid TU range
+ *
+ * For now, this is a placeholder. When implemented, the hook would be
+ * called from mt7921_mac_add_twt_setup() before accepting the agreement,
+ * and from a firmware event handler for service period monitoring.
+ */

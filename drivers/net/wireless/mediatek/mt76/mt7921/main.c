@@ -93,6 +93,11 @@ mt7921_init_he_caps(struct mt792x_phy *phy, enum nl80211_band band,
                         }
                         break;
                 case NL80211_IFTYPE_STATION:
+                        /* TWT requester + responder capability — TASK-007 */
+                        he_cap_elem->mac_cap_info[0] |=
+                                IEEE80211_HE_MAC_CAP0_TWT_REQ |
+                                IEEE80211_HE_MAC_CAP0_TWT_RES;
+                        /* RUNTIME_VERIFY: test with TWT-capable AP */
                         he_cap_elem->mac_cap_info[1] |=
                                 IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US;
 
@@ -393,9 +398,12 @@ void mt7921_roc_work(struct work_struct *work)
         phy = (struct mt792x_phy *)container_of(work, struct mt792x_phy,
                                                 roc_work);
 
+        dev_dbg(phy->dev->mt76.dev, "roc_work: enter\n");
+
         mt792x_mutex_acquire(phy->dev);
         if (!test_and_clear_bit(MT76_STATE_ROC, &phy->mt76->state)) {
                 mt792x_mutex_release(phy->dev);
+                dev_dbg(phy->dev->mt76.dev, "roc_work: exit (not in ROC state)\n");
                 return;
         }
         ieee80211_iterate_active_interfaces(phy->mt76->hw,
@@ -403,6 +411,7 @@ void mt7921_roc_work(struct work_struct *work)
                                             mt7921_roc_iter, phy);
         mt792x_mutex_release(phy->dev);
         ieee80211_remain_on_channel_expired(phy->mt76->hw);
+        dev_dbg(phy->dev->mt76.dev, "roc_work: exit (ROC expired)\n");
 }
 
 static int mt7921_abort_roc(struct mt792x_phy *phy, struct mt792x_vif *vif)
@@ -1536,6 +1545,55 @@ static void mt7921_rfkill_poll(struct ieee80211_hw *hw)
         wiphy_rfkill_set_hw_state(hw->wiphy, ret ? false : true);
 }
 
+/* TASK-013: DFS Master Preparation — start_radar_detection stub.
+ * Sends UNI_RDD_ON_OFF_CTRL to firmware to enable radar detection,
+ * records the CAC request, and returns success.
+ * CAC timing depends on firmware — actual wait is handled by
+ * mac80211 once the radar detector is armed.
+ * RUNTIME_VERIFY: CAC timing depends on firmware
+ */
+static int
+mt7921_start_radar_detection(struct ieee80211_hw *hw,
+                             struct ieee80211_vif *vif,
+                             struct cfg80211_chan_def *chandef,
+                             u32 cac_time_ms)
+{
+        struct mt792x_phy *phy = mt792x_hw_phy(hw);
+        struct mt792x_dev *dev = phy->dev;
+        struct {
+                __le16 tag;
+                __le16 len;
+                u8 rdd_idx;
+                u8 enable;
+                u8 rsv[2];
+        } __packed req = {
+                .tag = cpu_to_le16(UNI_RDD_ON_OFF_CTRL),
+                .len = cpu_to_le16(sizeof(req) - 4),
+                .rdd_idx = 0,
+                .enable = 1,
+        };
+        int ret;
+
+        phy->dfs_state.radar_detected = false;
+        phy->dfs_state.cac_band_idx = 0;
+        phy->dfs_state.cac_time_ms = cac_time_ms;
+
+        mt792x_mutex_acquire(dev);
+        ret = mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
+                                &req, sizeof(req), true);
+        mt792x_mutex_release(dev);
+
+        if (ret)
+                dev_err(dev->mt76.dev,
+                        "Failed to start radar detection: %d\n", ret);
+        else
+                dev_dbg(dev->mt76.dev,
+                        "Radar detection started, CAC time %u ms\n",
+                        cac_time_ms);
+
+        return ret;
+}
+
 const struct ieee80211_ops mt7921_ops = {
         .tx = mt792x_tx,
         .start = mt7921_start,
@@ -1603,6 +1661,8 @@ const struct ieee80211_ops mt7921_ops = {
         .channel_switch_rx_beacon = mt7921_channel_switch_rx_beacon,
         .add_twt_setup = mt7921_mac_add_twt_setup,
         .twt_teardown_request = mt7921_twt_teardown_request,
+        /* TASK-013: DFS Master Preparation */
+        .start_radar_detection = mt7921_start_radar_detection,
 };
 EXPORT_SYMBOL_GPL(mt7921_ops);
 

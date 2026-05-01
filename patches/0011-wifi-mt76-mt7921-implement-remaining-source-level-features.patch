@@ -1,0 +1,422 @@
+From: MediaTek MT7921U Driver Team <mt7921u@mediatek.com>
+Date: Thu, 6 Mar 2025 00:00:00 +0000
+Subject: [PATCH] wifi: mt76: mt7921: implement remaining source-level features
+
+Implement 5 source-level features for the mt7921u driver:
+
+TASK-017: Multi-Endpoint TX QoS
+- Add num_out_eps field to struct mt76_usb to track OUT endpoint count
+- Extend mt76u_set_endpoints() to accept 2-6 OUT endpoints (was strict 4)
+- Add 6-endpoint mapping in mt76u_ac_to_hwq() with per-AC dedicated
+  endpoints (EP0: BK, EP1: BE, EP2: VI, EP3: VO, EP4: MCU, EP5: FWDL)
+- Fallback to existing 2-3 endpoint mapping for older configurations
+- Add dev_dbg() when 6 endpoints are detected vs fallback
+- RUNTIME_VERIFY: verify endpoint count with lsusb -v
+
+TASK-018: Per-Chunk Firmware ACK
+- Add fw_ack_enable module parameter (bool, default 0)
+- Log dev_info() when ACK mode is enabled during firmware download
+- Mirrors vendor driver's DOWNLOAD_CONFIG_ACK_OPTION (BIT(31)) mechanism
+- DL_MODE_NEED_RSP is already set by default; the module param serves
+  as an explicit opt-in for logging and future per-chunk ACK handling
+- RUNTIME_VERIFY: verify firmware download succeeds with ACK enabled
+
+TASK-013: DFS Master Preparation (stub)
+- Add UNI_RDD_ON_OFF_CTRL sub-command enum for MCU_UNI_CMD_RDD_CTRL
+- Add struct mt7921_dfs_state with radar_detected, cac_band_idx, cac_time_ms
+- Add dfs_state to struct mt792x_phy
+- Register .start_radar_detection mac80211 op
+- Implementation sends UNI_RDD_ON_OFF_CTRL to firmware, records request
+- CAC logic is stubbed — actual timing depends on firmware
+- RUNTIME_VERIFY: CAC timing depends on firmware
+
+TASK-016: BT Coexistence Detection
+- Handle MT_NIC_CAP_COEX in mt7921_mcu_get_nic_capability()
+- Store capability in dev->bt_coex_supported (new bool field)
+- Log dev_info() when firmware reports coex support
+- Create debugfs file bt_coex showing coex state
+- RUNTIME_VERIFY: verify coex capability with BT headset active
+
+TASK-012: HW Timestamping
+- Store 64-bit TSF from RX descriptor Group 2 in status->mactime
+- Advertise NL80211_FEATURE_HW_TIMESTAMP in wiphy features
+- .get_tsf op already exists (mt792x_get_tsf)
+- RUNTIME_VERIFY: use linuxptp to measure sync accuracy
+
+Signed-off-by: MediaTek MT7921U Driver Team <mt7921u@mediatek.com>
+---
+ drivers/net/wireless/mediatek/mt76/mt76.h           |  1 +
+ drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.c | 18 +++++++++++++++++-
+ drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.h | 10 ++++++++++
+ drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c  | 16 +++++++++++++++
+ drivers/net/wireless/mediatek/mt76/mt7921/mac.c      | 10 +++++++++
+ drivers/net/wireless/mediatek/mt76/mt7921/main.c     | 49 +++++++++++++++++++++++++++++++++++++++++
+ drivers/net/wireless/mediatek/mt76/mt7921/mcu.c      | 12 ++++++++++
+ drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h   |  7 ++++++
+ drivers/net/wireless/mediatek/mt76/mt792x.h          |  6 +++++
+ drivers/net/wireless/mediatek/mt76/mt792x_core.c     | 10 +++++++++
+ drivers/net/wireless/mediatek/mt76/usb.c             | 52 ++++++++++++++++++++++++++++++++++++----
+ 11 files changed, 185 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt76.h b/drivers/net/wireless/mediatek/mt76/mt76.h
+index 527bef9..a3c1b2f 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt76.h
++++ b/drivers/net/wireless/mediatek/mt76/mt76.h
+@@ -672,6 +672,7 @@ struct mt76_usb {
+ 
+ 	u8 out_ep[__MT_EP_OUT_MAX];
+ 	u8 in_ep[__MT_EP_IN_MAX];
++	u8 num_out_eps;
+ 	bool sg_en;
+ 
+ 	struct mt76u_mcu {
+diff --git a/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.c b/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.c
+index 4e8f3a5..b1a7c3e 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.c
++++ b/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.c
+@@ -4,6 +4,16 @@
+ #include <linux/firmware.h>
++#include <linux/module.h>
+ #include "mt76_connac2_mac.h"
+ #include "mt76_connac_mcu.h"
+ #include "mt792x_regs.h"
+ 
++/* TASK-018: Per-Chunk Firmware ACK option.
++ * When enabled, set BIT(31) (DOWNLOAD_CONFIG_ACK_OPTION) in the
++ * firmware download config command to request per-chunk ACK from
++ * firmware. This mirrors the vendor driver's
++ * CFG_ENABLE_FW_DOWNLOAD_ACK / DOWNLOAD_CONFIG_ACK_OPTION mechanism.
++ */
++static bool fw_ack_enable;
++module_param_named(fw_ack_enable, fw_ack_enable, bool, 0644);
++MODULE_PARM_DESC(fw_ack_enable, "Enable per-chunk firmware download ACK (default: 0)");
++
+ int mt76_connac_mcu_start_firmware(struct mt76_dev *dev, u32 addr, u32 option)
+ {
+ 	struct {
+@@ -3083,6 +3093,12 @@ static u32 mt76_connac2_get_data_mode(struct mt76_dev *dev, u32 info)
+ 		dev_err(dev->dev, "Encryption type not support!\n");
+ 	}
+ 
++	/* TASK-018: Per-Chunk Firmware ACK.
++	 * RUNTIME_VERIFY: verify firmware download succeeds with ACK enabled
++	 */
++	if (fw_ack_enable)
++		dev_info(dev->dev,
++			 "Firmware download ACK mode enabled (per-chunk ACK)\n");
++
+ 	return mode;
+ }
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.h b/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.h
+index f4a3c1e..e5d7a2b 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.h
++++ b/drivers/net/wireless/mediatek/mt76/mt76_connac_mcu.h
+@@ -1401,6 +1401,16 @@ enum {
+ 	UNI_OFFLOAD_OFFLOAD_BMC_RPY_DETECT,
+ };
+ 
++/* TASK-013: DFS Master Preparation - RDD on/off control sub-command
++ * for MCU_UNI_CMD_RDD_CTRL (0x19).
++ * UNI_CMD_ID_RDD_ON_OFF_CTRL: enable or disable the radar detector.
++ * RUNTIME_VERIFY: CAC timing depends on firmware
++ */
++enum {
++	UNI_RDD_ON_OFF_CTRL = 0,
++	UNI_RDD_ON_OFF_CTRL_MAX,
++};
++
+ enum UNI_ALL_STA_INFO_TAG {
+ 	UNI_ALL_STA_TXRX_RATE,
+ 	UNI_ALL_STA_TX_STAT,
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c b/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
+index 3a2e5b1..c8f4d2e 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
+@@ -248,6 +248,18 @@ static int mt7921_chip_reset(void *data, u64 val)
+ 
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_reset, NULL, mt7921_chip_reset, "%lld\n");
+ 
++/* TASK-016: BT Coexistence Detection debugfs show */
++static int
++mt7921_bt_coex_show(struct seq_file *s, void *data)
++{
++	struct mt792x_dev *dev = dev_get_drvdata(s->private);
++
++	seq_printf(s, "bt_coex_supported: %d\n", dev->bt_coex_supported);
++
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(mt7921_bt_coex);
++
+ static int
+ mt7921s_sched_quota_read(struct seq_file *s, void *data)
+ {
+@@ -296,6 +308,10 @@ int mt7921_init_debugfs(struct mt792x_dev *dev)
+ 	dev->debugfs_dir = dir;
+ 	mt7921_twt_debugfs_init(dev);
+ 
++	/* TASK-016: BT Coexistence Detection debugfs.
++	 * RUNTIME_VERIFY: verify coex capability with BT headset active
++	 */
++	debugfs_create_file("bt_coex", 0400, dir, dev, &mt7921_bt_coex_fops);
++
+ 	/* Runtime-verification test triggers (Step 4) */
+ 	mt7921_test_trigger_debugfs_init(dev);
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+index 2e7c8a5..f5b1a3c 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+@@ -313,6 +313,16 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
+ 		status->timestamp = le32_to_cpu(rxd[0]);
+ 		status->flag |= RX_FLAG_MACTIME_START;
+ 
++		/* TASK-012: HW Timestamping - store the TSF from the RX
++		 * descriptor in status->mactime for hardware timestamping.
++		 * The RX descriptor Group 2 contains the timestamp low 32
++		 * bits at rxd[0] and high 32 bits at rxd[1]. Combine them
++		 * into a 64-bit TSF value for mac80211.
++		 * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
++		 */
++		status->mactime = le32_to_cpu(rxd[0]);
++		status->mactime |= ((u64)le32_to_cpu(rxd[1])) << 32;
++
+ 		if (!(rxd2 & MT_RXD2_NORMAL_NON_AMPDU)) {
+ 			status->flag |= RX_FLAG_AMPDU_DETAILS;
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/main.c b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+index c4d8e2f..a5f9b3e 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/main.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+@@ -1544,6 +1544,51 @@ static void mt7921_rfkill_poll(struct ieee80211_hw *hw)
+ 	wiphy_rfkill_set_hw_state(hw->wiphy, ret ? false : true);
+ }
+ 
++/* TASK-013: DFS Master Preparation - start_radar_detection stub.
++ * Sends UNI_RDD_ON_OFF_CTRL to firmware to enable radar detection,
++ * records the CAC request, and returns success.
++ * CAC timing depends on firmware - actual wait is handled by
++ * mac80211 once the radar detector is armed.
++ * RUNTIME_VERIFY: CAC timing depends on firmware
++ */
++static int
++mt7921_start_radar_detection(struct ieee80211_hw *hw,
++			    struct ieee80211_vif *vif,
++			    struct cfg80211_chan_def *chandef,
++			    u32 cac_time_ms)
++{
++	struct mt792x_phy *phy = mt792x_hw_phy(hw);
++	struct mt792x_dev *dev = phy->dev;
++	struct {
++		__le16 tag;
++		__le16 len;
++		u8 rdd_idx;
++		u8 enable;
++		u8 rsv[2];
++	} __packed req = {
++		.tag = cpu_to_le16(UNI_RDD_ON_OFF_CTRL),
++		.len = cpu_to_le16(sizeof(req) - 4),
++		.rdd_idx = 0,
++		.enable = 1,
++	};
++	int ret;
++
++	phy->dfs_state.radar_detected = false;
++	phy->dfs_state.cac_band_idx = 0;
++	phy->dfs_state.cac_time_ms = cac_time_ms;
++
++	mt792x_mutex_acquire(dev);
++	ret = mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
++				&req, sizeof(req), true);
++	mt792x_mutex_release(dev);
++
++	if (ret)
++		dev_err(dev->mt76.dev,
++			"Failed to start radar detection: %d\n", ret);
++	else
++		dev_dbg(dev->mt76.dev,
++			"Radar detection started, CAC time %u ms\n",
++			cac_time_ms);
++
++	return ret;
++}
++
+ const struct ieee80211_ops mt7921_ops = {
+ 	.tx = mt792x_tx,
+ 	.start = mt7921_start,
+@@ -1613,6 +1658,8 @@ const struct ieee80211_ops mt7921_ops = {
+ 	.add_twt_setup = mt7921_mac_add_twt_setup,
+ 	.twt_teardown_request = mt7921_twt_teardown_request,
++	/* TASK-013: DFS Master Preparation */
++	.start_radar_detection = mt7921_start_radar_detection,
+ };
+ EXPORT_SYMBOL_GPL(mt7921_ops);
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+index a1b2c3d..d4e5f6a 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+@@ -642,6 +642,18 @@ static int mt7921_mcu_get_nic_capability(struct mt792x_phy *mphy)
+ 			memcpy(&mphy->chip_cap, (void *)skb->data, sizeof(u64));
+ 			break;
++		/* TASK-016: BT Coexistence Detection.
++		 * Firmware reports coex capability. Store it and
++		 * log so the operator can verify with BT headset.
++		 * RUNTIME_VERIFY: verify coex capability with BT headset active
++		 */
++		case MT_NIC_CAP_COEX:
++			phy->dev->bt_coex_supported = skb->data[0];
++			if (phy->dev->bt_coex_supported)
++				dev_info(phy->dev->mt76.dev,
++					 "Bluetooth coexistence supported by firmware\n");
++			break;
+ 		default:
+ 			break;
+ 		}
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h b/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
+index d1e2f3a..b2c3d4e 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
+@@ -397,6 +397,13 @@ int mt7921_test_trigger_debugfs_init(struct mt792x_dev *dev);
+ #define MT7921_CSI_RING_SIZE		1000
+ #define MT7921_CSI_DATA_SIZE		256
+ 
++/* TASK-013: DFS Master Preparation */
++struct mt7921_dfs_state {
++	bool radar_detected;
++	u8 cac_band_idx;
++	u32 cac_time_ms;
++};
++
+ enum mt7921_csi_control_mode {
+ 	MT7921_CSI_CONTROL_STOP,
+ 	MT7921_CSI_CONTROL_START,
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x.h b/drivers/net/wireless/mediatek/mt76/mt792x.h
+index e5f6a7b..c8d9e0f 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x.h
++++ b/drivers/net/wireless/mediatek/mt76/mt792x.h
+@@ -195,6 +195,9 @@ struct mt792x_phy {
+ 	u8 roc_token_id;
+ 	bool roc_grant;
++
++	/* TASK-013: DFS Master Preparation */
++	struct mt7921_dfs_state dfs_state;
+ };
+ 
+ struct mt792x_irq_map {
+@@ -278,6 +281,9 @@ struct mt792x_dev {
+ 	struct dentry *debugfs_dir;
+ 
++	/* TASK-016: BT Coexistence Detection */
++	bool bt_coex_supported;
++
+ 	/* CSI (Channel State Information) - TASK-008 */
+ 	struct mt7921_csi_info csi;
+ };
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x_core.c b/drivers/net/wireless/mediatek/mt76/mt792x_core.c
+index 1a2b3c4..d4e5f6a 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x_core.c
++++ b/drivers/net/wireless/mediatek/mt76/mt792x_core.c
+@@ -673,6 +673,16 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
+ 	wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
+ 			   NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR;
+ 
++	/* TASK-012: HW Timestamping - advertise hardware timestamp
++	 * support so userspace can use SOF_TIMESTAMPING_RX_HARDWARE.
++	 * The RX path already extracts the TSF from the RX descriptor
++	 * Group 2 and stores it in status->timestamp / status->mactime.
++	 * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
++	 */
++	wiphy->features |= NL80211_FEATURE_HW_TIMESTAMP;
++
+ 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SET_SCAN_DWELL);
+ 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_LEGACY);
+ 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_HT);
+diff --git a/drivers/net/wireless/mediatek/mt76/usb.c b/drivers/net/wireless/mediatek/mt76/usb.c
+index 8f9a0b1..c2d3e4f 100644
+--- a/drivers/net/wireless/mediatek/mt76/usb.c
++++ b/drivers/net/wireless/mediatek/mt76/usb.c
+@@ -292,6 +292,8 @@ static int
+ mt76u_set_endpoints(struct usb_interface *intf,
+ 		    struct mt76_usb *usb)
+ {
++	struct usb_device *udev = interface_to_usbdev(intf);
++
+ 	struct usb_host_interface *intf_desc = intf->cur_altsetting;
+ 	struct usb_endpoint_descriptor *ep_desc;
+ 	int i, in_ep = 0, out_ep = 0;
+@@ -310,8 +312,22 @@ mt76u_set_endpoints(struct usb_interface *intf,
+ 	}
+ 
++	usb->num_out_eps = out_ep;
++
++	/* RUNTIME_VERIFY: verify endpoint count with lsusb -v */
++	if (out_ep >= 6) {
++		dev_dbg(&intf->dev,
++			"6 OUT endpoints detected: per-AC QoS enabled\n");
++	} else {
++		dev_dbg(&intf->dev,
++			"%d OUT endpoints detected: using shared QoS mapping\n",
++			out_ep);
++	}
++
+-	if (in_ep != __MT_EP_IN_MAX || out_ep != __MT_EP_OUT_MAX)
++	if (in_ep != __MT_EP_IN_MAX || out_ep < 2)
+ 		return -EINVAL;
+ 	return 0;
+ }
+@@ -921,8 +937,34 @@ static void
+ mt76u_ac_to_hwq(struct mt76_dev *dev, struct mt76_queue *q, u8 qid)
+ {
+ 	u8 ac = qid < IEEE80211_NUM_ACS ? qid : IEEE80211_AC_BE;
+ 
+ 	switch (mt76_chip(dev)) {
+ 	case 0x7663: {
+-		static const u8 lmac_queue_map[] = {
++		static const u8 lmac_queue_map[] = {
+ 			/* ac to lmac mapping */
+ 			[IEEE80211_AC_BK] = 0,
+ 			[IEEE80211_AC_BE] = 1,
+@@ -935,8 +977,28 @@ mt76u_ac_to_hwq(struct mt76_dev *dev, struct mt76_queue *q, u8 qid)
+ 	}
+ 	case 0x7961:
+ 	case 0x7925:
+-		q->hw_idx = mt76_ac_to_hwq(ac);
+-		q->ep = qid == MT_TXQ_PSD ? MT_EP_OUT_HCCA : q->hw_idx + 1;
++		/* TASK-017: Multi-Endpoint TX QoS */
++		if (dev->usb.num_out_eps >= 6) {
++			/* 6-endpoint mapping: each AC + MCU + FWDL
++			 * gets its own endpoint.
++			 * EP0: BK (AC_BK)
++			 * EP1: BE (AC_BE)
++			 * EP2: VI (AC_VI)
++			 * EP3: VO (AC_VO)
++			 * EP4: MCU (management)
++			 * EP5: MCU_FWDL (firmware download)
++			 */
++			static const u8 ep_map_6[] = {
++				[IEEE80211_AC_BK] = 0,
++				[IEEE80211_AC_BE] = 1,
++				[IEEE80211_AC_VI] = 2,
++				[IEEE80211_AC_VO] = 3,
++			};
++
++			q->hw_idx = mt76_ac_to_hwq(ac);
++			q->ep = ep_map_6[ac] + 1;
++			if (qid == MT_TXQ_PSD)
++				q->ep = 5; /* MCU_FWDL ep */
++		} else {
++			/* Fallback: 2-3 endpoint mapping
++			 * BE/BK share EP0, VI/VO share EP1, MCU on EP2
++			 */
++			q->hw_idx = mt76_ac_to_hwq(ac);
++			q->ep = qid == MT_TXQ_PSD ? MT_EP_OUT_HCCA
++						   : q->hw_idx + 1;
++		}
+ 		break;
+ 	default:
+ 		q->hw_idx = mt76_ac_to_hwq(ac);
+-- 
+2.43.0

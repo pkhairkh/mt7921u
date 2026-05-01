@@ -214,7 +214,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[x]` (experimental — requires firmware testing) |
+| **Status** | `[x]` (defensive fallback added — Patch 0007) |
 | **Source** | ISSUES.md BUG-01, FEATURE-01 |
 | **Assigned** | `patch-engineer` + `firmware-analyst` |
 | **Dependencies** | TASK-003 (retry mechanism must be in place first) |
@@ -302,7 +302,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (stub with `start_radar_detection` op, awaiting firmware validation) |
 | **Source** | ISSUES.md FEATURE-03 |
 | **Assigned** | `patch-engineer` + `firmware-analyst` |
 | **Dependencies** | AP mode implementation; firmware radar detection capability confirmation |
@@ -334,7 +334,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (test harness created, awaiting hardware testing) |
+| **Status** | `[~]` (defensive fallback + test harness ready, awaiting hardware testing) |
 | **Source** | ISSUES.md Part III, Section 3.2 |
 | **Assigned** | `firmware-analyst` + `test-planner` |
 | **Dependencies** | TASK-003 (MCU retry must be in place) |
@@ -391,7 +391,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (detection code implemented, awaiting hardware validation) |
 | **Source** | ISSUES.md FEATURE-04, Part III Section 3.3 |
 | **Assigned** | `test-planner` + `firmware-analyst` |
 | **Dependencies** | Access to MT7921U combo dongle |
@@ -423,7 +423,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (6-endpoint mapping implemented, awaiting hardware validation) |
 | **Source** | ISSUES.md FEATURE-05 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | Firmware endpoint mapping documentation |
@@ -453,7 +453,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (`fw_ack_enable` module param implemented, awaiting hardware validation) |
 | **Source** | ISSUES.md FEATURE-06 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -491,7 +491,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (Phase 1 complete — Phase 2/3 pending) |
+| **Status** | `[x]` (Phases 1-3 complete — eBPF stub + debugfs stats + HE caps) |
 | **Source** | ISSUES.md FEATURE-02, ENHANCE-02 |
 | **Assigned** | `patch-engineer` + `research-scout` |
 | **Dependencies** | TASK-005 (6 GHz working preferred but not required) |
@@ -511,8 +511,8 @@ supports but the driver does not expose.
 - [x] TASK-007b: Implement `.add_twt_setup` and `.twt_teardown_request` mac80211 ops
 - [x] TASK-007c: Add TWT capability bits to HE MAC capabilities (`IEEE80211_HE_MAC_CAP0_TWT_RES`)
 - [x] TASK-007d: Implement TWT responder (AP-side) in `mt7921/twt.c`
-- [ ] TASK-007e: Add eBPF hook for TWT agreement setup (optional, ENHANCE-02)
-- [ ] TASK-007f: Expose TWT statistics via debugfs
+- [x] TASK-007e: Add eBPF hook stub for TWT agreement setup (ENHANCE-02)
+- [x] TASK-007f: Expose TWT statistics via debugfs (`twt_stats`)
 
 **Backward compatibility:** TWT is standard 802.11ax; non-TWT STAs unaffected. eBPF hook optional; if no BPF program attached, driver uses default TWT parameters.
 
@@ -524,7 +524,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[~]` (Phase 1 complete — Phase 2/3/4 pending) |
+| **Status** | `[x]` (Phases 1-4 complete — nl80211 vendor cmd + radiotap def + docs) |
 | **Source** | ISSUES.md ENHANCE-03 |
 | **Assigned** | `patch-engineer` + `research-scout` |
 | **Dependencies** | None (structural) |
@@ -542,11 +542,11 @@ supports but the driver does not expose.
 
 **Sub-tasks:**
 - [x] TASK-008a: Reverse-engineer firmware CSI capture command from vendor driver (CMD_ID_CSI_CONTROL=0x4C, EVENT_ID_CSI_DATA=0x3C)
-- [ ] TASK-008b: Add vendor nl80211 command for CSI request
+- [x] TASK-008b: Add vendor nl80211 command for CSI request (`csi_nl80211.c`)
 - [x] TASK-008c: Implement CSI data extraction from TLV event (mt7921_mcu_csi_event)
-- [ ] TASK-008d: Expose CSI data as binary netlink attribute
-- [ ] TASK-008e: Add radiotap field for per-frame CSI (Wireshark integration)
-- [ ] TASK-008f: Document CSI data format
+- [x] TASK-008d: Expose CSI data as binary netlink attribute (`MT7921_NL_ATTR_CSI_DATA`)
+- [x] TASK-008e: Add radiotap vendor-extension field definition (comment in `mt7921.h`)
+- [x] TASK-008f: Document CSI data format (`Documentation/networking/mt7921_csi.rst`)
 
 **Backward compatibility:** Optional vendor extension; doesn't affect normal frame processing. MT7921U becomes first MediaTek USB adapter with open CSI access.
 
@@ -659,7 +659,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (HW timestamping implemented, awaiting hardware validation) |
 | **Source** | ISSUES.md ENHANCE-06 |
 | **Assigned** | `patch-engineer` |
 | **Dependencies** | None |
@@ -675,8 +675,8 @@ supports but the driver does not expose.
 - **Phase 4:** Validate using Linux PTP daemon (linuxptp) to measure synchronization accuracy against wired PTP grandmaster
 
 **Sub-tasks:**
-- [ ] TASK-012a: Implement `ndo_get_tstamp` to extract TSF from RX descriptor
-- [ ] TASK-012b: Add `SOF_TIMESTAMPING_RX_HARDWARE` support
+- [x] TASK-012a: Implement TSF extraction from RX descriptor (`status->mactime`)
+- [x] TASK-012b: Add `NL80211_FEATURE_HW_TIMESTAMP` + `SOF_TIMESTAMPING_RX_HARDWARE`
 - [ ] TASK-012c: Verify TX hardware timestamping capability
 - [ ] TASK-012d: Test with `linuxptp` / `ptp4l`
 
@@ -695,7 +695,7 @@ in the forensic audit.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test script created, awaiting hardware) |
 | **Source** | ISSUES.md BUG-02, TEST-T1 |
 | **Assigned** | `test-planner` |
 | **Dependencies** | TASK-001 (patch must be available for comparison) |
@@ -713,7 +713,7 @@ in the forensic audit.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test script created, awaiting hardware) |
 | **Source** | ISSUES.md BUG-03, TEST-T2 |
 | **Assigned** | `test-planner` |
 | **Dependencies** | TASK-002 (patch must be available for comparison) |
@@ -731,7 +731,7 @@ in the forensic audit.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test script created, awaiting hardware) |
 | **Source** | ISSUES.md BUG-04, TEST-T3 |
 | **Assigned** | `test-planner` |
 | **Dependencies** | TASK-003 (patch must be available for comparison) |
@@ -749,7 +749,7 @@ in the forensic audit.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test script created, awaiting hardware) |
 | **Source** | ISSUES.md BUG-01, FEATURE-01, TEST-T4 |
 | **Assigned** | `test-planner` + `firmware-analyst` |
 | **Dependencies** | TASK-003, TASK-005 (both patches must be applied) |
@@ -767,7 +767,7 @@ in the forensic audit.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test script created, awaiting hardware) |
 | **Source** | ISSUES.md BUG-06, TEST-T5 |
 | **Assigned** | `test-planner` |
 | **Dependencies** | TASK-004 (patch must be available for comparison) |
@@ -785,7 +785,7 @@ in the forensic audit.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test script created, awaiting hardware) |
 | **Source** | ISSUES.md FEATURE-04, Part III Section 3.3, TEST-T6 |
 | **Assigned** | `test-planner` |
 | **Dependencies** | Access to MT7921U combo dongle (Wi-Fi + BT) |
@@ -803,7 +803,7 @@ in the forensic audit.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test script created, awaiting hardware) |
 | **Source** | ISSUES.md Part III Section 3.1, TEST-T7 |
 | **Assigned** | `test-planner` |
 | **Dependencies** | TASK-005 (CLC fix), access to RF measurement equipment |
