@@ -9,7 +9,37 @@
 
 This repository contains the **forensic audit findings**, **production-quality patches**, and **research-backed enhancement proposals** for the mainline `mt7921u` driver. It is organized as an agentic AI infrastructure where autonomous agents collaborate through structured markdown files to drive the driver from its current "minimal STA-only" state toward a reference-class programmable Wi-Fi interface.
 
-**This is NOT a fork of the Linux kernel.** This is the audit and planning layer. Patches produced here are intended for upstream submission to the wireless-drivers-next tree.
+This repo contains the **actual mainline driver source** (cloned from `torvalds/linux`), the **out-of-tree vendor driver** (for comparison), and the audit/planning infrastructure. Patches produced here are intended for upstream submission to the wireless-drivers-next tree.
+
+---
+
+## The Driver Source
+
+### Mainline driver (`drivers/net/wireless/mediatek/mt76/`)
+
+This is the actual Linux kernel mt76 driver tree, including:
+
+| Directory/File | Purpose |
+|---------------|---------|
+| `mt7921/usb.c` | **USB bus glue** — probe, remove, URB management, vendor requests, suspend/resume, firmware download |
+| `mt7921/mac.c` | MAC layer — RX/TX processing, WTBL updates, reset |
+| `mt7921/main.c` | mac80211 ops — wiphy setup, interface operations, key management |
+| `mt7921/mcu.c` | MCU command interface — firmware loading, CLC skip (**BUG-01**), events |
+| `mt7921/testmode.c` | Test mode — NULL deref on USB (**BUG-02**) |
+| `mt7921/init.c` | Device initialization, regulatory |
+| `mt7921/pci.c` | PCIe variant (for comparison) |
+| `mt7921/sdio.c` | SDIO variant (for comparison) |
+| `mt792x_*.c/h` | Shared core layer — USB ops, DMA, MAC work, MIB stats |
+| `usb.c` | mt76 USB transport layer — URB management, vendor requests |
+| `connac*.c/h` | Shared connac MCU command framework |
+
+### Vendor driver (`vendor-driver/`)
+
+Out-of-tree MediaTek production driver from `github.com/jeffersonchou/mt7921u`. Used as reference for:
+- TWT implementation (`mgmt/twt.c`, `nic_uni_cmd_event.c`)
+- BT coexistence (`OID_CUSTOM_BT_COEXIST_CTRL`, `EXT_EVENT_ID_COEXISTENCE`)
+- 6 GHz regulatory path (`rlmDomainGetChnlList()`, `gl_init.c`)
+- Firmware download with per-chunk ACK (`fw_dl.c`, `DOWNLOAD_CONFIG_ACK_OPTION`)
 
 ---
 
@@ -35,8 +65,30 @@ mt7921u/
 ├── ISSUES.md          # All findings classified by evidence tier
 ├── README.md          # This file
 ├── .gitignore
+├── drivers/
+│   └── net/wireless/mediatek/mt76/   # ★ ACTUAL MAINLINE DRIVER SOURCE
+│       ├── mt7921/                    #   mt7921 driver (USB/PCIe/SDIO)
+│       │   ├── usb.c                  #     USB bus glue ← PRIMARY AUDIT TARGET
+│       │   ├── mac.c                  #     MAC layer, WTBL, reset
+│       │   ├── mcu.c                  #     MCU commands, CLC skip (BUG-01)
+│       │   ├── testmode.c            #     Test mode, NULL deref (BUG-02)
+│       │   ├── main.c                #     mac80211 ops
+│       │   ├── init.c                #     Device init, regulatory
+│       │   ├── pci.c                 #     PCIe variant (reference)
+│       │   ├── sdio.c                #     SDIO variant (reference)
+│       │   └── ...
+│       ├── mt792x_*.c/h              #   Shared mt792x core layer
+│       ├── usb.c                     #   mt76 USB transport
+│       ├── connac*.c/h               #   Shared connac MCU framework
+│       └── ...
+├── vendor-driver/      # ★ OUT-OF-TREE MEDIATEK PRODUCTION DRIVER
+│   ├── chips/common/fw_dl.c          #   Firmware download with ACK
+│   ├── mgmt/twt.c                    #   TWT implementation
+│   ├── mgmt/rlm_domain.c            #   Regulatory domain
+│   ├── nic_cmd_event.h              #   MCU command/event definitions
+│   └── ...
 ├── docs/
-│   └── firmware/      # Firmware reverse-engineering notes (populated by firmware-analyst)
+│   └── firmware/      # Firmware reverse-engineering notes
 ├── patches/
 │   └── (empty)        # Production patches, formatted for git send-email
 ├── scripts/

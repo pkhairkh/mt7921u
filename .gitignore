@@ -26,6 +26,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Vendor driver macOS artifacts
+vendor-driver/**/.DS_Store
+
 # Firmware binaries (not redistributable)
 *.bin
 *.fw
