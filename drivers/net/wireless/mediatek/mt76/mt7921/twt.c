@@ -36,6 +36,10 @@ int mt7921_mcu_twt_agrt_update(struct mt792x_dev *dev,
                                 struct mt7921_twt_flow *flow,
                                 int cmd)
 {
+        struct ieee80211_vif *vif = container_of((void *)mvif,
+                                                 struct ieee80211_vif,
+                                                 drv_priv);
+        bool is_ap = (vif->type == NL80211_IFTYPE_AP);
         struct {
                 u8 tbl_idx;
                 u8 cmd;
@@ -61,7 +65,7 @@ int mt7921_mcu_twt_agrt_update(struct mt792x_dev *dev,
                 .start_tsf = cpu_to_le64(flow->tsf),
                 .mantissa = flow->mantissa,
                 .exponent = flow->exp,
-                .is_ap = true,
+                .is_ap = is_ap,
         };
 
         if (flow->protection)

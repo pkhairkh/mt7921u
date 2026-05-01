@@ -184,6 +184,8 @@ void mt7921_acs_update(struct mt792x_dev *dev)
         if (!dev->acs.enabled)
                 return;
 
+        lockdep_assert_held(&dev->mt76.mutex);
+
         dev->acs.num_scores = 0;
 
         /* Score all bands that the device supports */
@@ -251,12 +253,16 @@ int mt7921_acs_get_recommendation(struct mt792x_dev *dev, u32 *freq)
         if (!dev->acs.enabled || !dev->acs.recommended_freq)
                 return -ENOENT;
 
+        mt792x_mutex_acquire(dev);
+
         /* Refresh scores if data is stale (older than 10 seconds) */
         if (time_after(jiffies,
                        dev->acs.last_update_jiffies + 10 * HZ))
                 mt7921_acs_update(dev);
 
         *freq = dev->acs.recommended_freq;
+
+        mt792x_mutex_release(dev);
         return 0;
 }
 
@@ -272,6 +278,8 @@ static int mt7921_acs_show(struct seq_file *s, void *data)
                 seq_puts(s, "ACS disabled\n");
                 return 0;
         }
+
+        mt792x_mutex_acquire(dev);
 
         /* Refresh if stale */
         if (time_after(jiffies,
@@ -316,6 +324,7 @@ static int mt7921_acs_show(struct seq_file *s, void *data)
                            cs->wide_capable ? " wide" : "");
         }
 
+        mt792x_mutex_release(dev);
         return 0;
 }
 
@@ -327,7 +336,9 @@ static ssize_t mt7921_acs_write(struct file *file,
         struct seq_file *s = file->private_data;
         struct mt792x_dev *dev = s->private;
 
+        mt792x_mutex_acquire(dev);
         mt7921_acs_update(dev);
+        mt792x_mutex_release(dev);
 
         return count;
 }

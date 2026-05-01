@@ -107,6 +107,7 @@ void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb)
         struct mt7921_csi_info *csi = &dev->csi;
         struct mt7921_csi_data *entry;
         struct mt7921_csi_tlv_element *tlv;
+        unsigned long flags;
         u16 tag, len;
         int offset = 0;
 
@@ -123,6 +124,8 @@ void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb)
                 dev_kfree_skb(skb);
                 return;
         }
+
+        spin_lock_irqsave(&csi->ring_lock, flags);
 
         /* Get next ring buffer entry */
         entry = &csi->buffer[csi->head];
@@ -201,6 +204,8 @@ void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb)
         csi->head = (csi->head + 1) % MT7921_CSI_RING_SIZE;
         if (csi->head == csi->tail)
                 csi->tail = (csi->tail + 1) % MT7921_CSI_RING_SIZE;
+
+        spin_unlock_irqrestore(&csi->ring_lock, flags);
 
         /* Wake any waiting readers */
         wake_up(&csi->waitq);
@@ -283,6 +288,7 @@ void mt7921_csi_init(struct mt792x_dev *dev)
         struct mt7921_csi_info *csi = &dev->csi;
 
         memset(csi, 0, sizeof(*csi));
+        spin_lock_init(&csi->ring_lock);
         init_waitqueue_head(&csi->waitq);
         csi->enabled = false;
 }

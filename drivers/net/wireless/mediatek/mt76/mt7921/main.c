@@ -315,6 +315,11 @@ mt7921_add_interface(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
 
         mt792x_mutex_acquire(dev);
 
+        if (!~dev->mt76.vif_mask) {
+                ret = -ENOSPC;
+                goto out;
+        }
+
         mvif->bss_conf.mt76.idx = __ffs64(~dev->mt76.vif_mask);
         if (mvif->bss_conf.mt76.idx >= MT792x_MAX_INTERFACES) {
                 ret = -ENOSPC;
@@ -383,7 +388,7 @@ void mt7921_roc_abort_sync(struct mt792x_dev *dev)
                 return;
 
         timer_delete_sync(&phy->roc_timer);
-        cancel_work(&phy->roc_work);
+        cancel_work_sync(&phy->roc_work);
 
         ieee80211_iterate_interfaces(mt76_hw(dev),
                                      IEEE80211_IFACE_ITER_RESUME_ALL,
@@ -812,7 +817,8 @@ mt7921_regd_set_6ghz_power_type(struct ieee80211_vif *vif, bool is_add)
         }
 
 out:
-        if (vif->bss_conf.chanreq.oper.chan->band == NL80211_BAND_6GHZ)
+        if (vif->bss_conf.chanreq.oper.chan &&
+            vif->bss_conf.chanreq.oper.chan->band == NL80211_BAND_6GHZ)
                 mt7921_regd_update(dev);
 }
 
@@ -852,8 +858,13 @@ int mt7921_mac_sta_add(struct mt76_dev *mdev, struct ieee80211_vif *vif,
 
         ret = mt7921_mcu_sta_update(dev, sta, vif, true,
                                     MT76_STA_INFO_STATE_NONE);
-        if (ret)
+        if (ret) {
+                /* Free wcid slot on error to prevent resource leak */
+                mt76_wcid_mask_clear(dev->mt76.wcid_mask, idx);
+                msta->deflink.wcid.sta = 0;
+                mt76_connac_power_save_sched(&dev->mphy, &dev->pm);
                 return ret;
+        }
 
         mt7921_regd_set_6ghz_power_type(vif, true);
 
@@ -906,10 +917,12 @@ void mt7921_mac_sta_remove(struct mt76_dev *mdev, struct ieee80211_vif *vif,
         mt76_connac_free_pending_tx_skbs(&dev->pm, &msta->deflink.wcid);
         mt76_connac_pm_wake(&dev->mphy, &dev->pm);
 
-        /* Tear down all TWT flows for this STA — TASK-007 */
+        /* Tear down all TWT flows for this STA and continue removal
+         * under the same pm_wake context — no separate mutex needed
+         * since we already hold pm protection.
+         */
         mt792x_mutex_acquire(dev);
         mt7921_twt_teardown_sta(dev, msta);
-        mt792x_mutex_release(dev);
 
         mt7921_mcu_sta_update(dev, sta, vif, false, MT76_STA_INFO_STATE_NONE);
         mt7921_mac_wtbl_update(dev, msta->deflink.wcid.idx,
@@ -932,6 +945,7 @@ void mt7921_mac_sta_remove(struct mt76_dev *mdev, struct ieee80211_vif *vif,
         spin_unlock_bh(&dev->mt76.sta_poll_lock);
 
         mt7921_regd_set_6ghz_power_type(vif, false);
+        mt792x_mutex_release(dev);
 
         mt76_connac_power_save_sched(&dev->mphy, &dev->pm);
 }
@@ -1600,6 +1614,7 @@ mt7921_end_cac(struct ieee80211_hw *hw,
 {
         struct mt792x_phy *phy = mt792x_hw_phy(hw);
         struct mt792x_dev *dev = phy->dev;
+        int ret;
         struct {
                 __le16 tag;
                 __le16 len;
@@ -1618,9 +1633,14 @@ mt7921_end_cac(struct ieee80211_hw *hw,
         phy->dfs_state.cac_time_ms = 0;
 
         mt792x_mutex_acquire(dev);
-        mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
+        ret = mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
                           &req, sizeof(req), true);
         mt792x_mutex_release(dev);
+
+        if (ret)
+                dev_err(dev->mt76.dev,
+                        "CAC end command failed (err=%d), radar detection may remain active\n",
+                        ret);
 
         dev_dbg(dev->mt76.dev, "CAC ended, radar detection stopped\n");
 }

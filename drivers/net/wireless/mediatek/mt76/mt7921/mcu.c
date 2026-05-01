@@ -365,6 +365,7 @@ mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
                     * Vendor-specific event ID from wsys_cmd_handler_fw.h.
                     * Defined in csi.c as EVENT_ID_CSI_DATA.
                     */
+                skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
                 mt7921_mcu_csi_event(dev, skb);
                 return;
         case 0x85: /* TWT SP event — firmware TWT service period notification.

@@ -476,6 +476,7 @@ struct mt7921_csi_data {
 struct mt7921_csi_info {
         struct mt7921_csi_data buffer[MT7921_CSI_RING_SIZE];
         wait_queue_head_t waitq;
+        spinlock_t ring_lock;
         u32 head;
         u32 tail;
         u8 mode;
