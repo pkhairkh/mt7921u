@@ -1363,6 +1363,8 @@ enum {
         MCU_CE_CMD_FWLOG_2_HOST = 0xc5,
         MCU_CE_CMD_GET_WTBL = 0xcd,
         MCU_CE_CMD_GET_TXPWR = 0xd0,
+        /* Vendor-specific CSI control command (0x4C from vendor firmware) */
+        MCU_CE_CMD_CSI_CONTROL = 0x4C,
 };
 
 enum {

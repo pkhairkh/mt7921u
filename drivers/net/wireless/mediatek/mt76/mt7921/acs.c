@@ -230,8 +230,11 @@ void mt7921_acs_init(struct mt792x_dev *dev)
         dev->acs.enabled = true;
         dev->acs.last_update_jiffies = jiffies;
 
-        /* Perform initial scoring */
-        mt7921_acs_update(dev);
+        /* Do NOT call mt7921_acs_update() here — during early device
+         * registration the hardware is not yet initialized, so survey
+         * data would be all zeros. The first real update happens in
+         * mt7921_init_work() after hardware init completes.
+         */
 }
 
 void mt7921_acs_cleanup(struct mt792x_dev *dev)

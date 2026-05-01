@@ -20,33 +20,32 @@
 #include "mcu.h"
 #include "../mt76_connac2_mac.h"
 
-/* Vendor driver CSI command ID from wsys_cmd_handler_fw.h */
-#define CMD_ID_CSI_CONTROL	0x4C
-#define EVENT_ID_CSI_DATA	0x3C
+/* Vendor driver CSI command ID: now in MCU_CE_CMD_CSI_CONTROL (0x4C) */
+#define EVENT_ID_CSI_DATA       0x3C
 
 /* CSI event TLV tags (from vendor driver nic_cmd_event.h) */
 enum mt7921_csi_event_tlv_tag {
-	MT7921_CSI_EVENT_VERSION,
-	MT7921_CSI_EVENT_CBW,
-	MT7921_CSI_EVENT_RSSI,
-	MT7921_CSI_EVENT_SNR,
-	MT7921_CSI_EVENT_BAND,
-	MT7921_CSI_EVENT_CSI_NUM,
-	MT7921_CSI_EVENT_CSI_I_DATA,
-	MT7921_CSI_EVENT_CSI_Q_DATA,
-	MT7921_CSI_EVENT_DBW,
-	MT7921_CSI_EVENT_CH_IDX,
-	MT7921_CSI_EVENT_TA,
-	MT7921_CSI_EVENT_EXTRA_INFO,
-	MT7921_CSI_EVENT_RX_MODE,
-	MT7921_CSI_EVENT_H_IDX,
-	MT7921_CSI_EVENT_TX_RX_IDX,
+        MT7921_CSI_EVENT_VERSION,
+        MT7921_CSI_EVENT_CBW,
+        MT7921_CSI_EVENT_RSSI,
+        MT7921_CSI_EVENT_SNR,
+        MT7921_CSI_EVENT_BAND,
+        MT7921_CSI_EVENT_CSI_NUM,
+        MT7921_CSI_EVENT_CSI_I_DATA,
+        MT7921_CSI_EVENT_CSI_Q_DATA,
+        MT7921_CSI_EVENT_DBW,
+        MT7921_CSI_EVENT_CH_IDX,
+        MT7921_CSI_EVENT_TA,
+        MT7921_CSI_EVENT_EXTRA_INFO,
+        MT7921_CSI_EVENT_RX_MODE,
+        MT7921_CSI_EVENT_H_IDX,
+        MT7921_CSI_EVENT_TX_RX_IDX,
 };
 
 struct mt7921_csi_tlv_element {
-	__le16 tag_type;
-	__le16 body_len;
-	u8 body[];
+        __le16 tag_type;
+        __le16 body_len;
+        u8 body[];
 } __packed;
 
 /**
@@ -65,29 +64,29 @@ struct mt7921_csi_tlv_element {
  * Return: 0 on success, negative error code on failure
  */
 int mt7921_mcu_csi_control(struct mt792x_dev *dev, u8 band_idx,
-			   enum mt7921_csi_control_mode mode,
-			   enum mt7921_csi_config_item cfg_item,
-			   u8 val1, u8 val2)
+                           enum mt7921_csi_control_mode mode,
+                           enum mt7921_csi_config_item cfg_item,
+                           u8 val1, u8 val2)
 {
-	struct {
-		u8 band_idx;
-		u8 mode;
-		u8 cfg_item;
-		u8 rsv;
-		u8 val1;
-		u8 val2;
-		u8 rsv2[2];
-	} __packed req = {
-		.band_idx = band_idx,
-		.mode = mode,
-		.cfg_item = cfg_item,
-		.val1 = val1,
-		.val2 = val2,
-	};
+        struct {
+                u8 band_idx;
+                u8 mode;
+                u8 cfg_item;
+                u8 rsv;
+                u8 val1;
+                u8 val2;
+                u8 rsv2[2];
+        } __packed req = {
+                .band_idx = band_idx,
+                .mode = mode,
+                .cfg_item = cfg_item,
+                .val1 = val1,
+                .val2 = val2,
+        };
 
-	return mt76_mcu_send_msg(&dev->mt76,
-				 MCU_CE_CMD(CMD_ID_CSI_CONTROL),
-				 &req, sizeof(req), true);
+        return mt76_mcu_send_msg(&dev->mt76,
+                                 MCU_CE_CMD(CSI_CONTROL),
+                                 &req, sizeof(req), true);
 }
 
 /**
@@ -105,99 +104,108 @@ int mt7921_mcu_csi_control(struct mt792x_dev *dev, u8 band_idx,
  */
 void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb)
 {
-	struct mt7921_csi_info *csi = &dev->csi;
-	struct mt7921_csi_data *entry;
-	struct mt7921_csi_tlv_element *tlv;
-	u16 tag, len;
-	int offset = 0;
+        struct mt7921_csi_info *csi = &dev->csi;
+        struct mt7921_csi_data *entry;
+        struct mt7921_csi_tlv_element *tlv;
+        u16 tag, len;
+        int offset = 0;
 
-	if (!csi->enabled) {
-		dev_kfree_skb(skb);
-		return;
-	}
+        if (!csi->enabled) {
+                dev_kfree_skb(skb);
+                return;
+        }
 
-	/* Get next ring buffer entry */
-	entry = &csi->buffer[csi->head];
-	memset(entry, 0, sizeof(*entry));
+        /* Sanity check: firmware event must have at least a TLV header */
+        if (skb->len < sizeof(struct mt7921_csi_tlv_element)) {
+                dev_warn_ratelimited(dev->mt76.dev,
+                                     "CSI event: skb too short (%u)\n",
+                                     skb->len);
+                dev_kfree_skb(skb);
+                return;
+        }
 
-	/* Parse TLV elements from firmware event */
-	while (offset + sizeof(*tlv) <= skb->len) {
-		tlv = (struct mt7921_csi_tlv_element *)(skb->data + offset);
-		tag = le16_to_cpu(tlv->tag_type);
-		len = le16_to_cpu(tlv->body_len);
+        /* Get next ring buffer entry */
+        entry = &csi->buffer[csi->head];
+        memset(entry, 0, sizeof(*entry));
 
-		if (offset + sizeof(*tlv) + len > skb->len)
-			break;
+        /* Parse TLV elements from firmware event */
+        while (offset + sizeof(*tlv) <= skb->len) {
+                tlv = (struct mt7921_csi_tlv_element *)(skb->data + offset);
+                tag = le16_to_cpu(tlv->tag_type);
+                len = le16_to_cpu(tlv->body_len);
 
-		switch (tag) {
-		case MT7921_CSI_EVENT_VERSION:
-			if (len >= 1)
-				entry->fw_ver = tlv->body[0];
-			break;
-		case MT7921_CSI_EVENT_CBW:
-			if (len >= 1)
-				entry->bw = tlv->body[0];
-			break;
-		case MT7921_CSI_EVENT_RSSI:
-			if (len >= 1)
-				entry->rssi = (s8)tlv->body[0];
-			break;
-		case MT7921_CSI_EVENT_SNR:
-			if (len >= 1)
-				entry->snr = tlv->body[0];
-			break;
-		case MT7921_CSI_EVENT_CSI_NUM:
-			if (len >= 2)
-				entry->data_count = le16_to_cpu(*(__le16 *)tlv->body);
-			break;
-		case MT7921_CSI_EVENT_CSI_I_DATA:
-			if (len <= sizeof(entry->i_data))
-				memcpy(entry->i_data, tlv->body, len);
-			break;
-		case MT7921_CSI_EVENT_CSI_Q_DATA:
-			if (len <= sizeof(entry->q_data))
-				memcpy(entry->q_data, tlv->body, len);
-			break;
-		case MT7921_CSI_EVENT_DBW:
-			if (len >= 1)
-				entry->data_bw = tlv->body[0];
-			break;
-		case MT7921_CSI_EVENT_CH_IDX:
-			if (len >= 1)
-				entry->primary_ch_idx = tlv->body[0];
-			break;
-		case MT7921_CSI_EVENT_TA:
-			if (len >= ETH_ALEN)
-				memcpy(entry->ta, tlv->body, ETH_ALEN);
-			break;
-		case MT7921_CSI_EVENT_EXTRA_INFO:
-			if (len >= 4)
-				entry->extra_info = le32_to_cpu(*(__le32 *)tlv->body);
-			break;
-		case MT7921_CSI_EVENT_RX_MODE:
-			if (len >= 1)
-				entry->rx_mode = tlv->body[0];
-			break;
-		case MT7921_CSI_EVENT_TX_RX_IDX:
-			if (len >= 4)
-				entry->tr_idx = le32_to_cpu(*(__le32 *)tlv->body);
-			break;
-		default:
-			break;
-		}
+                if (offset + sizeof(*tlv) + len > skb->len)
+                        break;
 
-		offset += sizeof(*tlv) + len;
-	}
+                switch (tag) {
+                case MT7921_CSI_EVENT_VERSION:
+                        if (len >= 1)
+                                entry->fw_ver = tlv->body[0];
+                        break;
+                case MT7921_CSI_EVENT_CBW:
+                        if (len >= 1)
+                                entry->bw = tlv->body[0];
+                        break;
+                case MT7921_CSI_EVENT_RSSI:
+                        if (len >= 1)
+                                entry->rssi = (s8)tlv->body[0];
+                        break;
+                case MT7921_CSI_EVENT_SNR:
+                        if (len >= 1)
+                                entry->snr = tlv->body[0];
+                        break;
+                case MT7921_CSI_EVENT_CSI_NUM:
+                        if (len >= 2)
+                                entry->data_count = le16_to_cpu(*(__le16 *)tlv->body);
+                        break;
+                case MT7921_CSI_EVENT_CSI_I_DATA:
+                        if (len <= sizeof(entry->i_data))
+                                memcpy(entry->i_data, tlv->body, len);
+                        break;
+                case MT7921_CSI_EVENT_CSI_Q_DATA:
+                        if (len <= sizeof(entry->q_data))
+                                memcpy(entry->q_data, tlv->body, len);
+                        break;
+                case MT7921_CSI_EVENT_DBW:
+                        if (len >= 1)
+                                entry->data_bw = tlv->body[0];
+                        break;
+                case MT7921_CSI_EVENT_CH_IDX:
+                        if (len >= 1)
+                                entry->primary_ch_idx = tlv->body[0];
+                        break;
+                case MT7921_CSI_EVENT_TA:
+                        if (len >= ETH_ALEN)
+                                memcpy(entry->ta, tlv->body, ETH_ALEN);
+                        break;
+                case MT7921_CSI_EVENT_EXTRA_INFO:
+                        if (len >= 4)
+                                entry->extra_info = le32_to_cpu(*(__le32 *)tlv->body);
+                        break;
+                case MT7921_CSI_EVENT_RX_MODE:
+                        if (len >= 1)
+                                entry->rx_mode = tlv->body[0];
+                        break;
+                case MT7921_CSI_EVENT_TX_RX_IDX:
+                        if (len >= 4)
+                                entry->tr_idx = le32_to_cpu(*(__le32 *)tlv->body);
+                        break;
+                default:
+                        break;
+                }
 
-	/* Advance ring buffer head */
-	csi->head = (csi->head + 1) % MT7921_CSI_RING_SIZE;
-	if (csi->head == csi->tail)
-		csi->tail = (csi->tail + 1) % MT7921_CSI_RING_SIZE;
+                offset += sizeof(*tlv) + len;
+        }
 
-	/* Wake any waiting readers */
-	wake_up(&csi->waitq);
+        /* Advance ring buffer head */
+        csi->head = (csi->head + 1) % MT7921_CSI_RING_SIZE;
+        if (csi->head == csi->tail)
+                csi->tail = (csi->tail + 1) % MT7921_CSI_RING_SIZE;
 
-	dev_kfree_skb(skb);
+        /* Wake any waiting readers */
+        wake_up(&csi->waitq);
+
+        dev_kfree_skb(skb);
 }
 
 /**
@@ -212,34 +220,34 @@ void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb)
  * Return: 0 on success, negative error code on failure
  */
 int mt7921_csi_start(struct mt792x_dev *dev, u8 band_idx,
-		     enum mt7921_csi_output_format output_format)
+                     enum mt7921_csi_output_format output_format)
 {
-	struct mt7921_csi_info *csi = &dev->csi;
-	int ret;
+        struct mt7921_csi_info *csi = &dev->csi;
+        int ret;
 
-	if (csi->enabled)
-		return -EBUSY;
+        if (csi->enabled)
+                return -EBUSY;
 
-	/* Configure output format before starting */
-	ret = mt7921_mcu_csi_control(dev, band_idx,
-				      MT7921_CSI_CONTROL_SET,
-				      MT7921_CSI_CONFIG_OUTPUT_FORMAT,
-				      output_format, 0);
-	if (ret)
-		return ret;
+        /* Configure output format before starting */
+        ret = mt7921_mcu_csi_control(dev, band_idx,
+                                      MT7921_CSI_CONTROL_SET,
+                                      MT7921_CSI_CONFIG_OUTPUT_FORMAT,
+                                      output_format, 0);
+        if (ret)
+                return ret;
 
-	/* Start CSI capture */
-	ret = mt7921_mcu_csi_control(dev, band_idx,
-				      MT7921_CSI_CONTROL_START,
-				      0, 0, 0);
-	if (ret)
-		return ret;
+        /* Start CSI capture */
+        ret = mt7921_mcu_csi_control(dev, band_idx,
+                                      MT7921_CSI_CONTROL_START,
+                                      0, 0, 0);
+        if (ret)
+                return ret;
 
-	csi->enabled = true;
-	csi->head = 0;
-	csi->tail = 0;
+        csi->enabled = true;
+        csi->head = 0;
+        csi->tail = 0;
 
-	return 0;
+        return 0;
 }
 
 /**
@@ -253,39 +261,39 @@ int mt7921_csi_start(struct mt792x_dev *dev, u8 band_idx,
  */
 int mt7921_csi_stop(struct mt792x_dev *dev, u8 band_idx)
 {
-	struct mt7921_csi_info *csi = &dev->csi;
-	int ret;
+        struct mt7921_csi_info *csi = &dev->csi;
+        int ret;
 
-	if (!csi->enabled)
-		return 0;
+        if (!csi->enabled)
+                return 0;
 
-	ret = mt7921_mcu_csi_control(dev, band_idx,
-				      MT7921_CSI_CONTROL_STOP,
-				      0, 0, 0);
-	if (ret)
-		return ret;
+        ret = mt7921_mcu_csi_control(dev, band_idx,
+                                      MT7921_CSI_CONTROL_STOP,
+                                      0, 0, 0);
+        if (ret)
+                return ret;
 
-	csi->enabled = false;
-	return 0;
+        csi->enabled = false;
+        return 0;
 }
 
 /* Initialize CSI subsystem during device probe */
 void mt7921_csi_init(struct mt792x_dev *dev)
 {
-	struct mt7921_csi_info *csi = &dev->csi;
+        struct mt7921_csi_info *csi = &dev->csi;
 
-	memset(csi, 0, sizeof(*csi));
-	init_waitqueue_head(&csi->waitq);
-	csi->enabled = false;
+        memset(csi, 0, sizeof(*csi));
+        init_waitqueue_head(&csi->waitq);
+        csi->enabled = false;
 }
 
 /* Cleanup CSI subsystem during device removal */
 void mt7921_csi_cleanup(struct mt792x_dev *dev)
 {
-	struct mt7921_csi_info *csi = &dev->csi;
+        struct mt7921_csi_info *csi = &dev->csi;
 
-	if (csi->enabled)
-		mt7921_csi_stop(dev, 0);
+        if (csi->enabled)
+                mt7921_csi_stop(dev, 0);
 
-	wake_up(&csi->waitq);
+        wake_up(&csi->waitq);
 }

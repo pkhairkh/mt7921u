@@ -266,6 +266,13 @@ void mt7921_twt_sp_event(struct mt792x_dev *dev, struct sk_buff *skb)
         struct mt7921_twt_sp_event_hdr *evt;
         u8 flow_id, event_type;
 
+        if (skb->len < sizeof(*evt)) {
+                dev_warn(dev->mt76.dev,
+                         "TWT SP event: skb too short (%u < %zu)\n",
+                         skb->len, sizeof(*evt));
+                return;
+        }
+
         evt = (struct mt7921_twt_sp_event_hdr *)skb->data;
         flow_id = evt->flow_id;
         event_type = evt->event_type;

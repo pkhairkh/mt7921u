@@ -54,8 +54,8 @@ mt7921_twt_stats_show(struct seq_file *s, void *data)
                                    flow->protection ? 'p' : '-',
                                    flow->flowtype ? 'i' : 'a',
                                    flow->trigger ? 't' : '-',
-                                   stats->missed_sp[flow->id],
-                                   stats->sp_active[flow->id] ? 'Y' : 'N');
+                                   stats->missed_sp[flow->table_id],
+                                   stats->sp_active[flow->table_id] ? 'Y' : 'N');
                 }
         }
 

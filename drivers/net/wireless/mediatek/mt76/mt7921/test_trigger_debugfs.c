@@ -218,7 +218,10 @@ static int test_trigger_clc_load_show(struct seq_file *s, void *data)
         return 0;
 }
 
-/* We need access to the clc_force_usb module param from mcu.c */
+/* We need access to the clc_force_usb module param from mcu.c.
+ * This is declared as extern because module parameters are
+ * implicitly exported within the same module.
+ */
 extern bool clc_force_usb;
 
 DEFINE_SHOW_ATTRIBUTE(test_trigger_clc_load);

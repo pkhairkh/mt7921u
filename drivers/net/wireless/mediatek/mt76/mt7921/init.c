@@ -63,8 +63,8 @@ static int mt7921_thermal_init(struct mt792x_phy *phy)
 static void
 mt7921_regd_channel_update(struct wiphy *wiphy, struct mt792x_dev *dev)
 {
-#define IS_UNII_INVALID(idx, sfreq, efreq) \
-        (!(dev->phy.clc_chan_conf & BIT(idx)) && (cfreq) >= (sfreq) && (cfreq) <= (efreq))
+#define IS_UNII_INVALID(idx, sfreq, efreq, freq) \
+        (!(dev->phy.clc_chan_conf & BIT(idx)) && (freq) >= (sfreq) && (freq) <= (efreq))
         struct ieee80211_supported_band *sband;
         struct mt76_dev *mdev = &dev->mt76;
         struct device_node *np, *band_np;
@@ -85,7 +85,7 @@ mt7921_regd_channel_update(struct wiphy *wiphy, struct mt792x_dev *dev)
                 }
 
                 /* UNII-4 */
-                if (IS_UNII_INVALID(0, 5845, 5925))
+                if (IS_UNII_INVALID(0, 5845, 5925, cfreq))
                         ch->flags |= IEEE80211_CHAN_DISABLED;
         }
 
@@ -104,10 +104,10 @@ mt7921_regd_channel_update(struct wiphy *wiphy, struct mt792x_dev *dev)
                 }
 
                 /* UNII-5/6/7/8 */
-                if (IS_UNII_INVALID(1, 5925, 6425) ||
-                    IS_UNII_INVALID(2, 6425, 6525) ||
-                    IS_UNII_INVALID(3, 6525, 6875) ||
-                    IS_UNII_INVALID(4, 6875, 7125))
+                if (IS_UNII_INVALID(1, 5925, 6425, cfreq) ||
+                    IS_UNII_INVALID(2, 6425, 6525, cfreq) ||
+                    IS_UNII_INVALID(3, 6525, 6875, cfreq) ||
+                    IS_UNII_INVALID(4, 6875, 7125, cfreq))
                         ch->flags |= IEEE80211_CHAN_DISABLED;
         }
 }
@@ -261,6 +261,12 @@ static void mt7921_init_work(struct work_struct *work)
         dev->hw_init_done = true;
 
         mt76_connac_mcu_set_deep_sleep(&dev->mt76, dev->pm.ds_enable);
+
+        /* Initialize ACS after hardware is up — survey data is now valid.
+         * Earlier call in mt7921_register_device() only zeroed the struct;
+         * this update computes actual channel scores.
+         */
+        mt7921_acs_update(dev);
 }
 
 int mt7921_register_device(struct mt792x_dev *dev)

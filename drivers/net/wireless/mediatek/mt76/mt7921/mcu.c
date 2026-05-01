@@ -281,6 +281,13 @@ mt7921_mcu_tx_done_event(struct mt792x_dev *dev, struct sk_buff *skb)
 {
         struct mt7921_mcu_tx_done_event *event;
 
+        if (skb->len < sizeof(struct mt76_connac2_mcu_rxd) +
+            offsetof(struct mt7921_mcu_tx_done_event, txs)) {
+                dev_warn(dev->mt76.dev,
+                         "TX done event: skb too short (%u)\n", skb->len);
+                return;
+        }
+
         skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
         event = (struct mt7921_mcu_tx_done_event *)skb->data;
 
@@ -354,10 +361,15 @@ mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
         case MCU_EVENT_RSSI_NOTIFY:
                 mt7921_mcu_rssi_monitor_event(dev, skb);
                 break;
-        case 0x3C: /* EVENT_ID_CSI_DATA — firmware CSI capture event */
+        case 0x3C: /* EVENT_ID_CSI_DATA — firmware CSI capture event
+                    * Vendor-specific event ID from wsys_cmd_handler_fw.h.
+                    * Defined in csi.c as EVENT_ID_CSI_DATA.
+                    */
                 mt7921_mcu_csi_event(dev, skb);
                 return;
-        case 0x85: /* TWT SP event — firmware TWT service period notification */
+        case 0x85: /* TWT SP event — firmware TWT service period notification.
+                    * Vendor-specific event ID. See mt7921_twt_sp_event_hdr.
+                    */
                 skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
                 mt7921_twt_sp_event(dev, skb);
                 break;
@@ -413,7 +425,8 @@ void mt7921_mcu_rx_event(struct mt792x_dev *dev, struct sk_buff *skb)
             rxd->eid == MCU_EVENT_DBG_MSG ||
             rxd->eid == MCU_EVENT_COREDUMP ||
             rxd->eid == MCU_EVENT_LP_INFO ||
-            rxd->eid == 0x85 ||
+            rxd->eid == 0x85 ||  /* TWT SP event */
+            rxd->eid == 0x3C ||  /* CSI data event */
             !rxd->seq)
                 mt7921_mcu_rx_unsolicited_event(dev, skb);
         else
