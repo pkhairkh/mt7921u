@@ -334,7 +334,7 @@ Call Trace:
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (test harness created, awaiting hardware testing) |
 | **Source** | ISSUES.md Part III, Section 3.2 |
 | **Assigned** | `firmware-analyst` + `test-planner` |
 | **Dependencies** | TASK-003 (MCU retry must be in place) |
@@ -491,7 +491,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (Phase 1 complete — Phase 2/3 pending) |
 | **Source** | ISSUES.md FEATURE-02, ENHANCE-02 |
 | **Assigned** | `patch-engineer` + `research-scout` |
 | **Dependencies** | TASK-005 (6 GHz working preferred but not required) |
@@ -507,10 +507,10 @@ supports but the driver does not expose.
 - **Phase 3:** Expose TWT agreement statistics (wake count, missed wakeups, average latency) via debugfs; vendor driver's `twt_planner.c` provides reference implementation
 
 **Sub-tasks:**
-- [ ] TASK-007a: Port vendor driver's TWT MCU command structures (`UNI_CMD_ID_TWT` with tags)
-- [ ] TASK-007b: Implement `.add_twt_setup` and `.twt_teardown_request` mac80211 ops
-- [ ] TASK-007c: Add TWT capability bits to HE MAC capabilities
-- [ ] TASK-007d: Implement TWT responder (AP-side) from vendor's `twt.c` / `twt_planner.c`
+- [x] TASK-007a: Port vendor driver's TWT MCU command structures (`MCU_EXT_CMD(TWT_AGRT_UPDATE) = 0x94`)
+- [x] TASK-007b: Implement `.add_twt_setup` and `.twt_teardown_request` mac80211 ops
+- [x] TASK-007c: Add TWT capability bits to HE MAC capabilities (`IEEE80211_HE_MAC_CAP0_TWT_RES`)
+- [x] TASK-007d: Implement TWT responder (AP-side) in `mt7921/twt.c`
 - [ ] TASK-007e: Add eBPF hook for TWT agreement setup (optional, ENHANCE-02)
 - [ ] TASK-007f: Expose TWT statistics via debugfs
 
@@ -524,7 +524,7 @@ supports but the driver does not expose.
 
 | Field | Value |
 |-------|-------|
-| **Status** | `[ ]` |
+| **Status** | `[~]` (Phase 1 complete — Phase 2/3/4 pending) |
 | **Source** | ISSUES.md ENHANCE-03 |
 | **Assigned** | `patch-engineer` + `research-scout` |
 | **Dependencies** | None (structural) |
@@ -541,9 +541,9 @@ supports but the driver does not expose.
 - **Phase 4:** Validate using WhoFi methodology, comparing sensing accuracy against published benchmark
 
 **Sub-tasks:**
-- [ ] TASK-008a: Reverse-engineer firmware CSI capture command from vendor driver
+- [x] TASK-008a: Reverse-engineer firmware CSI capture command from vendor driver (CMD_ID_CSI_CONTROL=0x4C, EVENT_ID_CSI_DATA=0x3C)
 - [ ] TASK-008b: Add vendor nl80211 command for CSI request
-- [ ] TASK-008c: Implement CSI data extraction from RX descriptor
+- [x] TASK-008c: Implement CSI data extraction from TLV event (mt7921_mcu_csi_event)
 - [ ] TASK-008d: Expose CSI data as binary netlink attribute
 - [ ] TASK-008e: Add radiotap field for per-frame CSI (Wireshark integration)
 - [ ] TASK-008f: Document CSI data format
