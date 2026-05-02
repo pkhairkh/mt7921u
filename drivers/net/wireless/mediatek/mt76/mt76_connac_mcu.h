@@ -5,6 +5,7 @@
 #define __MT76_CONNAC_MCU_H
 
 #include "mt76_connac.h"
+#include "mt792x_compat.h"
 
 #define FW_FEATURE_SET_ENCRYPT          BIT(0)
 #define FW_FEATURE_SET_KEY_IDX          GENMASK(2, 1)
@@ -1799,7 +1800,11 @@ enum mt76_sta_info_state {
 struct mt76_sta_cmd_info {
         union {
                 struct ieee80211_sta *sta;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                 struct ieee80211_link_sta *link_sta;
+#else
+                struct ieee80211_sta *link_sta;
+#endif
         };
         struct mt76_wcid *wcid;
 
@@ -1951,7 +1956,11 @@ int mt76_connac_mcu_set_channel_domain(struct mt76_phy *phy);
 int mt76_connac_mcu_set_vif_ps(struct mt76_dev *dev, struct ieee80211_vif *vif);
 void mt76_connac_mcu_sta_basic_tlv(struct mt76_dev *dev, struct sk_buff *skb,
                                    struct ieee80211_bss_conf *link_conf,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                                    struct ieee80211_link_sta *link_sta,
+#else
+                                   struct ieee80211_sta *link_sta,
+#endif
                                    int state, bool newly);
 void mt76_connac_mcu_wtbl_generic_tlv(struct mt76_dev *dev, struct sk_buff *skb,
                                       struct ieee80211_vif *vif,
@@ -1967,7 +1976,11 @@ int mt76_connac_mcu_sta_update_hdr_trans(struct mt76_dev *dev,
 void mt76_connac_mcu_sta_he_tlv_v2(struct sk_buff *skb, struct ieee80211_sta *sta);
 u8 mt76_connac_get_phy_mode_v2(struct mt76_phy *mphy, struct ieee80211_vif *vif,
                                enum nl80211_band band,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                                struct ieee80211_link_sta *link_sta);
+#else
+                               struct ieee80211_sta *link_sta);
+#endif
 int mt76_connac_mcu_wtbl_update_hdr_trans(struct mt76_dev *dev,
                                           struct ieee80211_vif *vif,
                                           struct ieee80211_sta *sta);
@@ -2065,7 +2078,11 @@ const struct ieee80211_sta_eht_cap *
 mt76_connac_get_eht_phy_cap(struct mt76_phy *phy, struct ieee80211_vif *vif);
 u8 mt76_connac_get_phy_mode(struct mt76_phy *phy, struct ieee80211_vif *vif,
                             enum nl80211_band band,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                             struct ieee80211_link_sta *sta);
+#else
+                            struct ieee80211_sta *sta);
+#endif
 u8 mt76_connac_get_phy_mode_ext(struct mt76_phy *phy, struct ieee80211_bss_conf *conf,
                                 enum nl80211_band band);
 

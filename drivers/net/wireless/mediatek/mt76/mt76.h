@@ -2135,6 +2135,7 @@ static inline void mt76_put_page_pool_buf(void *buf, bool allow_direct)
 static inline void *
 mt76_get_page_pool_buf(struct mt76_queue *q, u32 *offset, u32 size)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         struct page *page;
 
         page = page_pool_alloc_frag(q->page_pool, offset, size,
@@ -2143,6 +2144,11 @@ mt76_get_page_pool_buf(struct mt76_queue *q, u32 *offset, u32 size)
                 return NULL;
 
         return page_address(page) + *offset;
+#else
+        /* In 6.12, page_pool_alloc_frag() returns void* directly */
+        return page_pool_alloc_frag(q->page_pool, offset, size,
+                                   GFP_ATOMIC | __GFP_NOWARN | GFP_DMA32);
+#endif
 }
 
 static inline void mt76_set_tx_blocked(struct mt76_dev *dev, bool blocked)

@@ -6,6 +6,7 @@
 #include "mt7921.h"
 #include "mcu.h"
 #include "../mt76_connac2_mac.h"
+#include "../mt792x_compat.h"
 #include "../mt792x_trace.h"
 
 #define MT_STA_BFER                     BIT(0)
@@ -1100,7 +1101,7 @@ int mt7921_mcu_uni_bss_ps(struct mt792x_dev *dev, struct ieee80211_vif *vif)
                 .ps = {
                         .tag = cpu_to_le16(UNI_BSS_INFO_PS),
                         .len = cpu_to_le16(sizeof(struct ps_tlv)),
-                        .ps_state = vif->cfg.ps ? 2 : 0,
+                        .ps_state = VIF_PS(vif) ? 2 : 0,
                 },
         };
 
@@ -1164,7 +1165,7 @@ mt7921_mcu_set_bss_pm(struct mt792x_dev *dev, struct ieee80211_vif *vif,
                 u8 pad;
         } req = {
                 .bss_idx = mvif->bss_conf.mt76.idx,
-                .aid = cpu_to_le16(vif->cfg.aid),
+                .aid = cpu_to_le16(VIF_AID(vif)),
                 .dtim_period = vif->bss_conf.dtim_period,
                 .bcn_interval = cpu_to_le16(vif->bss_conf.beacon_int),
         };
@@ -1636,7 +1637,7 @@ int mt7921_mcu_set_rssimonitor(struct mt792x_dev *dev, struct ieee80211_vif *vif
                 u16 duration;
                 u8 rsv2[2];
         } __packed data = {
-                .enable = vif->cfg.assoc,
+                .enable = VIF_ASSOC(vif),
                 .cqm_rssi_high = vif->bss_conf.cqm_rssi_thold + vif->bss_conf.cqm_rssi_hyst,
                 .cqm_rssi_low = vif->bss_conf.cqm_rssi_thold - vif->bss_conf.cqm_rssi_hyst,
                 .bss_idx = mvif->bss_conf.mt76.idx,
