@@ -704,10 +704,9 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
                 hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
                 hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
         }
-        #if MT792X_USE_MLINK_API
-        hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_HWTSTAMP;
-#else
         hw->netdev_features = NETIF_F_RXCSUM;
+#ifdef NETIF_F_HW_HWTSTAMP
+        hw->netdev_features |= NETIF_F_HW_HWTSTAMP;
 #endif
 
         hw->radiotap_timestamp.units_pos =
@@ -746,7 +745,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         wiphy->max_sched_scan_reqs = 1;
         wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH |
                         WIPHY_FLAG_SPLIT_SCAN_6GHZ ;
-#if MT792X_USE_MLINK_API
+#ifdef WIPHY_FLAG_HAS_RADAR_DETECT
         wiphy->flags |= WIPHY_FLAG_HAS_RADAR_DETECT;
 #endif
 
@@ -759,7 +758,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
          * Group 2 and stores it in status->timestamp / device_timestamp.
          * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
          */
-#if MT792X_USE_MLINK_API
+#ifdef NL80211_FEATURE_HW_TIMESTAMP
         wiphy->features |= NL80211_FEATURE_HW_TIMESTAMP;
 #endif
         wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SET_SCAN_DWELL);
@@ -794,7 +793,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
          * (IEEE 1588) support for industrial IoT applications.
          * RUNTIME_VERIFY: use linuxptp ptp4l to measure sync accuracy
          */
-#if MT792X_USE_MLINK_API
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         ieee80211_hw_set(hw, TIMING_DEVICE);
 #endif
 

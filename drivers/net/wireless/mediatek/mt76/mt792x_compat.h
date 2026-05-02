@@ -414,14 +414,15 @@ mt792x_vif_link_conf(struct ieee80211_vif *vif, unsigned int link_id)
 
 /* ========================================================================
  * Section 16: NL80211 features
+ *
+ * NL80211_FEATURE_HW_TIMESTAMP was introduced in 6.13+ but was NOT
+ * backported to RPi 6.12 even though MLO was. Use unconditional #ifndef
+ * so the fallback define works regardless of MT792X_USE_MLINK_API.
+ * Code should use #ifdef NL80211_FEATURE_HW_TIMESTAMP to guard usage.
  * ======================================================================== */
 
-#if MT792X_USE_MLINK_API
-/* Native */
-#else
 #ifndef NL80211_FEATURE_HW_TIMESTAMP
 #define NL80211_FEATURE_HW_TIMESTAMP    0
-#endif
 #endif
 
 /* ========================================================================
@@ -499,5 +500,25 @@ static inline u32 mt792x_wiphy_mbssid_max_interfaces(struct wiphy *wiphy)
 #else
 /* Use .set_radar_background or don't register these callbacks */
 #endif
+
+/* ========================================================================
+ * Section 23: Feature constants NOT backported to RPi 6.12
+ *
+ * MT792X_USE_MLINK_API detects MLO struct layout, but is NOT a reliable
+ * indicator for individual feature constants. Code should use:
+ *   - #ifdef SYMBOL for #define'd constants
+ *   - LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) for enum values
+ *
+ * NOT backported to RPi 6.12.62+rpt-rpi-2712:
+ *   - NETIF_F_HW_HWTSTAMP           (netdev feature #define → #ifdef)
+ *   - WIPHY_FLAG_HAS_RADAR_DETECT   (wiphy flag #define → #ifdef)
+ *   - NL80211_FEATURE_HW_TIMESTAMP  (nl80211 feature #define → #ifdef)
+ *   - IEEE80211_HW_TIMING_DEVICE    (enum value → version check)
+ *
+ * Backported to RPi 6.12.62+rpt-rpi-2712:
+ *   - IEEE80211_HW_SUPPORTS_MULTI_BSSID       (enum value)
+ *   - IEEE80211_HW_SUPPORTS_ONLY_HE_MULTI_BSSID (enum value)
+ *   - IEEE80211_HW_CHANCTX_STA_CSA            (enum value)
+ * ======================================================================== */
 
 #endif /* __MT792X_COMPAT_H */
