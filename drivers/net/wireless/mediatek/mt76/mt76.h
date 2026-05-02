@@ -13,8 +13,43 @@
 #include <linux/leds.h>
 #include <linux/usb.h>
 #include <linux/average.h>
+#if IS_ENABLED(CONFIG_MT76_NPU)
 #include <linux/soc/airoha/airoha_offload.h>
+#else
+struct airoha_npu;
+struct airoha_ppe_dev;
+#endif
+
+#if IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED)
 #include <linux/soc/mediatek/mtk_wed.h>
+#else
+/* Stub definitions for platforms without WED support (e.g., Raspberry Pi) */
+struct mtk_wed_device {
+        int dummy;
+};
+static inline bool mtk_wed_device_active(struct mtk_wed_device *wed)
+{
+        return false;
+}
+static inline void mtk_wed_device_irq_set_mask(struct mtk_wed_device *wed,
+                                               u32 mask)
+{
+}
+static inline void mtk_wed_device_detach(struct mtk_wed_device *wed)
+{
+}
+static inline bool mtk_wed_get_rx_capa(struct mtk_wed_device *wed)
+{
+        return false;
+}
+static inline int mtk_wed_device_setup_tc(struct mtk_wed_device *wed,
+                                          struct net_device *dev,
+                                          enum tc_setup_type type,
+                                          void *type_data)
+{
+        return -EOPNOTSUPP;
+}
+#endif
 #include <net/mac80211.h>
 #include <net/page_pool/helpers.h>
 #include "util.h"
@@ -1744,6 +1779,7 @@ static inline bool mt76_ppe_device_active(struct mt76_dev *dev)
         return !!rcu_access_pointer(dev->mmio.ppe_dev);
 }
 
+#if IS_ENABLED(CONFIG_MT76_NPU)
 static inline int mt76_npu_send_msg(struct airoha_npu *npu, int ifindex,
                                     enum airoha_npu_wlan_set_cmd cmd,
                                     u32 val, gfp_t gfp)
@@ -1759,6 +1795,7 @@ static inline int mt76_npu_get_msg(struct airoha_npu *npu, int ifindex,
         return airoha_npu_wlan_get_msg(npu, ifindex, cmd, val, sizeof(*val),
                                        gfp);
 }
+#endif /* CONFIG_MT76_NPU */
 
 static inline void mt76_testmode_reset(struct mt76_phy *phy, bool disable)
 {
