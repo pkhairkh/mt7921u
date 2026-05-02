@@ -1713,13 +1713,50 @@ mt7921_end_cac(struct ieee80211_hw *hw,
         dev_dbg(dev->mt76.dev, "CAC ended, radar detection stopped\n");
 }
 
+
+/* Kernel 6.12 compatibility wrappers for ieee80211_ops callbacks.
+ * In 6.13+, several callbacks gained an extra link_id/radio_idx parameter
+ * for MLO (Multi-Link Operation) support. These wrappers provide the
+ * old 6.12 signatures, passing 0 for the new parameter.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
+static int mt7921_config_compat(struct ieee80211_hw *hw, u32 changed)
+{
+        return mt7921_config(hw, 0, changed);
+}
+
+static int mt7921_set_rts_threshold_compat(struct ieee80211_hw *hw, u32 val)
+{
+        return mt7921_set_rts_threshold(hw, 0, val);
+}
+
+static int mt7921_set_antenna_compat(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
+{
+        return mt7921_set_antenna(hw, 0, tx_ant, rx_ant);
+}
+
+static int mt76_get_txpower_compat(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+                                   int *dbm)
+{
+        return mt76_get_txpower(hw, vif, 0, dbm);
+}
+
+static int mt76_get_antenna_compat(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx_ant)
+{
+        return mt76_get_antenna(hw, 0, tx_ant, rx_ant);
+}
+#endif
 const struct ieee80211_ops mt7921_ops = {
         .tx = mt792x_tx,
         .start = mt7921_start,
         .stop = mt7921_stop,
         .add_interface = mt7921_add_interface,
         .remove_interface = mt792x_remove_interface,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .config = mt7921_config,
+#else
+        .config = mt7921_config_compat,
+#endif
         .conf_tx = mt792x_conf_tx,
         .configure_filter = mt7921_configure_filter,
         .bss_info_changed = mt7921_bss_info_changed,
@@ -1733,21 +1770,39 @@ const struct ieee80211_ops mt7921_ops = {
         .ipv6_addr_change = mt7921_ipv6_addr_change,
 #endif /* CONFIG_IPV6 */
         .ampdu_action = mt7921_ampdu_action,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .set_rts_threshold = mt7921_set_rts_threshold,
+#else
+        .set_rts_threshold = mt7921_set_rts_threshold_compat,
+#endif
         .wake_tx_queue = mt76_wake_tx_queue,
         .release_buffered_frames = mt76_release_buffered_frames,
         .channel_switch_beacon = mt7921_channel_switch_beacon,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .get_txpower = mt76_get_txpower,
+#else
+        .get_txpower = mt76_get_txpower_compat,
+#endif
         .get_stats = mt792x_get_stats,
         .get_et_sset_count = mt792x_get_et_sset_count,
         .get_et_strings = mt792x_get_et_strings,
         .get_et_stats = mt792x_get_et_stats,
         .get_tsf = mt792x_get_tsf,
         .set_tsf = mt792x_set_tsf,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .get_tstamp = mt7921_get_tstamp,
+#endif
         .get_survey = mt76_get_survey,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .get_antenna = mt76_get_antenna,
+#else
+        .get_antenna = mt76_get_antenna_compat,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .set_antenna = mt7921_set_antenna,
+#else
+        .set_antenna = mt7921_set_antenna_compat,
+#endif
         .set_coverage_class = mt792x_set_coverage_class,
         .hw_scan = mt7921_hw_scan,
         .cancel_hw_scan = mt7921_cancel_hw_scan,
