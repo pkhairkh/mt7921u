@@ -7,6 +7,7 @@
 #include <linux/module.h>
 #include <net/ipv6.h>
 #include "mt7921.h"
+#include <linux/version.h>
 #include "mcu.h"
 
 static int
@@ -1578,7 +1579,14 @@ static void mt7921_cac_timer(struct timer_list *t)
 
         dev_dbg(dev->mt76.dev, "CAC timer expired — channel available\n");
         dfs->radar_detected = false;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         ieee80211_cac_finish(dev->mt76.phy.hw, dfs->cac_vif);
+#else
+        /* On <6.13, ieee80211_cac_finish does not exist;
+         * CAC completion is not reported to userspace.
+         */
+        dev_info(dev->mt76.dev, "CAC finished (no notification on <6.13)\n");
+#endif
         dfs->cac_vif = NULL;
 }
 
@@ -1605,7 +1613,11 @@ static void mt7921_radar_detected_event(struct mt792x_dev *dev,
 
         dfs->radar_detected = true;
         if (dfs->cac_vif) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                 ieee80211_radar_detected(dev->mt76.phy.hw, dfs->cac_vif);
+#else
+                ieee80211_radar_detected(dev->mt76.phy.hw, NULL);
+#endif
                 dfs->cac_vif = NULL;
         }
 }

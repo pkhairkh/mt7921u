@@ -691,7 +691,9 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
          * Group 2 and stores it in status->timestamp / status->mactime.
          * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
          */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         wiphy->features |= NL80211_FEATURE_HW_TIMESTAMP;
+#endif
         wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SET_SCAN_DWELL);
         wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_LEGACY);
         wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_HT);
@@ -720,7 +722,9 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
          * (IEEE 1588) support for industrial IoT applications.
          * RUNTIME_VERIFY: use linuxptp ptp4l to measure sync accuracy
          */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         ieee80211_hw_set(hw, TIMING_DEVICE);
+#endif
 
         if (dev->pm.enable)
                 ieee80211_hw_set(hw, CONNECTION_MONITOR);
