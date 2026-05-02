@@ -356,6 +356,7 @@ int mt7921_mcu_set_rssimonitor(struct mt792x_dev *dev, struct ieee80211_vif *vif
 /* TWT (Target Wake Time) — TASK-007 */
 #define MT7921_MAX_TWT_AGRT             16
 #define MT7921_MAX_STA_TWT_AGRT         8
+#endif
 #define MT7921_MIN_TWT_DUR              64
 
 struct mt7921_twt_flow {
@@ -429,6 +430,7 @@ void mt7921_acs_debugfs_init(struct mt792x_dev *dev);
  * 1000 entries was ~4.4 MB which is excessive for a kernel struct.
  * 64 × ~2 KB = ~128 KB — much more reasonable.
  */
+#ifndef MT7921_CSI_DEFS_MOVED_TO_MT792X
 #define MT7921_CSI_RING_SIZE            64
 #define MT7921_CSI_DATA_SIZE            256
 

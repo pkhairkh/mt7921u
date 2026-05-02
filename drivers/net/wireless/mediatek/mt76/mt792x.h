@@ -5,6 +5,7 @@
 #define __MT792X_H
 
 #include <linux/interrupt.h>
+#include <linux/version.h>
 #include <linux/ktime.h>
 
 #include "mt76_connac_mcu.h"
@@ -118,6 +119,84 @@ enum mt792x_mlo_pm_state {
         MT792x_MLO_CHANGED_PS_PENDING,
         MT792x_MLO_CHANGED_PS,
 };
+
+
+/* TWT (Target Wake Time) constants and types — needed by mt792x struct definitions.
+ * Also defined in mt7921/mt7921.h; guarded here to avoid redefinition. */
+#ifndef MT7921_TWT_DEFS_MOVED_TO_MT792X
+#define MT7921_TWT_DEFS_MOVED_TO_MT792X
+#define MT7921_MAX_TWT_AGRT             16
+#define MT7921_MAX_STA_TWT_AGRT         8
+
+struct mt7921_twt_flow {
+        u64 tsf;
+        u32 duration;
+        u16 wcid;
+        __le16 mantissa;
+        u8 table_id;
+        u8 id;
+        u8 exp;
+        u8 protection:1;
+        u8 flowtype:1;
+        u8 trigger:1;
+};
+
+struct mt7921_twt_agrt_stats {
+        u32 n_agrt;
+        u32 n_missed_sp;
+        u32 missed_sp[MT7921_MAX_TWT_AGRT];
+        bool sp_active[MT7921_MAX_TWT_AGRT];
+        u64 sp_start_tsf[MT7921_MAX_TWT_AGRT];
+};
+#endif
+
+/* CSI (Channel State Information) types */
+#ifndef MT7921_CSI_DEFS_MOVED_TO_MT792X
+#define MT7921_CSI_DEFS_MOVED_TO_MT792X
+#define MT7921_CSI_RING_SIZE            64
+#define MT7921_CSI_DATA_SIZE            256
+
+struct mt7921_csi_data {
+        u8 fw_ver;
+        u8 bw;
+        bool is_cck;
+        u16 data_count;
+        s16 i_data[MT7921_CSI_DATA_SIZE];
+        s16 q_data[MT7921_CSI_DATA_SIZE];
+        s8 rssi;
+        u8 snr;
+        u8 data_bw;
+        u8 primary_ch_idx;
+        u8 ta[ETH_ALEN];
+        u8 rx_mode;
+        u32 extra_info;
+        u32 tr_idx;
+};
+
+struct mt7921_csi_info {
+        struct mt7921_csi_data buffer[MT7921_CSI_RING_SIZE];
+        wait_queue_head_t waitq;
+        spinlock_t ring_lock;
+        u32 head;
+        u32 tail;
+        u8 mode;
+        u8 config_val1;
+        u8 config_val2;
+        bool enabled;
+};
+#endif
+
+/* DFS state */
+#ifndef MT7921_DFS_DEFS_MOVED_TO_MT792X
+#define MT7921_DFS_DEFS_MOVED_TO_MT792X
+struct mt7921_dfs_state {
+        bool radar_detected;
+        u8 cac_band_idx;
+        u32 cac_time_ms;
+        struct timer_list cac_timer;
+        struct ieee80211_vif *cac_vif;
+};
+#endif
 
 DECLARE_EWMA(avg_signal, 10, 8)
 

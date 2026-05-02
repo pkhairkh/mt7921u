@@ -5,6 +5,7 @@
 #include <linux/firmware.h>
 
 #include "mt792x.h"
+#include <linux/version.h>
 #include "dma.h"
 
 static const struct ieee80211_iface_limit if_limits[] = {
@@ -309,7 +310,7 @@ EXPORT_SYMBOL_GPL(mt792x_tx_worker);
 
 void mt792x_roc_timer(struct timer_list *timer)
 {
-        struct mt792x_phy *phy = timer_container_of(phy, timer, roc_timer);
+        struct mt792x_phy *phy = from_timer(phy, timer, roc_timer);
 
         dev_dbg(phy->dev->mt76.dev, "roc_timer: fired, queueing roc_work\n");
         ieee80211_queue_work(phy->mt76->hw, &phy->roc_work);
@@ -318,7 +319,7 @@ EXPORT_SYMBOL_GPL(mt792x_roc_timer);
 
 void mt792x_csa_timer(struct timer_list *timer)
 {
-        struct mt792x_vif *mvif = timer_container_of(mvif, timer, csa_timer);
+        struct mt792x_vif *mvif = from_timer(mvif, timer, csa_timer);
 
         ieee80211_queue_work(mvif->phy->mt76->hw, &mvif->csa_work);
 }
@@ -635,7 +636,11 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
                 hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
                 hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
         }
-        hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_HWTSTAMP;
+        #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+	hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_HWTSTAMP;
+#else
+	hw->netdev_features = NETIF_F_RXCSUM;
+#endif
 
         hw->radiotap_timestamp.units_pos =
                 IEEE80211_RADIOTAP_TIMESTAMP_UNIT_US;
@@ -672,8 +677,10 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         wiphy->max_match_sets = MT76_CONNAC_MAX_SCAN_MATCH;
         wiphy->max_sched_scan_reqs = 1;
         wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH |
-                        WIPHY_FLAG_SPLIT_SCAN_6GHZ |
-                        WIPHY_FLAG_HAS_RADAR_DETECT;
+                        WIPHY_FLAG_SPLIT_SCAN_6GHZ ;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+	wiphy->flags |= WIPHY_FLAG_HAS_RADAR_DETECT;
+#endif
 
         wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
                            NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR;
