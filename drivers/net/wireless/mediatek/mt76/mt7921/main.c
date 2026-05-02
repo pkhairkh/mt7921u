@@ -10,11 +10,18 @@
 #include <linux/version.h>
 #include "mcu.h"
 
-/* Kernel 6.12 compat: _ieee80211_set_sband_iftype_data was renamed
- * from ieee80211_set_sband_iftype_data in 6.13.
+/* Kernel 6.12 compat: ieee80211_set_sband_iftype_data takes 2 args in
+ * 6.12 (sband, iftd) but 3 args in 6.13+ (sband, iftd, n). The n count
+ * parameter was added in 6.13 because the macro no longer computes the
+ * array size automatically. Use a wrapper macro that accepts 3 args
+ * and discards the third on older kernels.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
-#define _ieee80211_set_sband_iftype_data ieee80211_set_sband_iftype_data
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#define _ieee80211_set_sband_iftype_data(sband, iftd, n) \
+	ieee80211_set_sband_iftype_data(sband, iftd, n)
+#else
+#define _ieee80211_set_sband_iftype_data(sband, iftd, n) \
+	ieee80211_set_sband_iftype_data(sband, iftd)
 #endif
 
 static int
@@ -1581,13 +1588,15 @@ void mt7921_cac_timer(struct timer_list *t)
         struct mt792x_phy *phy = container_of(dfs, struct mt792x_phy, dfs_state);
         struct mt792x_dev *dev = phy->dev;
 
-        if (!dfs->cac_vif)
+        if (!dfs->cac_active)
                 return;
 
+        dfs->cac_active = false;
         dev_dbg(dev->mt76.dev, "CAC timer expired — channel available\n");
         dfs->radar_detected = false;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-        ieee80211_cac_finish(dev->mt76.phy.hw, dfs->cac_vif);
+        if (dfs->cac_vif)
+                ieee80211_cac_finish(dev->mt76.phy.hw, dfs->cac_vif);
 #else
         /* On <6.13, ieee80211_cac_finish does not exist;
          * CAC completion is not reported to userspace.
@@ -1619,21 +1628,26 @@ void mt7921_radar_detected_event(struct mt792x_dev *dev,
         del_timer_sync(&dfs->cac_timer);
 
         dfs->radar_detected = true;
-        if (dfs->cac_vif) {
+        dfs->cac_active = false;
+
+        /* RPi 6.12 kernel backported the 2-arg ieee80211_radar_detected()
+         * from 6.13 (hw, link_id). Mainline 6.12 only has 1-arg (hw), but
+         * we target the RPi kernel which always has 2 args.
+         */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+        if (dfs->cac_vif) {
                 ieee80211_radar_detected(dev->mt76.phy.hw, dfs->cac_vif);
-#else
-                ieee80211_radar_detected(dev->mt76.phy.hw);
-#endif
                 dfs->cac_vif = NULL;
         }
+#else
+        ieee80211_radar_detected(dev->mt76.phy.hw, NULL);
+        dfs->cac_vif = NULL;
+#endif
 }
 
 static int
 mt7921_start_radar_detection(struct ieee80211_hw *hw,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                              struct ieee80211_vif *vif,
-#endif
                              struct cfg80211_chan_def *chandef,
                              u32 cac_time_ms)
 {
@@ -1656,11 +1670,8 @@ mt7921_start_radar_detection(struct ieee80211_hw *hw,
         phy->dfs_state.radar_detected = false;
         phy->dfs_state.cac_band_idx = 0;
         phy->dfs_state.cac_time_ms = cac_time_ms;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+        phy->dfs_state.cac_active = true;
         phy->dfs_state.cac_vif = vif;
-#else
-        phy->dfs_state.cac_vif = NULL; /* no vif param on <6.13 */
-#endif
 
         mt792x_mutex_acquire(dev);
         ret = mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
@@ -1687,10 +1698,7 @@ mt7921_start_radar_detection(struct ieee80211_hw *hw,
 
 static void
 mt7921_end_cac(struct ieee80211_hw *hw,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-               struct ieee80211_vif *vif
-#endif
-               )
+               struct ieee80211_vif *vif)
 {
         struct mt792x_phy *phy = mt792x_hw_phy(hw);
         struct mt792x_dev *dev = phy->dev;
@@ -1713,6 +1721,7 @@ mt7921_end_cac(struct ieee80211_hw *hw,
 
         /* RUNTIME_VERIFY: CAC cancellation depends on firmware */
         phy->dfs_state.radar_detected = false;
+        phy->dfs_state.cac_active = false;
         phy->dfs_state.cac_time_ms = 0;
         phy->dfs_state.cac_vif = NULL;
 
@@ -1768,13 +1777,6 @@ static void mt792x_set_coverage_class_compat(struct ieee80211_hw *hw,
         mt792x_set_coverage_class(hw, 0, coverage_class);
 }
 
-static int mt792x_conf_tx_compat(struct ieee80211_hw *hw,
-                                  struct ieee80211_vif *vif,
-                                  u16 queue,
-                                  const struct ieee80211_tx_queue_params *params)
-{
-        return mt792x_conf_tx(hw, vif, 0, queue, params);
-}
 #endif
 const struct ieee80211_ops mt7921_ops = {
         .tx = mt792x_tx,
@@ -1787,11 +1789,7 @@ const struct ieee80211_ops mt7921_ops = {
 #else
         .config = mt7921_config_compat,
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .conf_tx = mt792x_conf_tx,
-#else
-        .conf_tx = mt792x_conf_tx_compat,
-#endif
         .configure_filter = mt7921_configure_filter,
         .bss_info_changed = mt7921_bss_info_changed,
         .start_ap = mt7921_start_ap,
@@ -1874,9 +1872,14 @@ const struct ieee80211_ops mt7921_ops = {
         .channel_switch_rx_beacon = mt7921_channel_switch_rx_beacon,
         .add_twt_setup = mt7921_mac_add_twt_setup,
         .twt_teardown_request = mt7921_twt_teardown_request,
-        /* TASK-013: DFS Master Preparation */
+        /* TASK-013: DFS Master Preparation — only on 6.13+ as the
+         * .start_radar_detection and .end_cac ops members don't exist
+         * in struct ieee80211_ops on kernel 6.12 (even RPi backports).
+         */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .start_radar_detection = mt7921_start_radar_detection,
         .end_cac = mt7921_end_cac,
+#endif
 };
 EXPORT_SYMBOL_GPL(mt7921_ops);
 

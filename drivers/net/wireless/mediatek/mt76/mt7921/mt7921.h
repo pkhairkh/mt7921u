@@ -511,11 +511,12 @@ struct mt7921_csi_info {
 
 /* TASK-013: DFS Master Preparation */
 struct mt7921_dfs_state {
-        bool radar_detected;
-        u8 cac_band_idx;
-        u32 cac_time_ms;
-        struct timer_list cac_timer;
-        struct ieee80211_vif *cac_vif;
+	bool radar_detected;
+	bool cac_active;
+	u8 cac_band_idx;
+	u32 cac_time_ms;
+	struct timer_list cac_timer;
+	struct ieee80211_vif *cac_vif;
 };
 #endif
 
