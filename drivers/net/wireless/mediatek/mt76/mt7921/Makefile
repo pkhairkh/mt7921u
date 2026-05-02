@@ -6,7 +6,8 @@ obj-$(CONFIG_MT7921S) += mt7921s.o
 obj-$(CONFIG_MT7921U) += mt7921u.o
 
 mt7921-common-y := mac.o mcu.o main.o init.o debugfs.o twt.o twt_debugfs.o csi.o csi_nl80211.o test_trigger_debugfs.o acs.o
-mt7921-common-$(CONFIG_NL80211_TESTMODE) += testmode.o
+# mt7921-common-$(CONFIG_NL80211_TESTMODE) += testmode.o
+# Disabled: same reason as above - CONFIG_NL80211_TESTMODE not defined in RPi kernel autoconf.h
 mt7921e-y := pci.o pci_mac.o pci_mcu.o
 mt7921s-y := sdio.o sdio_mac.o sdio_mcu.o
 mt7921u-y := usb.o

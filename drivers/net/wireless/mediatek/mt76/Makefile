@@ -14,7 +14,9 @@ mt76-y := \
 
 mt76-$(CONFIG_MT76_NPU) += npu.o
 mt76-$(CONFIG_PCI) += pci.o
-mt76-$(CONFIG_NL80211_TESTMODE) += testmode.o
+# mt76-$(CONFIG_NL80211_TESTMODE) += testmode.o
+# Disabled: RPi 5 kernel 6.12 does not define CONFIG_NL80211_TESTMODE in autoconf.h,
+# so struct members guarded by #ifdef CONFIG_NL80211_TESTMODE are hidden, causing build failures.
 
 mt76-usb-y := usb.o usb_trace.o
 mt76-sdio-y := sdio.o sdio_txrx.o
