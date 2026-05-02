@@ -4,6 +4,7 @@
  */
 
 #include "mt76x02_usb.h"
+#include <linux/version.h>
 
 static void mt76x02u_remove_dma_hdr(struct sk_buff *skb)
 {
@@ -264,8 +265,14 @@ void mt76x02u_init_beacon_config(struct mt76x02_dev *dev)
 	};
 	dev->beacon_ops = &beacon_ops;
 
+	/* hrtimer_setup() was introduced in kernel 6.13+; use hrtimer_init() on older kernels */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 	hrtimer_setup(&dev->pre_tbtt_timer, mt76x02u_pre_tbtt_interrupt, CLOCK_MONOTONIC,
 		      HRTIMER_MODE_REL);
+#else
+	hrtimer_init(&dev->pre_tbtt_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	dev->pre_tbtt_timer.function = mt76x02u_pre_tbtt_interrupt;
+#endif
 	INIT_WORK(&dev->pre_tbtt_work, mt76x02u_pre_tbtt_work);
 
 	mt76x02_init_beacon_config(dev);
