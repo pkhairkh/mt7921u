@@ -2,6 +2,7 @@
 /* Copyright (C) 2020 MediaTek Inc. */
 
 #include "mt76_connac.h"
+#include <linux/version.h>
 #include "mt76_connac2_mac.h"
 #include "dma.h"
 
@@ -413,10 +414,17 @@ mt76_connac2_mac_write_txwi_80211(struct mt76_dev *dev, __le32 *txwi,
 	u32 val;
 
 	if (ieee80211_is_action(fc) &&
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 	    skb->len >= IEEE80211_MIN_ACTION_SIZE(addba_req.capab) &&
 	    mgmt->u.action.category == WLAN_CATEGORY_BACK &&
 	    mgmt->u.action.action_code == WLAN_ACTION_ADDBA_REQ) {
 		u16 capab = le16_to_cpu(mgmt->u.action.addba_req.capab);
+#else
+	    skb->len >= IEEE80211_MIN_ACTION_SIZE &&
+	    mgmt->u.action.category == WLAN_CATEGORY_BACK &&
+	    mgmt->u.action.u.action_code == WLAN_ACTION_ADDBA_REQ) {
+		u16 capab = le16_to_cpu(mgmt->u.action.u.addba_req.capab);
+#endif
 
 		txwi[5] |= cpu_to_le32(MT_TXD5_ADD_BA);
 		tid = (capab >> 2) & IEEE80211_QOS_CTL_TID_MASK;
