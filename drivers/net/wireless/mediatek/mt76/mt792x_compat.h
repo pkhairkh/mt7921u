@@ -106,23 +106,32 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
  * Section 3: vif->cfg vs vif->bss_conf compat
  *
  * In MLO kernels, some fields moved from vif->bss_conf to vif->cfg:
- *   assoc, aid, ps, p2p, arp_addr_cnt, arp_addr_list
+ *   assoc, aid, ps, arp_addr_cnt, arp_addr_list
+ *
+ * NOTE: p2p is different! It moved from vif->p2p to vif->cfg.p2p ONLY
+ * in 6.13+. The RPi 6.12 kernel has vif->cfg (backported MLO struct
+ * layout) but kept p2p at vif->p2p — it was NOT moved to cfg.
  * ======================================================================== */
 
 #if MT792X_USE_MLINK_API
 #define VIF_ASSOC(vif)                  ((vif)->cfg.assoc)
 #define VIF_AID(vif)                    ((vif)->cfg.aid)
 #define VIF_PS(vif)                     ((vif)->cfg.ps)
-#define VIF_P2P(vif)                    ((vif)->cfg.p2p)
 #define VIF_ARP_ADDR_CNT(vif)           ((vif)->cfg.arp_addr_cnt)
 #define VIF_ARP_ADDR_LIST(vif)          ((vif)->cfg.arp_addr_list)
 #else
 #define VIF_ASSOC(vif)                  ((vif)->bss_conf.assoc)
 #define VIF_AID(vif)                    ((vif)->bss_conf.aid)
 #define VIF_PS(vif)                     ((vif)->bss_conf.ps)
-#define VIF_P2P(vif)                    ((vif)->p2p)
 #define VIF_ARP_ADDR_CNT(vif)           ((vif)->bss_conf.arp_addr_cnt)
 #define VIF_ARP_ADDR_LIST(vif)          ((vif)->bss_conf.arp_addr_list)
+#endif
+
+/* p2p: moved from vif->p2p to vif->cfg.p2p in 6.13+ (NOT backported to RPi 6.12) */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#define VIF_P2P(vif)                    ((vif)->cfg.p2p)
+#else
+#define VIF_P2P(vif)                    ((vif)->p2p)
 #endif
 
 /* ========================================================================
