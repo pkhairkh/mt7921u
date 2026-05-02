@@ -71,6 +71,15 @@ static inline int mtk_wed_device_update_msg(struct mtk_wed_device *wed,
 #endif
 #include <net/mac80211.h>
 #include <net/page_pool/helpers.h>
+
+/* Kernel 6.13 MLO compat: some kernels (e.g. RPi 6.12) backport MLO
+ * structures while others do not. Use #ifndef guards so we only define
+ * these when the kernel headers do not provide them.
+ */
+#ifndef IEEE80211_MLD_MAX_NUM_LINKS
+#define IEEE80211_MLD_MAX_NUM_LINKS 2
+#endif
+
 #include "util.h"
 #include "testmode.h"
 

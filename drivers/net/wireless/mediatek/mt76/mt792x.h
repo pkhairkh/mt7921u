@@ -452,8 +452,11 @@ mt792x_vif_to_bss_conf(struct ieee80211_vif *vif, unsigned int link_id)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         return link_conf_dereference_protected(vif, link_id);
 #else
-        return rcu_dereference_protected(vif->link_conf[link_id],
-                                         lockdep_is_held(&vif->wdev.mtx));
+        /* On 6.12, MLO is not supported (ieee80211_vif_is_mld() always
+         * returns false), so we never reach this branch. Return
+         * &vif->bss_conf as a safe fallback.
+         */
+        return &vif->bss_conf;
 #endif
 }
 
@@ -468,8 +471,11 @@ mt792x_sta_to_link_sta(struct ieee80211_vif *vif, struct ieee80211_sta *sta,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         return link_sta_dereference_protected(sta, link_id);
 #else
-        return rcu_dereference_protected(sta->link[link_id],
-                                         lockdep_is_held(&vif->wdev.mtx));
+        /* On 6.12, MLO is not supported (ieee80211_vif_is_mld() always
+         * returns false), so we never reach this branch. Return
+         * &sta->deflink as a safe fallback.
+         */
+        return &sta->deflink;
 #endif
 }
 
