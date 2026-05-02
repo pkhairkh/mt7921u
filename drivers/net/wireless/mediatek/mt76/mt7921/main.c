@@ -1636,15 +1636,8 @@ void mt7921_cac_timer(struct timer_list *t)
         dfs->cac_active = false;
         dev_dbg(dev->mt76.dev, "CAC timer expired — channel available\n");
         dfs->radar_detected = false;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         if (dfs->cac_vif)
-                ieee80211_cac_finish(dev->mt76.phy.hw, dfs->cac_vif);
-#else
-        /* On <6.13, ieee80211_cac_finish does not exist;
-         * CAC completion is not reported to userspace.
-         */
-        dev_info(dev->mt76.dev, "CAC finished (no notification on <6.13)\n");
-#endif
+                mt792x_cac_finish(dev->mt76.phy.hw, dfs->cac_vif);
         dfs->cac_vif = NULL;
 }
 
