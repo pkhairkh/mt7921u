@@ -813,9 +813,6 @@ struct mt76_rx_status {
 
         u32 ampdu_ref;
         u32 timestamp;
-#if MT792X_USE_MLINK_API
-        u64 mactime;       /* 64-bit TSF for HW timestamping */
-#endif
 
         u8 iv[6];
 

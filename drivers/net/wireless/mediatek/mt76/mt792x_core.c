@@ -756,7 +756,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         /* TASK-012: HW Timestamping — advertise hardware timestamp
          * support so userspace can use SOF_TIMESTAMPING_RX_HARDWARE.
          * The RX path already extracts the TSF from the RX descriptor
-         * Group 2 and stores it in status->timestamp / status->mactime.
+         * Group 2 and stores it in status->timestamp / device_timestamp.
          * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
          */
 #if MT792X_USE_MLINK_API
