@@ -840,7 +840,7 @@ mt7921_regd_set_6ghz_power_type(struct ieee80211_vif *vif, bool is_add)
         }
 
 out:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         if (vif->bss_conf.chanreq.oper.chan &&
             vif->bss_conf.chanreq.oper.chan->band == NL80211_BAND_6GHZ)
 #else
@@ -858,7 +858,7 @@ int mt7921_mac_sta_add(struct mt76_dev *mdev, struct ieee80211_vif *vif,
         struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
         int ret, idx;
 
-        if (sta->aid > MT7921_MAX_AID)
+        if (STA_AID(sta) > MT7921_MAX_AID)
                 return -ENOENT;
 
         idx = mt76_wcid_alloc(dev->mt76.wcid_mask, MT792x_WTBL_STA - 1);
@@ -909,7 +909,7 @@ int mt7921_mac_sta_event(struct mt76_dev *mdev, struct ieee80211_vif *vif,
         struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
         struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
 
-        if (sta->aid > MT7921_MAX_AID)
+        if (STA_AID(sta) > MT7921_MAX_AID)
                 return -ENOENT;
 
         if (ev != MT76_STA_EVENT_ASSOC)
@@ -1040,7 +1040,7 @@ mt7921_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
                 mtxq->aggr = false;
                 clear_bit(tid, &msta->deflink.wcid.ampdu_state);
                 mt7921_mcu_uni_tx_ba(dev, params, false);
-                ieee80211_stop_tx_ba_cb_irqsafe(vif, sta->addr, tid);
+                ieee80211_stop_tx_ba_cb_irqsafe(vif, STA_ADDR(sta), tid);
                 break;
         }
         mt792x_mutex_release(dev);

@@ -106,7 +106,7 @@ void mt792x_tx(struct ieee80211_hw *hw, struct ieee80211_tx_control *control,
                 wcid = &mvif->sta.deflink.wcid;
         }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         if (vif && control->sta && ieee80211_vif_is_mld(vif)) {
                 struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
                 struct ieee80211_link_sta *link_sta;
@@ -779,8 +779,10 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         ieee80211_hw_set(hw, SUPPORTS_DYNAMIC_PS);
         ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
         ieee80211_hw_set(hw, CONNECTION_MONITOR);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         ieee80211_hw_set(hw, SUPPORTS_MULTI_BSSID);
         ieee80211_hw_set(hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         ieee80211_hw_set(hw, CHANCTX_STA_CSA);

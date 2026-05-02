@@ -382,7 +382,7 @@ EXPORT_SYMBOL_GPL(mt76_connac_mcu_bss_omac_tlv);
 
 void mt76_connac_mcu_sta_basic_tlv(struct mt76_dev *dev, struct sk_buff *skb,
                                    struct ieee80211_bss_conf *link_conf,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                                    struct ieee80211_link_sta *link_sta,
 #else
                                    struct ieee80211_sta *link_sta,
@@ -424,7 +424,7 @@ void mt76_connac_mcu_sta_basic_tlv(struct mt76_dev *dev, struct sk_buff *skb,
                 else
                         conn_type = CONNECTION_INFRA_STA;
                 basic->conn_type = cpu_to_le32(conn_type);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                 basic->aid = cpu_to_le16(link_sta->sta->aid);
 #else
                 basic->aid = cpu_to_le16(link_sta->aid);
@@ -440,7 +440,7 @@ void mt76_connac_mcu_sta_basic_tlv(struct mt76_dev *dev, struct sk_buff *skb,
                 break;
         case NL80211_IFTYPE_ADHOC:
                 basic->conn_type = cpu_to_le32(CONNECTION_IBSS_ADHOC);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                 basic->aid = cpu_to_le16(link_sta->sta->aid);
 #else
                 basic->aid = cpu_to_le16(link_sta->aid);
@@ -452,7 +452,7 @@ void mt76_connac_mcu_sta_basic_tlv(struct mt76_dev *dev, struct sk_buff *skb,
         }
 
         memcpy(basic->peer_addr, link_sta->addr, ETH_ALEN);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         basic->qos = link_sta->sta->wme;
 #else
         basic->qos = link_sta->wme;
@@ -466,7 +466,7 @@ void mt76_connac_mcu_sta_uapsd(struct sk_buff *skb, struct ieee80211_vif *vif,
         struct sta_rec_uapsd *uapsd;
         struct tlv *tlv;
 
-        if (vif->type != NL80211_IFTYPE_AP || !sta->wme)
+        if (vif->type != NL80211_IFTYPE_AP || !STA_WME(sta))
                 return;
 
         tlv = mt76_connac_mcu_add_tlv(skb, STA_REC_APPS, sizeof(*uapsd));
@@ -590,10 +590,10 @@ void mt76_connac_mcu_wtbl_generic_tlv(struct mt76_dev *dev,
                 if (vif->type == NL80211_IFTYPE_STATION)
                         generic->partial_aid = cpu_to_le16(VIF_AID(vif));
                 else
-                        generic->partial_aid = cpu_to_le16(sta->aid);
-                memcpy(generic->peer_addr, sta->addr, ETH_ALEN);
+                        generic->partial_aid = cpu_to_le16(STA_AID(sta));
+                memcpy(generic->peer_addr, STA_ADDR(sta), ETH_ALEN);
                 generic->muar_idx = mvif->omac_idx;
-                generic->qos = sta->wme;
+                generic->qos = STA_WME(sta);
         } else {
                 if (!is_connac_v1(dev) && vif->type == NL80211_IFTYPE_STATION)
                         memcpy(generic->peer_addr, vif->bss_conf.bssid,
@@ -819,7 +819,7 @@ EXPORT_SYMBOL_GPL(mt76_connac_mcu_sta_he_tlv_v2);
 u8
 mt76_connac_get_phy_mode_v2(struct mt76_phy *mphy, struct ieee80211_vif *vif,
                             enum nl80211_band band,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                             struct ieee80211_link_sta *link_sta)
 #else
                             struct ieee80211_sta *link_sta)
@@ -941,7 +941,7 @@ void mt76_connac_mcu_sta_tlv(struct mt76_phy *mphy, struct sk_buff *skb,
 
         tlv = mt76_connac_mcu_add_tlv(skb, STA_REC_PHY, sizeof(*phy));
         phy = (struct sta_rec_phy *)tlv;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         phy->phy_type = mt76_connac_get_phy_mode_v2(mphy, vif, band,
                                                     &sta->deflink);
 #else
@@ -1079,7 +1079,7 @@ int mt76_connac_mcu_sta_cmd(struct mt76_phy *phy,
                             struct mt76_sta_cmd_info *info)
 {
         struct mt76_vif_link *mvif = (struct mt76_vif_link *)info->vif->drv_priv;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         struct ieee80211_link_sta *link_sta;
 #else
         struct ieee80211_sta *link_sta;
@@ -1099,7 +1099,7 @@ int mt76_connac_mcu_sta_cmd(struct mt76_phy *phy,
 
         conn_state = info->enable ? CONN_STATE_PORT_SECURE :
                                     CONN_STATE_DISCONNECT;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         link_sta = info->sta ? &info->sta->deflink : NULL;
 #else
         link_sta = info->sta;
@@ -1158,7 +1158,7 @@ void mt76_connac_mcu_wtbl_ba_tlv(struct mt76_dev *dev, struct sk_buff *skb,
                 ba->ba_winsize = enable ? cpu_to_le16(params->buf_size) : 0;
                 ba->ba_en = enable;
         } else {
-                memcpy(ba->peer_addr, params->sta->addr, ETH_ALEN);
+                memcpy(ba->peer_addr, STA_ADDR(params->sta), ETH_ALEN);
                 ba->ba_type = MT_BA_TYPE_RECIPIENT;
                 ba->rst_ba_tid = params->tid;
                 ba->rst_ba_sel = RST_BA_MAC_TID_MATCH;
@@ -1367,7 +1367,7 @@ EXPORT_SYMBOL_GPL(mt76_connac_mcu_sta_ba);
 
 u8 mt76_connac_get_phy_mode(struct mt76_phy *phy, struct ieee80211_vif *vif,
                             enum nl80211_band band,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                             struct ieee80211_link_sta *link_sta)
 #else
                             struct ieee80211_sta *link_sta)
@@ -2340,7 +2340,7 @@ int mt76_connac_mcu_update_arp_filter(struct mt76_dev *dev,
                                                   bss_conf);
         struct sk_buff *skb;
         int i, len = min_t(int,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                            mvif->cfg.arp_addr_cnt,
 #else
                            mvif->bss_conf.arp_addr_cnt,
@@ -2373,7 +2373,7 @@ int mt76_connac_mcu_update_arp_filter(struct mt76_dev *dev,
         skb_put_data(skb, &req_hdr, sizeof(req_hdr));
         for (i = 0; i < len; i++)
                 skb_put_data(skb,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                              &mvif->cfg.arp_addr_list[i],
 #else
                              &mvif->bss_conf.arp_addr_list[i],
@@ -2885,20 +2885,18 @@ int mt76_connac_mcu_bss_basic_tlv(struct sk_buff *skb,
         case NL80211_IFTYPE_MONITOR:
                 break;
         case NL80211_IFTYPE_AP:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                 if (ieee80211_hw_check(phy->hw, SUPPORTS_MULTI_BSSID)) {
                         u8 bssid_id = vif->bss_conf.bssid_indicator;
                         struct wiphy *wiphy = phy->hw->wiphy;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-                        if (bssid_id > ilog2(wiphy->mbssid_max_interfaces))
-#else
-                        if (bssid_id > 0) /* No multi-BSSID in 6.12 */
-#endif
+                        if (bssid_id > ilog2(wiphy_mbssid_max_interfaces(wiphy)))
                                 return -EINVAL;
 
                         bss->non_tx_bssid = vif->bss_conf.bssid_index;
                         bss->max_bssid = bssid_id;
                 }
+#endif
                 break;
         case NL80211_IFTYPE_STATION:
                 if (enable) {

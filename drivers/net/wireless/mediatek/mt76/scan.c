@@ -3,6 +3,7 @@
  * Copyright (C) 2024 Felix Fietkau <nbd@nbd.name>
  */
 #include "mt76.h"
+#include "mt792x_compat.h"
 
 static void mt76_scan_complete(struct mt76_dev *dev, bool abort)
 {
@@ -182,7 +183,7 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
         int ret = 0;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-        if (hw->wiphy->n_radio > 1) {
+        if (wiphy_n_radio(hw->wiphy) > 1) {
                 phy = dev->band_phys[req->req.channels[0]->band];
                 if (!phy)
                         return -EINVAL;

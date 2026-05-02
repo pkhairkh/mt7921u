@@ -12,15 +12,10 @@
 #include "mt792x_regs.h"
 #include "mt792x_acpi_sar.h"
 
-/* Kernel 6.12 compat: ieee80211_vif_is_mld() was added in 6.13 for MLO.
- * On 6.12, no interface can be an MLD, so always return false.
+/* ieee80211_vif_is_mld() is provided by mt792x_compat.h or the kernel headers.
+ * Do NOT redefine here - the RPi 6.12 kernel already provides it with
+ * const qualifier, and mt792x_compat.h handles non-MLO kernels.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
-static inline bool ieee80211_vif_is_mld(struct ieee80211_vif *vif)
-{
-        return false;
-}
-#endif
 
 #define MT792x_PM_TIMEOUT       (HZ / 12)
 #define MT792x_HW_SCAN_TIMEOUT  (HZ / 10)
@@ -460,13 +455,10 @@ mt792x_vif_to_bss_conf(struct ieee80211_vif *vif, unsigned int link_id)
             link_id >= IEEE80211_LINK_UNSPECIFIED)
                 return &vif->bss_conf;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         return link_conf_dereference_protected(vif, link_id);
 #else
-        /* On 6.12, MLO is not supported (ieee80211_vif_is_mld() always
-         * returns false), so we never reach this branch. Return
-         * &vif->bss_conf as a safe fallback.
-         */
+        /* Without MLO link_conf API, never reached. */
         return &vif->bss_conf;
 #endif
 }
@@ -479,13 +471,10 @@ mt792x_sta_to_link_sta(struct ieee80211_vif *vif, struct ieee80211_sta *sta,
             link_id >= IEEE80211_LINK_UNSPECIFIED)
                 return &sta->deflink;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         return link_sta_dereference_protected(sta, link_id);
 #else
-        /* On 6.12, MLO is not supported (ieee80211_vif_is_mld() always
-         * returns false), so we never reach this branch. Return
-         * &sta->deflink as a safe fallback.
-         */
+        /* Without MLO link_sta API, never reached. */
         return &sta->deflink;
 #endif
 }

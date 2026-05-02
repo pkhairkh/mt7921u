@@ -4,6 +4,7 @@
  */
 
 #include "mt76.h"
+#include "mt792x_compat.h"
 
 static int
 mt76_txq_get_qid(struct ieee80211_txq *txq)
@@ -578,7 +579,7 @@ mt76_txq_schedule_list(struct mt76_phy *phy, enum mt76_txq_id qid)
 			u8 tid = txq->tid;
 
 			mtxq->send_bar = false;
-			ieee80211_send_bar(vif, sta->addr, tid, agg_ssn);
+			ieee80211_send_bar(vif, STA_ADDR(sta), tid, agg_ssn);
 		}
 
 		if (!mt76_txq_stopped(q))

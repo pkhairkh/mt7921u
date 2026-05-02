@@ -5,6 +5,7 @@
 #include <linux/version.h>
 #include "mt76_connac2_mac.h"
 #include "dma.h"
+#include "mt792x_compat.h"
 
 #define HE_BITS(f)		cpu_to_le16(IEEE80211_RADIOTAP_HE_##f)
 #define HE_PREP(f, m, v)	le16_encode_bits(le32_get_bits(v, MT_CRXV_HE_##m),\
@@ -372,7 +373,7 @@ mt76_connac2_mac_write_txwi_8023(__le32 *txwi, struct sk_buff *skb,
 		struct ieee80211_sta *sta;
 
 		sta = container_of((void *)wcid, struct ieee80211_sta, drv_priv);
-		wmm = sta->wme;
+		wmm = STA_WME(sta);
 	}
 
 	val = FIELD_PREP(MT_TXD1_HDR_FORMAT, MT_HDR_FORMAT_802_3) |
@@ -988,7 +989,7 @@ int mt76_connac2_reverse_frag0_hdr_trans(struct ieee80211_vif *vif,
 	hdr.duration_id = 0;
 
 	ether_addr_copy(hdr.addr1, vif->addr);
-	ether_addr_copy(hdr.addr2, sta->addr);
+	ether_addr_copy(hdr.addr2, STA_ADDR(sta));
 	switch (frame_control & (IEEE80211_FCTL_TODS |
 				 IEEE80211_FCTL_FROMDS)) {
 	case 0:
