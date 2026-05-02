@@ -18,10 +18,10 @@
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 #define _ieee80211_set_sband_iftype_data(sband, iftd, n) \
-	ieee80211_set_sband_iftype_data(sband, iftd, n)
+        ieee80211_set_sband_iftype_data(sband, iftd, n)
 #else
 #define _ieee80211_set_sband_iftype_data(sband, iftd, n) \
-	ieee80211_set_sband_iftype_data(sband, iftd)
+        ieee80211_set_sband_iftype_data(sband, iftd)
 #endif
 
 static int
@@ -303,7 +303,11 @@ static int mt7921_start(struct ieee80211_hw *hw)
         return err;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 static void mt7921_stop(struct ieee80211_hw *hw, bool suspend)
+#else
+static void mt7921_stop(struct ieee80211_hw *hw)
+#endif
 {
         struct mt792x_dev *dev = mt792x_hw_dev(hw);
         int err = 0;
@@ -316,7 +320,11 @@ static void mt7921_stop(struct ieee80211_hw *hw, bool suspend)
                         return;
         }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         mt792x_stop(hw, false);
+#else
+        mt792x_stop(hw);
+#endif
 }
 
 static int
@@ -832,8 +840,13 @@ mt7921_regd_set_6ghz_power_type(struct ieee80211_vif *vif, bool is_add)
         }
 
 out:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         if (vif->bss_conf.chanreq.oper.chan &&
             vif->bss_conf.chanreq.oper.chan->band == NL80211_BAND_6GHZ)
+#else
+        if (vif->bss_conf.chandef.chan &&
+            vif->bss_conf.chandef.chan->band == NL80211_BAND_6GHZ)
+#endif
                 mt7921_regd_update(dev);
 }
 
@@ -1458,6 +1471,7 @@ mt7921_change_chanctx(struct ieee80211_hw *hw,
         mt792x_mutex_release(phy->dev);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 static void mt7921_mgd_prepare_tx(struct ieee80211_hw *hw,
                                   struct ieee80211_vif *vif,
                                   struct ieee80211_prep_tx_info *info)
@@ -1481,14 +1495,42 @@ static void mt7921_mgd_complete_tx(struct ieee80211_hw *hw,
 
         mt7921_abort_roc(mvif->phy, mvif);
 }
+#else
+static void mt7921_mgd_prepare_tx(struct ieee80211_hw *hw,
+                                  struct ieee80211_vif *vif,
+                                  u16 duration)
+{
+        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+        struct mt792x_dev *dev = mt792x_hw_dev(hw);
+
+        duration = duration ? duration : jiffies_to_msecs(HZ);
+
+        mt792x_mutex_acquire(dev);
+        mt7921_set_roc(mvif->phy, mvif, mvif->bss_conf.mt76.ctx->def.chan, duration,
+                       MT7921_ROC_REQ_JOIN);
+        mt792x_mutex_release(dev);
+}
+
+static void mt7921_mgd_complete_tx(struct ieee80211_hw *hw,
+                                   struct ieee80211_vif *vif)
+{
+        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+
+        mt7921_abort_roc(mvif->phy, mvif);
+}
+#endif
 
 static int mt7921_switch_vif_chanctx(struct ieee80211_hw *hw,
                                      struct ieee80211_vif_chanctx_switch *vifs,
                                      int n_vifs,
                                      enum ieee80211_chanctx_switch_mode mode)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         return mt792x_assign_vif_chanctx(hw, vifs->vif, vifs->link_conf,
                                          vifs->new_ctx);
+#else
+        return mt792x_assign_vif_chanctx(hw, vifs->vif, vifs->new_ctx);
+#endif
 }
 
 void mt7921_csa_work(struct work_struct *work)
@@ -1630,9 +1672,8 @@ void mt7921_radar_detected_event(struct mt792x_dev *dev,
         dfs->radar_detected = true;
         dfs->cac_active = false;
 
-        /* RPi 6.12 kernel backported the 2-arg ieee80211_radar_detected()
-         * from 6.13 (hw, link_id). Mainline 6.12 only has 1-arg (hw), but
-         * we target the RPi kernel which always has 2 args.
+        /* Kernel 6.13+ ieee80211_radar_detected() takes 2 args (hw, vif),
+         * while 6.12 takes only 1 arg (hw).
          */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         if (dfs->cac_vif) {
@@ -1640,7 +1681,7 @@ void mt7921_radar_detected_event(struct mt792x_dev *dev,
                 dfs->cac_vif = NULL;
         }
 #else
-        ieee80211_radar_detected(dev->mt76.phy.hw, NULL);
+        ieee80211_radar_detected(dev->mt76.phy.hw);
         dfs->cac_vif = NULL;
 #endif
 }
@@ -1777,6 +1818,18 @@ static void mt792x_set_coverage_class_compat(struct ieee80211_hw *hw,
         mt792x_set_coverage_class(hw, 0, coverage_class);
 }
 
+static int mt7921_start_ap_compat(struct ieee80211_hw *hw,
+                                  struct ieee80211_vif *vif)
+{
+        return mt7921_start_ap(hw, vif, &vif->bss_conf);
+}
+
+static void mt7921_stop_ap_compat(struct ieee80211_hw *hw,
+                                  struct ieee80211_vif *vif)
+{
+        mt7921_stop_ap(hw, vif, &vif->bss_conf);
+}
+
 #endif
 const struct ieee80211_ops mt7921_ops = {
         .tx = mt792x_tx,
@@ -1792,8 +1845,13 @@ const struct ieee80211_ops mt7921_ops = {
         .conf_tx = mt792x_conf_tx,
         .configure_filter = mt7921_configure_filter,
         .bss_info_changed = mt7921_bss_info_changed,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .start_ap = mt7921_start_ap,
         .stop_ap = mt7921_stop_ap,
+#else
+        .start_ap = mt7921_start_ap_compat,
+        .stop_ap = mt7921_stop_ap_compat,
+#endif
         .sta_state = mt7921_sta_state,
         .sta_pre_rcu_remove = mt76_sta_pre_rcu_remove,
         .set_key = mt7921_set_key,

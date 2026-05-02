@@ -12,6 +12,16 @@
 #include "mt792x_regs.h"
 #include "mt792x_acpi_sar.h"
 
+/* Kernel 6.12 compat: ieee80211_vif_is_mld() was added in 6.13 for MLO.
+ * On 6.12, no interface can be an MLD, so always return false.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
+static inline bool ieee80211_vif_is_mld(struct ieee80211_vif *vif)
+{
+        return false;
+}
+#endif
+
 #define MT792x_PM_TIMEOUT       (HZ / 12)
 #define MT792x_HW_SCAN_TIMEOUT  (HZ / 10)
 
@@ -191,6 +201,7 @@ struct mt7921_csi_info {
 #define MT7921_DFS_DEFS_MOVED_TO_MT792X
 struct mt7921_dfs_state {
         bool radar_detected;
+        bool cac_active;
         u8 cac_band_idx;
         u32 cac_time_ms;
         struct timer_list cac_timer;
@@ -519,7 +530,11 @@ static inline bool mt792x_dma_need_reinit(struct mt792x_dev *dev)
 #define mt792x_mutex_release(dev)       \
         mt76_connac_mutex_release(&(dev)->mt76, &(dev)->pm)
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 void mt792x_stop(struct ieee80211_hw *hw, bool suspend);
+#else
+void mt792x_stop(struct ieee80211_hw *hw);
+#endif
 void mt792x_pm_wake_work(struct work_struct *work);
 void mt792x_pm_power_save_work(struct work_struct *work);
 void mt792x_reset(struct mt76_dev *mdev);
@@ -536,9 +551,15 @@ void mt792x_remove_interface(struct ieee80211_hw *hw,
                              struct ieee80211_vif *vif);
 void mt792x_tx(struct ieee80211_hw *hw, struct ieee80211_tx_control *control,
                struct sk_buff *skb);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
                    unsigned int link_id, u16 queue,
                    const struct ieee80211_tx_queue_params *params);
+#else
+int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+                   u16 queue,
+                   const struct ieee80211_tx_queue_params *params);
+#endif
 int mt792x_get_stats(struct ieee80211_hw *hw,
                      struct ieee80211_low_level_stats *stats);
 u64 mt792x_get_tsf(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
@@ -549,6 +570,7 @@ void mt792x_roc_timer(struct timer_list *timer);
 void mt792x_csa_timer(struct timer_list *timer);
 void mt792x_flush(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
                   u32 queues, bool drop);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
                               struct ieee80211_vif *vif,
                               struct ieee80211_bss_conf *link_conf,
@@ -557,6 +579,14 @@ void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
                                  struct ieee80211_vif *vif,
                                  struct ieee80211_bss_conf *link_conf,
                                  struct ieee80211_chanctx_conf *ctx);
+#else
+int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
+                              struct ieee80211_vif *vif,
+                              struct ieee80211_chanctx_conf *ctx);
+void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
+                                 struct ieee80211_vif *vif,
+                                 struct ieee80211_chanctx_conf *ctx);
+#endif
 void mt792x_set_wakeup(struct ieee80211_hw *hw, bool enabled);
 void mt792x_get_et_strings(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
                            u32 sset, u8 *data);
@@ -646,7 +676,11 @@ void mt792xu_wr(struct mt76_dev *dev, u32 addr, u32 val);
 u32 mt792xu_rmw(struct mt76_dev *dev, u32 addr, u32 mask, u32 val);
 void mt792xu_copy(struct mt76_dev *dev, u32 offset, const void *data, int len);
 void mt792xu_disconnect(struct usb_interface *usb_intf);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 void mt792xu_stop(struct ieee80211_hw *hw, bool suspend);
+#else
+void mt792xu_stop(struct ieee80211_hw *hw);
+#endif
 
 static inline void
 mt792x_skb_add_usb_sdio_hdr(struct mt792x_dev *dev, struct sk_buff *skb,

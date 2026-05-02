@@ -106,6 +106,7 @@ void mt792x_tx(struct ieee80211_hw *hw, struct ieee80211_tx_control *control,
                 wcid = &mvif->sta.deflink.wcid;
         }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         if (vif && control->sta && ieee80211_vif_is_mld(vif)) {
                 struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
                 struct ieee80211_link_sta *link_sta;
@@ -123,6 +124,7 @@ void mt792x_tx(struct ieee80211_hw *hw, struct ieee80211_tx_control *control,
                         memcpy(hdr->addr3, conf->bssid, ETH_ALEN);
                 rcu_read_unlock();
         }
+#endif
 
         if (mt76_connac_pm_ref(mphy, &dev->pm)) {
                 mt76_tx(mphy, control->sta, wcid, skb);
@@ -140,7 +142,7 @@ void mt792x_tx(struct ieee80211_hw *hw, struct ieee80211_tx_control *control,
 }
 EXPORT_SYMBOL_GPL(mt792x_tx);
 
-void mt792x_stop(struct ieee80211_hw *hw, bool suspend)
+void __mt792x_stop(struct ieee80211_hw *hw)
 {
         struct mt792x_dev *dev = mt792x_hw_dev(hw);
         struct mt792x_phy *phy = mt792x_hw_phy(hw);
@@ -160,6 +162,18 @@ void mt792x_stop(struct ieee80211_hw *hw, bool suspend)
 
         clear_bit(MT76_STATE_RUNNING, &phy->mt76->state);
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+void mt792x_stop(struct ieee80211_hw *hw, bool suspend)
+{
+        __mt792x_stop(hw);
+}
+#else
+void mt792x_stop(struct ieee80211_hw *hw)
+{
+        __mt792x_stop(hw);
+}
+#endif
 EXPORT_SYMBOL_GPL(mt792x_stop);
 
 void mt792x_mac_link_bss_remove(struct mt792x_dev *dev,
@@ -211,9 +225,9 @@ void mt792x_remove_interface(struct ieee80211_hw *hw,
 }
 EXPORT_SYMBOL_GPL(mt792x_remove_interface);
 
-int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
-                   unsigned int link_id, u16 queue,
-                   const struct ieee80211_tx_queue_params *params)
+int __mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+                     u16 queue,
+                     const struct ieee80211_tx_queue_params *params)
 {
         struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
 
@@ -223,6 +237,22 @@ int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 
         return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+                   unsigned int link_id, u16 queue,
+                   const struct ieee80211_tx_queue_params *params)
+{
+        return __mt792x_conf_tx(hw, vif, queue, params);
+}
+#else
+int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+                   u16 queue,
+                   const struct ieee80211_tx_queue_params *params)
+{
+        return __mt792x_conf_tx(hw, vif, queue, params);
+}
+#endif
 EXPORT_SYMBOL_GPL(mt792x_conf_tx);
 
 int mt792x_get_stats(struct ieee80211_hw *hw,
@@ -335,10 +365,9 @@ void mt792x_flush(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 }
 EXPORT_SYMBOL_GPL(mt792x_flush);
 
-int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
-                              struct ieee80211_vif *vif,
-                              struct ieee80211_bss_conf *link_conf,
-                              struct ieee80211_chanctx_conf *ctx)
+int __mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
+                               struct ieee80211_vif *vif,
+                               struct ieee80211_chanctx_conf *ctx)
 {
         struct mt792x_chanctx *mctx = (struct mt792x_chanctx *)ctx->drv_priv;
         struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
@@ -351,12 +380,29 @@ int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
 
         return 0;
 }
+EXPORT_SYMBOL_GPL(__mt792x_assign_vif_chanctx);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
+                              struct ieee80211_vif *vif,
+                              struct ieee80211_bss_conf *link_conf,
+                              struct ieee80211_chanctx_conf *ctx)
+{
+        return __mt792x_assign_vif_chanctx(hw, vif, ctx);
+}
+#else
+int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
+                              struct ieee80211_vif *vif,
+                              struct ieee80211_chanctx_conf *ctx)
+{
+        return __mt792x_assign_vif_chanctx(hw, vif, ctx);
+}
+#endif
 EXPORT_SYMBOL_GPL(mt792x_assign_vif_chanctx);
 
-void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
-                                 struct ieee80211_vif *vif,
-                                 struct ieee80211_bss_conf *link_conf,
-                                 struct ieee80211_chanctx_conf *ctx)
+void __mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
+                                   struct ieee80211_vif *vif,
+                                   struct ieee80211_chanctx_conf *ctx)
 {
         struct mt792x_chanctx *mctx = (struct mt792x_chanctx *)ctx->drv_priv;
         struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
@@ -372,6 +418,23 @@ void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
                 cancel_work_sync(&mvif->csa_work);
         }
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
+                                 struct ieee80211_vif *vif,
+                                 struct ieee80211_bss_conf *link_conf,
+                                 struct ieee80211_chanctx_conf *ctx)
+{
+        __mt792x_unassign_vif_chanctx(hw, vif, ctx);
+}
+#else
+void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
+                                 struct ieee80211_vif *vif,
+                                 struct ieee80211_chanctx_conf *ctx)
+{
+        __mt792x_unassign_vif_chanctx(hw, vif, ctx);
+}
+#endif
 EXPORT_SYMBOL_GPL(mt792x_unassign_vif_chanctx);
 
 void mt792x_set_wakeup(struct ieee80211_hw *hw, bool enabled)

@@ -334,12 +334,20 @@ int mt792xu_init_reset(struct mt792x_dev *dev)
 }
 EXPORT_SYMBOL_GPL(mt792xu_init_reset);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 void mt792xu_stop(struct ieee80211_hw *hw, bool suspend)
+#else
+void mt792xu_stop(struct ieee80211_hw *hw)
+#endif
 {
         struct mt792x_dev *dev = mt792x_hw_dev(hw);
 
         mt76u_stop_tx(&dev->mt76);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         mt792x_stop(hw, false);
+#else
+        mt792x_stop(hw);
+#endif
 }
 EXPORT_SYMBOL_GPL(mt792xu_stop);
 
