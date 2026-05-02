@@ -574,7 +574,6 @@ make -C "/lib/modules/${KERNEL_VERSION}/build" \
      CONFIG_MT7921_COMMON=m \
      CONFIG_MT7921U=m \
      CONFIG_MT7921E=m \
-     CONFIG_NL80211_TESTMODE=m \
      modules 2>&1 | tee -a "$LOG_FILE"
 
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
