@@ -320,9 +320,14 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
                  * bits at rxd[0] and high 32 bits at rxd[1]. Combine them
                  * into a 64-bit TSF value for mac80211.
                  * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
+                 * Note: mactime field only exists in struct mt76_rx_status
+                 * on kernel 6.13+; on 6.12, RX_FLAG_MACTIME_START with
+                 * status->timestamp is sufficient for basic timestamping.
                  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                 status->mactime = le32_to_cpu(rxd[0]);
                 status->mactime |= ((u64)le32_to_cpu(rxd[1])) << 32;
+#endif
 
                 if (!(rxd2 & MT_RXD2_NORMAL_NON_AMPDU)) {
                         status->flag |= RX_FLAG_AMPDU_DETAILS;

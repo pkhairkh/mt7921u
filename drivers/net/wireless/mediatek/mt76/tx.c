@@ -256,7 +256,9 @@ void __mt76_tx_complete_skb(struct mt76_dev *dev, u16 wcid_idx, struct sk_buff *
 	struct mt76_tx_cb *cb = mt76_tx_skb_cb(skb);
 	struct ieee80211_tx_status status = {
 		.skb = skb,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 		.free_list = free_list,
+#endif
 	};
 	struct mt76_wcid *wcid = NULL;
 	struct ieee80211_hw *hw;

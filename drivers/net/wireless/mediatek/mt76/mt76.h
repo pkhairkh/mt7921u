@@ -14,6 +14,13 @@
 #include <linux/usb.h>
 #include <linux/average.h>
 #include <linux/version.h>
+
+/* Kernel 6.13 renamed del_timer_sync to timer_delete_sync.
+ * Provide a compat wrapper so the driver compiles on 6.12.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
+#define timer_delete_sync del_timer_sync
+#endif
 #include <net/pkt_cls.h>
 #if IS_ENABLED(CONFIG_MT76_NPU)
 #include <linux/soc/airoha/airoha_offload.h>
@@ -785,7 +792,9 @@ struct mt76_rx_status {
 
         u32 ampdu_ref;
         u32 timestamp;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         u64 mactime;       /* 64-bit TSF for HW timestamping */
+#endif
 
         u8 iv[6];
 
