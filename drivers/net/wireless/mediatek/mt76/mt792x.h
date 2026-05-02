@@ -449,7 +449,12 @@ mt792x_vif_to_bss_conf(struct ieee80211_vif *vif, unsigned int link_id)
             link_id >= IEEE80211_LINK_UNSPECIFIED)
                 return &vif->bss_conf;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         return link_conf_dereference_protected(vif, link_id);
+#else
+        return rcu_dereference_protected(vif->link_conf[link_id],
+                                         lockdep_is_held(&vif->wdev.mtx));
+#endif
 }
 
 static inline struct ieee80211_link_sta *
@@ -460,7 +465,12 @@ mt792x_sta_to_link_sta(struct ieee80211_vif *vif, struct ieee80211_sta *sta,
             link_id >= IEEE80211_LINK_UNSPECIFIED)
                 return &sta->deflink;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         return link_sta_dereference_protected(sta, link_id);
+#else
+        return rcu_dereference_protected(sta->link[link_id],
+                                         lockdep_is_held(&vif->wdev.mtx));
+#endif
 }
 
 static inline struct mt792x_dev *

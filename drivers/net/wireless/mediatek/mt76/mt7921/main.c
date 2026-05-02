@@ -1623,7 +1623,7 @@ static void mt7921_radar_detected_event(struct mt792x_dev *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                 ieee80211_radar_detected(dev->mt76.phy.hw, dfs->cac_vif);
 #else
-                ieee80211_radar_detected(dev->mt76.phy.hw, NULL);
+                ieee80211_radar_detected(dev->mt76.phy.hw);
 #endif
                 dfs->cac_vif = NULL;
         }
@@ -1631,7 +1631,9 @@ static void mt7921_radar_detected_event(struct mt792x_dev *dev,
 
 static int
 mt7921_start_radar_detection(struct ieee80211_hw *hw,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                              struct ieee80211_vif *vif,
+#endif
                              struct cfg80211_chan_def *chandef,
                              u32 cac_time_ms)
 {
@@ -1654,7 +1656,11 @@ mt7921_start_radar_detection(struct ieee80211_hw *hw,
         phy->dfs_state.radar_detected = false;
         phy->dfs_state.cac_band_idx = 0;
         phy->dfs_state.cac_time_ms = cac_time_ms;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         phy->dfs_state.cac_vif = vif;
+#else
+        phy->dfs_state.cac_vif = NULL; /* no vif param on <6.13 */
+#endif
 
         mt792x_mutex_acquire(dev);
         ret = mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
@@ -1681,7 +1687,10 @@ mt7921_start_radar_detection(struct ieee80211_hw *hw,
 
 static void
 mt7921_end_cac(struct ieee80211_hw *hw,
-               struct ieee80211_vif *vif)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+               struct ieee80211_vif *vif
+#endif
+               )
 {
         struct mt792x_phy *phy = mt792x_hw_phy(hw);
         struct mt792x_dev *dev = phy->dev;
@@ -1752,6 +1761,20 @@ static int mt76_get_antenna_compat(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx
 {
         return mt76_get_antenna(hw, 0, tx_ant, rx_ant);
 }
+
+static void mt792x_set_coverage_class_compat(struct ieee80211_hw *hw,
+                                              s16 coverage_class)
+{
+        mt792x_set_coverage_class(hw, 0, coverage_class);
+}
+
+static int mt792x_conf_tx_compat(struct ieee80211_hw *hw,
+                                  struct ieee80211_vif *vif,
+                                  u16 queue,
+                                  const struct ieee80211_tx_queue_params *params)
+{
+        return mt792x_conf_tx(hw, vif, 0, queue, params);
+}
 #endif
 const struct ieee80211_ops mt7921_ops = {
         .tx = mt792x_tx,
@@ -1764,7 +1787,11 @@ const struct ieee80211_ops mt7921_ops = {
 #else
         .config = mt7921_config_compat,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .conf_tx = mt792x_conf_tx,
+#else
+        .conf_tx = mt792x_conf_tx_compat,
+#endif
         .configure_filter = mt7921_configure_filter,
         .bss_info_changed = mt7921_bss_info_changed,
         .start_ap = mt7921_start_ap,
@@ -1810,7 +1837,11 @@ const struct ieee80211_ops mt7921_ops = {
 #else
         .set_antenna = mt7921_set_antenna_compat,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         .set_coverage_class = mt792x_set_coverage_class,
+#else
+        .set_coverage_class = mt792x_set_coverage_class_compat,
+#endif
         .hw_scan = mt7921_hw_scan,
         .cancel_hw_scan = mt7921_cancel_hw_scan,
         .sta_statistics = mt792x_sta_statistics,

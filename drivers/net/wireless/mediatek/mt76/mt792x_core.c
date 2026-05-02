@@ -637,9 +637,9 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
                 hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
         }
         #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-	hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_HWTSTAMP;
+        hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_HWTSTAMP;
 #else
-	hw->netdev_features = NETIF_F_RXCSUM;
+        hw->netdev_features = NETIF_F_RXCSUM;
 #endif
 
         hw->radiotap_timestamp.units_pos =
@@ -679,7 +679,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH |
                         WIPHY_FLAG_SPLIT_SCAN_6GHZ ;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-	wiphy->flags |= WIPHY_FLAG_HAS_RADAR_DETECT;
+        wiphy->flags |= WIPHY_FLAG_HAS_RADAR_DETECT;
 #endif
 
         wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
@@ -807,10 +807,12 @@ mt792x_get_mac80211_ops(struct device *dev,
         if (!(*fw_features & MT792x_FW_CAP_CNM)) {
                 ops->remain_on_channel = NULL;
                 ops->cancel_remain_on_channel = NULL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                 ops->add_chanctx = ieee80211_emulate_add_chanctx;
                 ops->remove_chanctx = ieee80211_emulate_remove_chanctx;
                 ops->change_chanctx = ieee80211_emulate_change_chanctx;
                 ops->switch_vif_chanctx = ieee80211_emulate_switch_vif_chanctx;
+#endif
                 ops->assign_vif_chanctx = NULL;
                 ops->unassign_vif_chanctx = NULL;
                 ops->mgd_prepare_tx = NULL;

@@ -376,10 +376,6 @@ mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
                 skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
                 mt7921_twt_sp_event(dev, skb);
                 break;
-        case MCU_EVENT_RDD_REPORT: /* Firmware radar detection event */
-                skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
-                mt7921_radar_detected_event(dev, skb);
-                break;
         default:
                 break;
         }
@@ -397,6 +393,10 @@ mt7921_mcu_uni_rx_unsolicited_event(struct mt792x_dev *dev,
         switch (rxd->eid) {
         case MCU_UNI_EVENT_ROC:
                 mt7921_mcu_uni_roc_event(dev, skb);
+                break;
+        case MCU_UNI_EVENT_RDD_REPORT: /* Firmware radar detection event */
+                skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
+                mt7921_radar_detected_event(dev, skb);
                 break;
         default:
                 break;
@@ -742,9 +742,9 @@ static int mt7921_mcu_get_nic_capability(struct mt792x_phy *mphy)
                  * RUNTIME_VERIFY: verify coex capability with BT headset active
                  */
                 case MT_NIC_CAP_COEX:
-                        phy->dev->bt_coex_supported = skb->data[0];
-                        if (phy->dev->bt_coex_supported)
-                                dev_info(phy->dev->mt76.dev,
+                        mphy->dev->bt_coex_supported = skb->data[0];
+                        if (mphy->dev->bt_coex_supported)
+                                dev_info(mphy->dev->mt76.dev,
                                          "Bluetooth coexistence supported by firmware\n");
                         break;
                 default:
