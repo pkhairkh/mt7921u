@@ -51,6 +51,16 @@ static inline int mtk_wed_device_setup_tc(struct mtk_wed_device *wed,
 {
         return -EOPNOTSUPP;
 }
+
+static inline int mtk_wed_device_update_msg(struct mtk_wed_device *wed,
+                                            u32 id, void *msg, int len)
+{
+	return 0;
+}
+
+/* WED constants needed for compilation on non-WED platforms */
+#define WED_WO_STA_REC                  0
+#define MTK_WED_WO_CMD_RXCNT_CTRL      0
 #endif
 #include <net/mac80211.h>
 #include <net/page_pool/helpers.h>
