@@ -891,7 +891,7 @@ mt792x_get_mac80211_ops(struct device *dev,
         if (!(*fw_features & MT792x_FW_CAP_CNM)) {
                 ops->remain_on_channel = NULL;
                 ops->cancel_remain_on_channel = NULL;
-#if MT792X_USE_MLINK_API
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
                 ops->add_chanctx = ieee80211_emulate_add_chanctx;
                 ops->remove_chanctx = ieee80211_emulate_remove_chanctx;
                 ops->change_chanctx = ieee80211_emulate_change_chanctx;

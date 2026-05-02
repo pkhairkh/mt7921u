@@ -14,9 +14,14 @@
  * only exists as a macro in kernels with the MLO restructuring.
  *
  * Compatibility check strategy:
- *   MT792X_USE_MLINK_API  - for ALL mac80211/MLO changes (backported to RPi 6.12)
- *   LINUX_VERSION_CODE    - only for non-mac80211 changes (page_pool netmem, etc.)
- *                            and VIF_P2P (p2p was NOT moved to vif_cfg on RPi 6.12)
+ *   MT792X_USE_MLINK_API  - for mac80211 struct layout + callback signatures
+ *                            (backported to RPi 6.12)
+ *   LINUX_VERSION_CODE    - for features NOT backported to RPi 6.12:
+ *                            - vif->cfg.p2p (still at vif->p2p)
+ *                            - wiphy_n_radio(), wiphy_mbssid_max_interfaces()
+ *                            - ieee80211_emulate_* chanctx functions
+ *                            - kzalloc_flex (core kernel helper)
+ *                            - page_pool netmem API
  */
 
 #ifndef __MT792X_COMPAT_H
@@ -421,9 +426,10 @@ mt792x_vif_link_conf(struct ieee80211_vif *vif, unsigned int link_id)
 
 /* ========================================================================
  * Section 17: ieee80211_emulate_* chanctx functions - 6.13+ only
+ * NOT backported to RPi 6.12 (separate from MLO struct layout)
  * ======================================================================== */
 
-#if MT792X_USE_MLINK_API
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 /* Native */
 #else
 #define ieee80211_emulate_add_chanctx           NULL
@@ -434,9 +440,10 @@ mt792x_vif_link_conf(struct ieee80211_vif *vif, unsigned int link_id)
 
 /* ========================================================================
  * Section 18: wiphy->n_radio - 6.13+ only
+ * NOT backported to RPi 6.12 (separate from MLO struct layout)
  * ======================================================================== */
 
-#if MT792X_USE_MLINK_API
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 /* Native */
 #else
 static inline unsigned int mt792x_wiphy_n_radio(struct wiphy *wiphy)
@@ -448,9 +455,10 @@ static inline unsigned int mt792x_wiphy_n_radio(struct wiphy *wiphy)
 
 /* ========================================================================
  * Section 19: kzalloc_flex - 6.13+ only
+ * NOT backported to RPi 6.12 (core kernel helper, not mac80211)
  * ======================================================================== */
 
-#if MT792X_USE_MLINK_API
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 /* Native */
 #else
 #define kzalloc_flex(type, member, count) \
@@ -459,9 +467,10 @@ static inline unsigned int mt792x_wiphy_n_radio(struct wiphy *wiphy)
 
 /* ========================================================================
  * Section 20: wiphy->mbssid_max_interfaces - 6.13+ only
+ * NOT backported to RPi 6.12 (separate from MLO struct layout)
  * ======================================================================== */
 
-#if MT792X_USE_MLINK_API
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 /* Native */
 #else
 static inline u32 mt792x_wiphy_mbssid_max_interfaces(struct wiphy *wiphy)

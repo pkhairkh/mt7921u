@@ -75,7 +75,19 @@ static inline int mtk_wed_device_update_msg(struct mtk_wed_device *wed,
 /* Kernel 6.13 MLO compat: some kernels (e.g. RPi 6.12) backport MLO
  * structures while others do not. Use #ifndef guards so we only define
  * these when the kernel headers do not provide them.
+ *
+ * MT792X_USE_MLINK_API detects whether the MLO struct layout and
+ * callback signatures were backported. Defined here so all mt76
+ * sources can use it, not just mt792x drivers.
  */
+#ifndef MT792X_USE_MLINK_API
+#ifdef link_conf_dereference_protected
+#define MT792X_USE_MLINK_API 1
+#else
+#define MT792X_USE_MLINK_API 0
+#endif
+#endif
+
 #ifndef IEEE80211_MLD_MAX_NUM_LINKS
 #define IEEE80211_MLD_MAX_NUM_LINKS 2
 #endif
