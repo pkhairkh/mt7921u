@@ -458,6 +458,9 @@ enum mt7921_csi_output_format {
 void mt7921_cac_timer(struct timer_list *t);
 void mt7921_radar_detected_event(struct mt792x_dev *dev, struct sk_buff *skb);
 
+/* Module parameter (defined in mcu.c) — visible for test_trigger_debugfs */
+extern bool clc_force_usb;
+
 /* CSI function declarations — always visible (struct defs are in mt792x.h) */
 int mt7921_mcu_csi_control(struct mt792x_dev *dev, u8 band_idx,
                            enum mt7921_csi_control_mode mode,

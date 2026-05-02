@@ -1575,7 +1575,7 @@ static void mt7921_rfkill_poll(struct ieee80211_hw *hw)
  * RUNTIME_VERIFY: CAC timing depends on firmware
  */
 
-static void mt7921_cac_timer(struct timer_list *t)
+void mt7921_cac_timer(struct timer_list *t)
 {
         struct mt7921_dfs_state *dfs = from_timer(dfs, t, cac_timer);
         struct mt792x_phy *phy = container_of(dfs, struct mt792x_phy, dfs_state);
@@ -1597,7 +1597,7 @@ static void mt7921_cac_timer(struct timer_list *t)
         dfs->cac_vif = NULL;
 }
 
-static void mt7921_radar_detected_event(struct mt792x_dev *dev,
+void mt7921_radar_detected_event(struct mt792x_dev *dev,
                                         struct sk_buff *skb)
 {
         struct mt7921_dfs_state *dfs = &dev->phy.dfs_state;

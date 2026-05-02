@@ -47,15 +47,8 @@ static const char *result_str(int err)
         case -ENOENT:    return "ENOENT";
         case -EOPNOTSUPP: return "EOPNOTSUPP";
         case -EPERM:     return "EPERM";
-        default:         {
-                /* Use caller-provided buffer to avoid static buffer race.
-                 * Since all callers are seq_file-based debugfs reads,
-                 * we use a fixed string with the error number embedded.
-                 */
-                static char buf[16]; /* Safe: debugfs reads are serialized per-file */
-                snprintf(buf, sizeof(buf), "ERR%d", err);
-                return buf;
-        }
+        default:
+                return "ERR";
         }
 }
 
@@ -131,7 +124,7 @@ static int test_trigger_wtbl_poll_show(struct seq_file *s, void *data)
 
         mt792x_mutex_acquire(dev);
         t0 = ktime_get();
-        ok = mt7921_mac_wtbl_update(dev, 0, MT_WTBL_UPDATE_WDTCR);
+        ok = mt7921_mac_wtbl_update(dev, 0, MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
         t1 = ktime_get();
         mt792x_mutex_release(dev);
 
@@ -222,11 +215,9 @@ static int test_trigger_clc_load_show(struct seq_file *s, void *data)
         return 0;
 }
 
-/* We need access to the clc_force_usb module param from mcu.c.
- * This is declared as extern because module parameters are
- * implicitly exported within the same module.
+/* clc_force_usb is declared in mt7921.h as extern, which includes it
+ * from mcu.c where it is defined as a module parameter.
  */
-extern bool clc_force_usb;
 
 DEFINE_SHOW_ATTRIBUTE(test_trigger_clc_load);
 

@@ -630,8 +630,13 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
 
         hw->queues = 4;
         if (dev->has_eht) {
+#ifdef IEEE80211_MAX_AMPDU_BUF_EHT
                 hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_EHT;
                 hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_EHT;
+#else
+                hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
+                hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
+#endif
         } else {
                 hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
                 hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
@@ -714,7 +719,9 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         ieee80211_hw_set(hw, SUPPORTS_MULTI_BSSID);
         ieee80211_hw_set(hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         ieee80211_hw_set(hw, CHANCTX_STA_CSA);
+#endif
 
         /* TASK-012: HW Timestamping — advertise TIMING_DEVICE so mac80211
          * uses hardware TSF for RX/TX timestamps. Combined with
@@ -766,9 +773,21 @@ mt792x_get_offload_capability(struct device *dev, const char *fw_wm)
         }
 
         data += offset + 16;
+        if (data >= fw->data + fw->size) {
+                dev_err(dev, "Firmware region offset out of bounds\n");
+                goto out;
+        }
         rel_info = (struct mt792x_realease_info *)data;
         data += sizeof(*rel_info);
+        if (data >= fw->data + fw->size) {
+                dev_err(dev, "Firmware release info out of bounds\n");
+                goto out;
+        }
         end = data + le16_to_cpu(rel_info->len);
+        if (end > fw->data + fw->size) {
+                dev_err(dev, "Firmware feature data out of bounds\n");
+                goto out;
+        }
 
         while (data < end) {
                 rel_info = (struct mt792x_realease_info *)data;

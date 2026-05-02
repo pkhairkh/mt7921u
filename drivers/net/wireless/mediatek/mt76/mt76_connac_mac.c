@@ -651,7 +651,9 @@ bool mt76_connac2_mac_fill_txs(struct mt76_dev *dev, struct mt76_wcid *wcid,
 					   drv_priv);
 			tid = FIELD_GET(MT_TXS0_TID, txs);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 			ieee80211_refresh_tx_agg_session_timer(sta, tid);
+#endif
 		}
 	}
 

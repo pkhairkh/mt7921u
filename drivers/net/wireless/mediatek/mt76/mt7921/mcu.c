@@ -15,7 +15,7 @@ static bool mt7921_disable_clc;
 module_param_named(disable_clc, mt7921_disable_clc, bool, 0644);
 MODULE_PARM_DESC(disable_clc, "disable CLC support");
 
-static bool clc_force_usb;
+bool clc_force_usb;
 module_param_named(clc_force_usb, clc_force_usb, bool, 0644);
 MODULE_PARM_DESC(clc_force_usb, "force CLC SET command on USB even if previously failed");
 
@@ -581,13 +581,15 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
                                 dev->phy.clc[MT792x_CLC_POWER];
                         const struct mt7921_clc_rule *rule;
                         int offset = 0;
+                        u32 data_len = le32_to_cpu(clc->len) -
+                                       offsetof(typeof(*clc), data);
 
                         /* Walk the CLC data looking for the "00" wildcard rule */
-                        while (offset + sizeof(*rule) <= clc->len) {
+                        while (offset + sizeof(*rule) <= data_len) {
                                 rule = (const struct mt7921_clc_rule *)
                                         (clc->data + offset);
                                 if (offset + sizeof(*rule) +
-                                    le16_to_cpu(rule->len) > clc->len)
+                                    le16_to_cpu(rule->len) > data_len)
                                         break;
                                 if (rule->alpha2[0] == '0' &&
                                     rule->alpha2[1] == '0') {
