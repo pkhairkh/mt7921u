@@ -1269,7 +1269,7 @@ mt76_rx_convert(struct mt76_dev *dev, struct sk_buff *skb,
 	status->chains = mstat.chains;
 	status->ampdu_reference = mstat.ampdu_ref;
 	status->device_timestamp = mstat.timestamp;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 	status->mactime = mstat.mactime;
 #endif
 	status->signal = mt76_rx_signal(mstat.chains, mstat.chain_signal);

@@ -16,7 +16,7 @@
  * array size automatically. Use a wrapper macro that accepts 3 args
  * and discards the third on older kernels.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define _ieee80211_set_sband_iftype_data(sband, iftd, n) \
         ieee80211_set_sband_iftype_data(sband, iftd, n)
 #else
@@ -303,7 +303,7 @@ static int mt7921_start(struct ieee80211_hw *hw)
         return err;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 static void mt7921_stop(struct ieee80211_hw *hw, bool suspend)
 #else
 static void mt7921_stop(struct ieee80211_hw *hw)
@@ -320,7 +320,7 @@ static void mt7921_stop(struct ieee80211_hw *hw)
                         return;
         }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         mt792x_stop(hw, false);
 #else
         mt792x_stop(hw);
@@ -1471,7 +1471,7 @@ mt7921_change_chanctx(struct ieee80211_hw *hw,
         mt792x_mutex_release(phy->dev);
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 static void mt7921_mgd_prepare_tx(struct ieee80211_hw *hw,
                                   struct ieee80211_vif *vif,
                                   struct ieee80211_prep_tx_info *info)
@@ -1525,7 +1525,7 @@ static int mt7921_switch_vif_chanctx(struct ieee80211_hw *hw,
                                      int n_vifs,
                                      enum ieee80211_chanctx_switch_mode mode)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         return mt792x_assign_vif_chanctx(hw, vifs->vif, vifs->link_conf,
                                          vifs->new_ctx);
 #else
@@ -1668,7 +1668,7 @@ void mt7921_radar_detected_event(struct mt792x_dev *dev,
         /* Kernel 6.13+ ieee80211_radar_detected() takes 2 args (hw, vif),
          * while 6.12 takes only 1 arg (hw).
          */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         if (dfs->cac_vif) {
                 ieee80211_radar_detected(dev->mt76.phy.hw, dfs->cac_vif);
                 dfs->cac_vif = NULL;
@@ -1830,7 +1830,7 @@ const struct ieee80211_ops mt7921_ops = {
         .stop = mt7921_stop,
         .add_interface = mt7921_add_interface,
         .remove_interface = mt792x_remove_interface,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .config = mt7921_config,
 #else
         .config = mt7921_config_compat,
@@ -1838,7 +1838,7 @@ const struct ieee80211_ops mt7921_ops = {
         .conf_tx = mt792x_conf_tx,
         .configure_filter = mt7921_configure_filter,
         .bss_info_changed = mt7921_bss_info_changed,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .start_ap = mt7921_start_ap,
         .stop_ap = mt7921_stop_ap,
 #else
@@ -1853,7 +1853,7 @@ const struct ieee80211_ops mt7921_ops = {
         .ipv6_addr_change = mt7921_ipv6_addr_change,
 #endif /* CONFIG_IPV6 */
         .ampdu_action = mt7921_ampdu_action,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .set_rts_threshold = mt7921_set_rts_threshold,
 #else
         .set_rts_threshold = mt7921_set_rts_threshold_compat,
@@ -1861,7 +1861,7 @@ const struct ieee80211_ops mt7921_ops = {
         .wake_tx_queue = mt76_wake_tx_queue,
         .release_buffered_frames = mt76_release_buffered_frames,
         .channel_switch_beacon = mt7921_channel_switch_beacon,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .get_txpower = mt76_get_txpower,
 #else
         .get_txpower = mt76_get_txpower_compat,
@@ -1872,21 +1872,21 @@ const struct ieee80211_ops mt7921_ops = {
         .get_et_stats = mt792x_get_et_stats,
         .get_tsf = mt792x_get_tsf,
         .set_tsf = mt792x_set_tsf,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .get_tstamp = mt7921_get_tstamp,
 #endif
         .get_survey = mt76_get_survey,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .get_antenna = mt76_get_antenna,
 #else
         .get_antenna = mt76_get_antenna_compat,
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .set_antenna = mt7921_set_antenna,
 #else
         .set_antenna = mt7921_set_antenna_compat,
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .set_coverage_class = mt792x_set_coverage_class,
 #else
         .set_coverage_class = mt792x_set_coverage_class_compat,
@@ -1927,7 +1927,7 @@ const struct ieee80211_ops mt7921_ops = {
          * .start_radar_detection and .end_cac ops members don't exist
          * in struct ieee80211_ops on kernel 6.12 (even RPi backports).
          */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         .start_radar_detection = mt7921_start_radar_detection,
         .end_cac = mt7921_end_cac,
 #endif

@@ -8,14 +8,15 @@
  * changes. This header provides compat macros, wrappers, and stubs so
  * the driver compiles and runs correctly on kernel 6.12.
  *
- * IMPORTANT: The Raspberry Pi 6.12.62 kernel has BACKPORTED the MLO
- * struct layout changes from 6.13+ (deflink, cfg, chanreq, link_sta,
- * etc.). We detect this by checking for link_conf_dereference_protected
- * which only exists as a macro in kernels with the MLO restructuring.
+ * IMPORTANT: The Raspberry Pi 6.12.62 kernel has BACKPORTED nearly ALL
+ * 6.13+ MLO changes — struct layout, callback signatures, and API changes.
+ * We detect this by checking for link_conf_dereference_protected which
+ * only exists as a macro in kernels with the MLO restructuring.
  *
- * Two types of compatibility checks:
- *   MT792X_USE_MLINK_API  - for struct layout decisions (backported to RPi 6.12)
- *   LINUX_VERSION_CODE    - for function signature differences (NOT backported)
+ * Compatibility check strategy:
+ *   MT792X_USE_MLINK_API  - for ALL mac80211/MLO changes (backported to RPi 6.12)
+ *   LINUX_VERSION_CODE    - only for non-mac80211 changes (page_pool netmem, etc.)
+ *                            and VIF_P2P (p2p was NOT moved to vif_cfg on RPi 6.12)
  */
 
 #ifndef __MT792X_COMPAT_H
@@ -155,11 +156,11 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
 #endif
 
 /* ========================================================================
- * Section 6: ieee80211 API signature differences (NOT backported to RPi)
+ * Section 6: ieee80211 API signature differences (backported to RPi 6.12)
  * ======================================================================== */
 
 /* ieee80211_set_sband_iftype_data: 2 args in 6.12, 3 in 6.13+ */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define mt792x_set_sband_iftype_data(band, data, n) \
         ieee80211_set_sband_iftype_data(band, data, n)
 #else
@@ -168,7 +169,7 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
 #endif
 
 /* ieee80211_radar_detected: 1 arg in 6.12, 2 in 6.13+ */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define mt792x_radar_detected(hw, vif) \
         ieee80211_radar_detected(hw, vif)
 #else
@@ -177,7 +178,7 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
 #endif
 
 /* ieee80211_chswitch_done: 2 args in 6.12, 3 in 6.13+ */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define mt792x_chswitch_done(vif, success, link_id) \
         ieee80211_chswitch_done(vif, success, link_id)
 #else
@@ -191,7 +192,7 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
  * In 6.12, cfg80211_cac_event() takes struct net_device* first.
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define mt792x_cac_finish(hw, vif) \
         ieee80211_cac_finish(hw, vif)
 #else
@@ -225,7 +226,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
  * These function signature changes were NOT backported to RPi 6.12.
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_STOP_PROTO       struct ieee80211_hw *hw, bool suspend
 #define MT792X_STOP_ARGS        hw, suspend
 #define MT792X_STOP_CALL(fn, hw)        fn(hw, false)
@@ -235,7 +236,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
 #define MT792X_STOP_CALL(fn, hw)        fn(hw)
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_CONFIG_PROTO     struct ieee80211_hw *hw, int radio_idx, u32 changed
 #define MT792X_CONFIG_ARGS      hw, radio_idx, changed
 #else
@@ -243,7 +244,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
 #define MT792X_CONFIG_ARGS      hw, changed
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_CONF_TX_PROTO    struct ieee80211_hw *hw, struct ieee80211_vif *vif, \
                                 unsigned int link_id, u16 queue, \
                                 const struct ieee80211_tx_queue_params *params
@@ -255,7 +256,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
 #define MT792X_CONF_TX_ARGS     hw, vif, queue, params
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_SET_COVERAGE_PROTO       struct ieee80211_hw *hw, int radio_idx, \
                                         s16 coverage_class
 #else
@@ -263,13 +264,13 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
                                         s16 coverage_class
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_SET_RTS_PROTO    struct ieee80211_hw *hw, int radio_idx, u32 val
 #else
 #define MT792X_SET_RTS_PROTO    struct ieee80211_hw *hw, u32 val
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_SET_ANTENNA_PROTO        struct ieee80211_hw *hw, int radio_idx, \
                                         u32 tx_ant, u32 rx_ant
 #else
@@ -277,7 +278,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
                                         u32 tx_ant, u32 rx_ant
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_ASSIGN_CHANCTX_PROTO     struct ieee80211_hw *hw, \
                                         struct ieee80211_vif *vif, \
                                         struct ieee80211_bss_conf *link_conf, \
@@ -295,7 +296,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
                                         struct ieee80211_chanctx_conf *ctx
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_START_AP_PROTO   struct ieee80211_hw *hw, \
                                 struct ieee80211_vif *vif, \
                                 struct ieee80211_bss_conf *link_conf
@@ -309,7 +310,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
                                 struct ieee80211_vif *vif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_ABORT_CS_PROTO   struct ieee80211_hw *hw, \
                                 struct ieee80211_vif *vif, \
                                 struct ieee80211_bss_conf *link_conf
@@ -318,7 +319,7 @@ static inline void mt792x_cac_finish(struct ieee80211_hw *hw,
                                 struct ieee80211_vif *vif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 #define MT792X_MGD_PREP_TX_PROTO        struct ieee80211_hw *hw, \
                                         struct ieee80211_vif *vif, \
                                         struct ieee80211_prep_tx_info *info
@@ -410,7 +411,7 @@ mt792x_vif_link_conf(struct ieee80211_vif *vif, unsigned int link_id)
  * Section 16: NL80211 features
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 /* Native */
 #else
 #ifndef NL80211_FEATURE_HW_TIMESTAMP
@@ -422,7 +423,7 @@ mt792x_vif_link_conf(struct ieee80211_vif *vif, unsigned int link_id)
  * Section 17: ieee80211_emulate_* chanctx functions - 6.13+ only
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 /* Native */
 #else
 #define ieee80211_emulate_add_chanctx           NULL
@@ -435,7 +436,7 @@ mt792x_vif_link_conf(struct ieee80211_vif *vif, unsigned int link_id)
  * Section 18: wiphy->n_radio - 6.13+ only
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 /* Native */
 #else
 static inline unsigned int mt792x_wiphy_n_radio(struct wiphy *wiphy)
@@ -449,7 +450,7 @@ static inline unsigned int mt792x_wiphy_n_radio(struct wiphy *wiphy)
  * Section 19: kzalloc_flex - 6.13+ only
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 /* Native */
 #else
 #define kzalloc_flex(type, member, count) \
@@ -460,7 +461,7 @@ static inline unsigned int mt792x_wiphy_n_radio(struct wiphy *wiphy)
  * Section 20: wiphy->mbssid_max_interfaces - 6.13+ only
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 /* Native */
 #else
 static inline u32 mt792x_wiphy_mbssid_max_interfaces(struct wiphy *wiphy)
@@ -474,7 +475,7 @@ static inline u32 mt792x_wiphy_mbssid_max_interfaces(struct wiphy *wiphy)
  * Section 21: mgd_complete_tx op - 6.13+ only
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 /* Native */
 #else
 /* No .mgd_complete_tx op - must not assign it */
@@ -484,7 +485,7 @@ static inline u32 mt792x_wiphy_mbssid_max_interfaces(struct wiphy *wiphy)
  * Section 22: start_radar_detection / end_cac ops - 6.13+ only
  * ======================================================================== */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 /* Native */
 #else
 /* Use .set_radar_background or don't register these callbacks */

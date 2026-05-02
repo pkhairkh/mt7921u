@@ -415,7 +415,7 @@ mt76_connac2_mac_write_txwi_80211(struct mt76_dev *dev, __le32 *txwi,
 	u32 val;
 
 	if (ieee80211_is_action(fc) &&
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 	    skb->len >= IEEE80211_MIN_ACTION_SIZE(addba_req.capab) &&
 	    mgmt->u.action.category == WLAN_CATEGORY_BACK &&
 	    mgmt->u.action.action_code == WLAN_ACTION_ADDBA_REQ) {
@@ -652,7 +652,7 @@ bool mt76_connac2_mac_fill_txs(struct mt76_dev *dev, struct mt76_wcid *wcid,
 					   drv_priv);
 			tid = FIELD_GET(MT_TXS0_TID, txs);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 			ieee80211_refresh_tx_agg_session_timer(sta, tid);
 #endif
 		}

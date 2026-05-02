@@ -163,7 +163,7 @@ void __mt792x_stop(struct ieee80211_hw *hw)
         clear_bit(MT76_STATE_RUNNING, &phy->mt76->state);
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 void mt792x_stop(struct ieee80211_hw *hw, bool suspend)
 {
         __mt792x_stop(hw);
@@ -238,7 +238,7 @@ int __mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
         return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
                    unsigned int link_id, u16 queue,
                    const struct ieee80211_tx_queue_params *params)
@@ -382,7 +382,7 @@ int __mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
 }
 EXPORT_SYMBOL_GPL(__mt792x_assign_vif_chanctx);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
                               struct ieee80211_vif *vif,
                               struct ieee80211_bss_conf *link_conf,
@@ -419,7 +419,7 @@ void __mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
         }
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
                                  struct ieee80211_vif *vif,
                                  struct ieee80211_bss_conf *link_conf,
@@ -704,7 +704,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
                 hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
                 hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
         }
-        #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+        #if MT792X_USE_MLINK_API
         hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_HWTSTAMP;
 #else
         hw->netdev_features = NETIF_F_RXCSUM;
@@ -746,7 +746,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         wiphy->max_sched_scan_reqs = 1;
         wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH |
                         WIPHY_FLAG_SPLIT_SCAN_6GHZ ;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         wiphy->flags |= WIPHY_FLAG_HAS_RADAR_DETECT;
 #endif
 
@@ -759,7 +759,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
          * Group 2 and stores it in status->timestamp / status->mactime.
          * RUNTIME_VERIFY: use linuxptp to measure sync accuracy
          */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         wiphy->features |= NL80211_FEATURE_HW_TIMESTAMP;
 #endif
         wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SET_SCAN_DWELL);
@@ -779,12 +779,12 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         ieee80211_hw_set(hw, SUPPORTS_DYNAMIC_PS);
         ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
         ieee80211_hw_set(hw, CONNECTION_MONITOR);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         ieee80211_hw_set(hw, SUPPORTS_MULTI_BSSID);
         ieee80211_hw_set(hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         ieee80211_hw_set(hw, CHANCTX_STA_CSA);
 #endif
 
@@ -794,7 +794,7 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
          * (IEEE 1588) support for industrial IoT applications.
          * RUNTIME_VERIFY: use linuxptp ptp4l to measure sync accuracy
          */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         ieee80211_hw_set(hw, TIMING_DEVICE);
 #endif
 
@@ -891,7 +891,7 @@ mt792x_get_mac80211_ops(struct device *dev,
         if (!(*fw_features & MT792x_FW_CAP_CNM)) {
                 ops->remain_on_channel = NULL;
                 ops->cancel_remain_on_channel = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                 ops->add_chanctx = ieee80211_emulate_add_chanctx;
                 ops->remove_chanctx = ieee80211_emulate_remove_chanctx;
                 ops->change_chanctx = ieee80211_emulate_change_chanctx;

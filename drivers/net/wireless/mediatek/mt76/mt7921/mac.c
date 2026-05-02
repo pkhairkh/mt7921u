@@ -324,7 +324,7 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
                  * on kernel 6.13+; on 6.12, RX_FLAG_MACTIME_START with
                  * status->timestamp is sufficient for basic timestamping.
                  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                 status->mactime = le32_to_cpu(rxd[0]);
                 status->mactime |= ((u64)le32_to_cpu(rxd[1])) << 32;
 #endif

@@ -117,7 +117,7 @@ struct mt76_connac2_mcu_uni_txd {
 
 struct mt76_connac2_mcu_rxd {
         /* New members MUST be added within the struct_group() macro below. */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         struct_group_tagged(mt76_connac2_mcu_rxd_hdr, hdr,
 #else
         struct_group(hdr,
@@ -138,7 +138,7 @@ struct mt76_connac2_mcu_rxd {
 
         u8 tlv[];
 };
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 static_assert(offsetof(struct mt76_connac2_mcu_rxd, tlv) == sizeof(struct mt76_connac2_mcu_rxd_hdr),
               "struct member likely outside of struct_group_tagged()");
 #endif

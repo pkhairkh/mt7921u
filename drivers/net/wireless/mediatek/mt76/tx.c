@@ -257,7 +257,7 @@ void __mt76_tx_complete_skb(struct mt76_dev *dev, u16 wcid_idx, struct sk_buff *
 	struct mt76_tx_cb *cb = mt76_tx_skb_cb(skb);
 	struct ieee80211_tx_status status = {
 		.skb = skb,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 		.free_list = free_list,
 #endif
 	};

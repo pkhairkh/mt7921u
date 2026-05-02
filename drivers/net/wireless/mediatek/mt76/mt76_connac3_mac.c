@@ -184,7 +184,7 @@ void mt76_connac3_mac_decode_he_radiotap(struct sk_buff *skb, __le32 *rxv,
 }
 EXPORT_SYMBOL_GPL(mt76_connac3_mac_decode_he_radiotap);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 static void *
 mt76_connac3_mac_radiotap_push_tlv(struct sk_buff *skb, u16 type, u16 len)
 {
@@ -199,7 +199,7 @@ mt76_connac3_mac_radiotap_push_tlv(struct sk_buff *skb, u16 type, u16 len)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 void mt76_connac3_mac_decode_eht_radiotap(struct sk_buff *skb, __le32 *rxv,
                                           u8 mode)
 {
@@ -269,4 +269,4 @@ void mt76_connac3_mac_decode_eht_radiotap(struct sk_buff *skb, __le32 *rxv,
                 EHT_PREP(USIG_COMMON_TXOP, TXOP_DUR, rxv[9]);
 }
 EXPORT_SYMBOL_GPL(mt76_connac3_mac_decode_eht_radiotap);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) */
+#endif /* MT792X_USE_MLINK_API */

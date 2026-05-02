@@ -2885,7 +2885,7 @@ int mt76_connac_mcu_bss_basic_tlv(struct sk_buff *skb,
         case NL80211_IFTYPE_MONITOR:
                 break;
         case NL80211_IFTYPE_AP:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
                 if (ieee80211_hw_check(phy->hw, SUPPORTS_MULTI_BSSID)) {
                         u8 bssid_id = vif->bss_conf.bssid_indicator;
                         struct wiphy *wiphy = phy->hw->wiphy;

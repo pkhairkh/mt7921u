@@ -334,7 +334,7 @@ int mt792xu_init_reset(struct mt792x_dev *dev)
 }
 EXPORT_SYMBOL_GPL(mt792xu_init_reset);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 void mt792xu_stop(struct ieee80211_hw *hw, bool suspend)
 #else
 void mt792xu_stop(struct ieee80211_hw *hw)
@@ -343,7 +343,7 @@ void mt792xu_stop(struct ieee80211_hw *hw)
         struct mt792x_dev *dev = mt792x_hw_dev(hw);
 
         mt76u_stop_tx(&dev->mt76);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         mt792x_stop(hw, false);
 #else
         mt792x_stop(hw);

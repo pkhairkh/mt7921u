@@ -62,7 +62,7 @@ static inline int mtk_wed_device_setup_tc(struct mtk_wed_device *wed,
 static inline int mtk_wed_device_update_msg(struct mtk_wed_device *wed,
                                             u32 id, void *msg, int len)
 {
-	return 0;
+        return 0;
 }
 
 /* WED constants needed for compilation on non-WED platforms */
@@ -801,7 +801,7 @@ struct mt76_rx_status {
 
         u32 ampdu_ref;
         u32 timestamp;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
         u64 mactime;       /* 64-bit TSF for HW timestamping */
 #endif
 

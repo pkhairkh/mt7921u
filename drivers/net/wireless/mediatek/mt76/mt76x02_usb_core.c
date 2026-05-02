@@ -266,7 +266,7 @@ void mt76x02u_init_beacon_config(struct mt76x02_dev *dev)
 	dev->beacon_ops = &beacon_ops;
 
 	/* hrtimer_setup() was introduced in kernel 6.13+; use hrtimer_init() on older kernels */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if MT792X_USE_MLINK_API
 	hrtimer_setup(&dev->pre_tbtt_timer, mt76x02u_pre_tbtt_interrupt, CLOCK_MONOTONIC,
 		      HRTIMER_MODE_REL);
 #else
