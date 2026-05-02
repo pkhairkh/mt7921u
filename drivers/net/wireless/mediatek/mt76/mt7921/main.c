@@ -1587,11 +1587,21 @@ static void mt7921_radar_detected_event(struct mt792x_dev *dev,
 {
         struct mt7921_dfs_state *dfs = &dev->phy.dfs_state;
 
+        /* Validate the radar event SKB — firmware may send truncated data */
+        if (skb->len < sizeof(struct mt76_connac2_mcu_rxd)) {
+                dev_warn(dev->mt76.dev,
+                         "Radar detected event: skb too short (%u)\n", skb->len);
+                return;
+        }
+
         dev_warn(dev->mt76.dev, "Radar detected on band %u — CAC failed\n",
                  dfs->cac_band_idx);
 
-        /* Cancel any pending CAC timer */
-        del_timer(&dfs->cac_timer);
+        /* Cancel any pending CAC timer — use del_timer_sync to ensure
+         * the timer callback is not running concurrently, preventing
+         * a race between cac_timer expiry and radar event handling.
+         */
+        del_timer_sync(&dfs->cac_timer);
 
         dfs->radar_detected = true;
         if (dfs->cac_vif) {

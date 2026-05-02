@@ -210,7 +210,7 @@ static int mt7921_nl_csi_get(struct wiphy *wiphy,
 
         if (csi->head == csi->tail) {
                 spin_unlock_irqrestore(&csi->ring_lock, flags);
-                return -EAGAIN;
+                return -ENODATA;
         }
 
         /* Read from tail (oldest unread entry) */

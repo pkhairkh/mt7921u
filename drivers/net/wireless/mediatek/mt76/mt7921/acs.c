@@ -51,6 +51,12 @@ acs_channel_state(struct mt76_phy *mphy, struct ieee80211_channel *c)
         if (idx < 0 || idx >= msband->sband.n_channels)
                 return NULL;
 
+        /* Validate that the channel pointer is within the sband's
+         * channel array — protects against corrupted channel pointers.
+         */
+        if (&msband->sband.channels[idx] != c)
+                return NULL;
+
         return &msband->chan[idx];
 }
 

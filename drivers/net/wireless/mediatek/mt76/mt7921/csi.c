@@ -268,6 +268,7 @@ int mt7921_csi_stop(struct mt792x_dev *dev, u8 band_idx)
 {
         struct mt7921_csi_info *csi = &dev->csi;
         int ret;
+        unsigned long flags;
 
         if (!csi->enabled)
                 return 0;
@@ -277,6 +278,14 @@ int mt7921_csi_stop(struct mt792x_dev *dev, u8 band_idx)
                                       0, 0, 0);
         if (ret)
                 return ret;
+
+        /* Flush the ring buffer so stale data is not returned by
+         * subsequent CSI_GET calls after a restart.
+         */
+        spin_lock_irqsave(&csi->ring_lock, flags);
+        csi->head = 0;
+        csi->tail = 0;
+        spin_unlock_irqrestore(&csi->ring_lock, flags);
 
         csi->enabled = false;
         return 0;

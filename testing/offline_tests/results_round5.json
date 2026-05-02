@@ -1,0 +1,131 @@
+{
+  "pass": [
+    {
+      "name": "TWT: Uses CONTROL_NEG_TYPE_BROADCAST for broadcast rejection",
+      "detail": ""
+    },
+    {
+      "name": "TWT: Does not require IMMEDIA_FB bit",
+      "detail": ""
+    },
+    {
+      "name": "TWT: Requires IMPLICIT agreement (matches mt7996)",
+      "detail": ""
+    },
+    {
+      "name": "CSI ring buffer size: 64 (reasonable)",
+      "detail": ""
+    },
+    {
+      "name": "DFS: radar_detected uses del_timer_sync (safe)",
+      "detail": ""
+    },
+    {
+      "name": "DFS: radar_detected validates SKB length",
+      "detail": ""
+    },
+    {
+      "name": "DFS: CAC timer armed on radar detection start success",
+      "detail": ""
+    },
+    {
+      "name": "TX HW timestamp: Guards USB path (avoids sleeping in TX completion)",
+      "detail": ""
+    },
+    {
+      "name": "get_tstamp: Guards USB path (avoids sleeping in softirq)",
+      "detail": ""
+    },
+    {
+      "name": "MCU timeout counter: Explicitly initialized in register_device",
+      "detail": ""
+    },
+    {
+      "name": "CSI nl80211: Returns -ENODATA for empty buffer",
+      "detail": ""
+    },
+    {
+      "name": "ACS: Channel index bounds checked",
+      "detail": ""
+    },
+    {
+      "name": "ACS: Channel pointer validated against array",
+      "detail": ""
+    },
+    {
+      "name": "twt.c: 255 LOC, no stub markers",
+      "detail": ""
+    },
+    {
+      "name": "csi.c: 200 LOC, no stub markers",
+      "detail": ""
+    },
+    {
+      "name": "csi_nl80211.c: 256 LOC, no stub markers",
+      "detail": ""
+    },
+    {
+      "name": "acs.c: 261 LOC, no stub markers",
+      "detail": ""
+    },
+    {
+      "name": "mac.c: 4 USB-specific guards found",
+      "detail": ""
+    },
+    {
+      "name": "main.c: 0 USB + 2 MMIO guards",
+      "detail": ""
+    },
+    {
+      "name": "TWT SP event: Bounds check uses MT7921_MAX_TWT_AGRT (device table limit)",
+      "detail": ""
+    },
+    {
+      "name": "CSI stop: Flushes ring buffer (resets head/tail)",
+      "detail": ""
+    },
+    {
+      "name": "TWT param_equal: Compares 6 fields (mantissa, exp, duration, protection, flowtype, trigger)",
+      "detail": ""
+    },
+    {
+      "name": "TWT debugfs: Uses RCU read lock/unlock properly",
+      "detail": ""
+    },
+    {
+      "name": "CLC fallback: Only applies on USB bus",
+      "detail": ""
+    },
+    {
+      "name": "ops: .get_tstamp registered (HW timestamping)",
+      "detail": ""
+    },
+    {
+      "name": "ops: .get_survey registered (ACS survey data)",
+      "detail": ""
+    },
+    {
+      "name": "ops: .start_radar_detection registered (DFS radar detection)",
+      "detail": ""
+    },
+    {
+      "name": "ops: .end_cac registered (DFS CAC end)",
+      "detail": ""
+    },
+    {
+      "name": "ops: .add_twt_setup registered (TWT setup)",
+      "detail": ""
+    },
+    {
+      "name": "ops: .twt_teardown_request registered (TWT teardown)",
+      "detail": ""
+    }
+  ],
+  "fail": [],
+  "warn": [
+    {
+      "name": "TWT: WAKE_DUR_UNIT check present but logic unclear",
+      "detail": ""
+    }
+  ]
+}

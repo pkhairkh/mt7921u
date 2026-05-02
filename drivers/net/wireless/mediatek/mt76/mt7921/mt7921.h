@@ -424,8 +424,12 @@ void mt7921_acs_update(struct mt792x_dev *dev);
 int mt7921_acs_get_recommendation(struct mt792x_dev *dev, u32 *freq);
 void mt7921_acs_debugfs_init(struct mt792x_dev *dev);
 
-/* CSI (Channel State Information) — TASK-008 */
-#define MT7921_CSI_RING_SIZE            1000
+/* CSI (Channel State Information) — TASK-008
+ * Ring buffer size: 64 entries is sufficient for research-grade CSI.
+ * 1000 entries was ~4.4 MB which is excessive for a kernel struct.
+ * 64 × ~2 KB = ~128 KB — much more reasonable.
+ */
+#define MT7921_CSI_RING_SIZE            64
 #define MT7921_CSI_DATA_SIZE            256
 
 /* DFS CAC timer callback (defined in main.c) */

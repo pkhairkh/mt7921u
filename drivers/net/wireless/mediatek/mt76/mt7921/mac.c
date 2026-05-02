@@ -861,6 +861,16 @@ static void mt7921_tx_hw_timestamp(struct mt792x_dev *dev, struct sk_buff *skb)
         if (!test_bit(MT76_STATE_RUNNING, &dev->mphy.state))
                 return;
 
+        /* TX hardware timestamping via LPON register reads requires MMIO.
+         * On USB, mt76_set/mt76_rr are USB vendor commands which may sleep,
+         * and the TX completion path may not tolerate that.  For now, skip
+         * TX HW timestamping on USB and only support RX HW timestamping
+         * (which is handled in the RX path from the RX descriptor).
+         * RUNTIME_VERIFY: test TX HW timestamping on USB with linuxptp
+         */
+        if (mt76_is_usb(&dev->mt76))
+                return;
+
         /* Trigger TSF software read for HW_BSSID_0 */
         mt76_set(dev, MT_LPON_TCR(0, HW_BSSID_0), MT_LPON_TCR_SW_MODE);
         ts.t32[0] = mt76_rr(dev, MT_LPON_UTTR0(0));
@@ -886,6 +896,15 @@ ktime_t mt7921_get_tstamp(struct ieee80211_hw *hw)
                 u64 t64;
                 u32 t32[2];
         } ts;
+
+        /* On USB, LPON register reads are USB vendor commands that may
+         * sleep.  The ndo_get_tstamp callback can be called from softirq
+         * context where sleeping is not allowed.  Return 0 (invalid) on
+         * USB to avoid potential deadlocks.  RX HW timestamping (which
+         * extracts the TSF from the RX descriptor) still works on USB.
+         */
+        if (mt76_is_usb(&dev->mt76))
+                return ns_to_ktime(0);
 
         /* Trigger TSF software read for HW_BSSID_0 */
         mt76_set(dev, MT_LPON_TCR(0, HW_BSSID_0), MT_LPON_TCR_SW_MODE);

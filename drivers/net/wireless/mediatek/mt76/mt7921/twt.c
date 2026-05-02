@@ -119,16 +119,27 @@ mt7921_twt_check_req(struct ieee80211_twt_setup *twt)
         u64 interval;
         u8 exp;
 
-        /* Reject broadcast TWT agreements */
-        if (!(req_type & IEEE80211_TWT_REQTYPE_FLOWTYPE))
+        /* Only individual TWT agreements are supported.
+         * Broadcast TWT requires different firmware handling that the
+         * MT7921 does not implement.  This matches the mt7915/mt7996
+         * reference drivers.
+         */
+        if (twt->control & IEEE80211_TWT_CONTROL_NEG_TYPE_BROADCAST)
                 return false;
 
-        /* Reject if wake interval unit is not 256us */
-        if (!(twt->control & IEEE80211_TWT_CONTROL_WAKE_DUR_UNIT))
+        /* Only the default TU (1.024 ms) wake interval unit is supported.
+         * The 256us unit (WAKE_DUR_UNIT bit set) requires different
+         * firmware scheduling — reject it, consistent with mt7915/mt7996.
+         */
+        if (twt->control & IEEE80211_TWT_CONTROL_WAKE_DUR_UNIT)
                 return false;
 
-        /* Reject explicit agreements (driver manages scheduling) */
-        if (!(req_type & IEEE80211_TWT_REQTYPE_IMMEDIA_FB))
+        /* Only implicit TWT agreements are supported (driver manages
+         * the SP schedule).  Explicit agreements require the AP to
+         * specify the SP start time, which our firmware doesn't handle.
+         * This matches the mt7996 reference implementation.
+         */
+        if (!(req_type & IEEE80211_TWT_REQTYPE_IMPLICIT))
                 return false;
 
         exp = FIELD_GET(IEEE80211_TWT_REQTYPE_WAKE_INT_EXP, req_type);
@@ -220,6 +231,10 @@ void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
         flow->mantissa = twt_agrt->mantissa;
         flow->exp = exp;
         flow->protection = !!(req_type & IEEE80211_TWT_REQTYPE_PROTECTION);
+        /* flow->flowtype: 0 = individual, 1 = broadcast.
+         * We only accept individual TWT (broadcast is rejected in
+         * mt7921_twt_check_req), so this is always 0.
+         */
         flow->flowtype = !!(req_type & IEEE80211_TWT_REQTYPE_FLOWTYPE);
         flow->trigger = !!(req_type & IEEE80211_TWT_REQTYPE_TRIGGER);
         flow->tsf = le64_to_cpu(twt_agrt->twt);
@@ -239,8 +254,12 @@ out:
         twt_agrt->req_type &= ~cpu_to_le16(IEEE80211_TWT_REQTYPE_SETUP_CMD);
         twt_agrt->req_type |=
                 le16_encode_bits(setup_cmd, IEEE80211_TWT_REQTYPE_SETUP_CMD);
-        twt->control = (twt->control & IEEE80211_TWT_CONTROL_WAKE_DUR_UNIT) |
-                       (twt->control & IEEE80211_TWT_CONTROL_RX_DISABLED);
+        /* Preserve negotiation type and RX disabled bits.
+         * Clear WAKE_DUR_UNIT since we only support default TU unit.
+         */
+        twt->control &= ~(IEEE80211_TWT_CONTROL_NEG_TYPE_BROADCAST |
+                          IEEE80211_TWT_CONTROL_WAKE_DUR_UNIT);
+        twt->control |= (twt->control & IEEE80211_TWT_CONTROL_RX_DISABLED);
 }
 
 void mt7921_twt_teardown_request(struct ieee80211_hw *hw,
@@ -285,9 +304,13 @@ void mt7921_twt_sp_event(struct mt792x_dev *dev, struct sk_buff *skb)
         flow_id = evt->flow_id;
         event_type = evt->event_type;
 
+        /* flow_id from firmware is a device table index (0..MT7921_MAX_TWT_AGRT-1).
+         * Bounds-check against the device table limit, not the per-STA limit.
+         */
         if (flow_id >= MT7921_MAX_TWT_AGRT) {
                 dev_warn(dev->mt76.dev,
-                         "TWT SP event: invalid flow_id %u\n", flow_id);
+                         "TWT SP event: invalid flow_id %u (max %u)\n",
+                         flow_id, MT7921_MAX_TWT_AGRT - 1);
                 return;
         }
 
