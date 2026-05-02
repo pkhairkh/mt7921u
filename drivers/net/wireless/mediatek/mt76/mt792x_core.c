@@ -197,6 +197,10 @@ void mt792x_remove_interface(struct ieee80211_hw *hw,
         struct mt792x_dev *dev = mt792x_hw_dev(hw);
         struct mt792x_bss_conf *mconf;
 
+        /* Ensure CSA timer and work are stopped before removing the vif */
+        timer_delete_sync(&mvif->csa_timer);
+        cancel_work_sync(&mvif->csa_work);
+
         mt792x_mutex_acquire(dev);
 
         mconf = mt792x_link_conf_to_mconf(&vif->bss_conf);

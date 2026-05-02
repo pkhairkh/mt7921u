@@ -38,17 +38,17 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                 cmd, seq, skb);
 
         if (!skb) {
-                dev->mcu_timeout_count++;
+                int count = atomic_inc_return(&dev->mcu_timeout_count);
                 dev_warn(mdev->dev,
                          "Message %08x (seq %d) timeout (%d/%d)\n",
-                         cmd, seq, dev->mcu_timeout_count,
+                         cmd, seq, count,
                          mt7921_mcu_timeout_retries);
 
-                if (dev->mcu_timeout_count >= mt7921_mcu_timeout_retries) {
+                if (count >= mt7921_mcu_timeout_retries) {
                         dev_err(mdev->dev,
                                 "MCU timeout threshold reached (%d), resetting\n",
-                                dev->mcu_timeout_count);
-                        dev->mcu_timeout_count = 0;
+                                count);
+                        atomic_set(&dev->mcu_timeout_count, 0);
                         mt792x_reset(mdev);
                 }
 
@@ -56,7 +56,7 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
         }
 
         /* Successful response — reset timeout counter */
-        dev->mcu_timeout_count = 0;
+        atomic_set(&dev->mcu_timeout_count, 0);
 
         rxd = (struct mt76_connac2_mcu_rxd *)skb->data;
         if (seq != rxd->seq)
@@ -251,7 +251,9 @@ mt7921_mcu_debug_msg_event(struct mt792x_dev *dev, struct sk_buff *skb)
         msg = (struct mt7921_debug_msg *)skb->data;
 
         if (msg->type == 3) { /* fw log */
-                u16 len = min_t(u16, le16_to_cpu(msg->len), 512);
+                u16 max_content = skb->len > offsetof(typeof(*msg), content) ?
+                                  skb->len - offsetof(typeof(*msg), content) : 0;
+                u16 len = min_t(u16, le16_to_cpu(msg->len), min(512, max_content));
                 int i;
 
                 for (i = 0 ; i < len; i++) {
@@ -373,6 +375,10 @@ mt7921_mcu_rx_unsolicited_event(struct mt792x_dev *dev, struct sk_buff *skb)
                     */
                 skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
                 mt7921_twt_sp_event(dev, skb);
+                break;
+        case MCU_EVENT_RDD_REPORT: /* Firmware radar detection event */
+                skb_pull(skb, sizeof(struct mt76_connac2_mcu_rxd));
+                mt7921_radar_detected_event(dev, skb);
                 break;
         default:
                 break;
@@ -526,6 +532,13 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
 
         for (offset = 0; offset < len; offset += le32_to_cpu(clc->len)) {
                 clc = (const struct mt7921_clc *)(clc_base + offset);
+
+                /* Guard against zero-length CLC entries (corrupt firmware) */
+                if (le32_to_cpu(clc->len) == 0) {
+                        dev_warn(mdev->dev, "Zero-length CLC entry at offset %d, stopping\n",
+                                 offset);
+                        break;
+                }
 
                 /* do not init buf again if chip reset triggered */
                 if (phy->clc[clc->idx])

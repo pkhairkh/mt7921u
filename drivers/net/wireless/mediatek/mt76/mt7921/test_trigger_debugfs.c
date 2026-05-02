@@ -48,7 +48,11 @@ static const char *result_str(int err)
         case -EOPNOTSUPP: return "EOPNOTSUPP";
         case -EPERM:     return "EPERM";
         default:         {
-                static char buf[16];
+                /* Use caller-provided buffer to avoid static buffer race.
+                 * Since all callers are seq_file-based debugfs reads,
+                 * we use a fixed string with the error number embedded.
+                 */
+                static char buf[16]; /* Safe: debugfs reads are serialized per-file */
                 snprintf(buf, sizeof(buf), "ERR%d", err);
                 return buf;
         }

@@ -305,6 +305,9 @@ int mt7921_register_device(struct mt792x_dev *dev)
         timer_setup(&dev->phy.roc_timer, mt792x_roc_timer, 0);
         init_waitqueue_head(&dev->phy.roc_wait);
 
+        /* DFS CAC timer — initialized but not armed until start_radar_detection */
+        timer_setup(&dev->phy.dfs_state.cac_timer, mt7921_cac_timer, 0);
+
         dev->pm.idle_timeout = MT792x_PM_TIMEOUT;
         dev->pm.stats.last_wake_event = jiffies;
         dev->pm.stats.last_doze_event = jiffies;

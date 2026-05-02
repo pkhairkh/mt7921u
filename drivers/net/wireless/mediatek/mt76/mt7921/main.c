@@ -1561,11 +1561,45 @@ static void mt7921_rfkill_poll(struct ieee80211_hw *hw)
 
 /* TASK-013: DFS Master Preparation — start_radar_detection implementation.
  * Sends UNI_RDD_ON_OFF_CTRL to firmware to enable radar detection,
- * records the CAC request, and returns success.
- * CAC timing depends on firmware — actual wait is handled by
- * mac80211 once the radar detector is armed.
+ * records the CAC request, and arms a kernel timer for CAC completion.
+ * If the firmware sends a radar detection event before the timer fires,
+ * the timer is cancelled and ieee80211_radar_detected() is called instead.
  * RUNTIME_VERIFY: CAC timing depends on firmware
  */
+
+static void mt7921_cac_timer(struct timer_list *t)
+{
+        struct mt7921_dfs_state *dfs = from_timer(dfs, t, cac_timer);
+        struct mt792x_phy *phy = container_of(dfs, struct mt792x_phy, dfs_state);
+        struct mt792x_dev *dev = phy->dev;
+
+        if (!dfs->cac_vif)
+                return;
+
+        dev_dbg(dev->mt76.dev, "CAC timer expired — channel available\n");
+        dfs->radar_detected = false;
+        ieee80211_cac_finish(dev->mt76.phy.hw, dfs->cac_vif);
+        dfs->cac_vif = NULL;
+}
+
+static void mt7921_radar_detected_event(struct mt792x_dev *dev,
+                                        struct sk_buff *skb)
+{
+        struct mt7921_dfs_state *dfs = &dev->phy.dfs_state;
+
+        dev_warn(dev->mt76.dev, "Radar detected on band %u — CAC failed\n",
+                 dfs->cac_band_idx);
+
+        /* Cancel any pending CAC timer */
+        del_timer(&dfs->cac_timer);
+
+        dfs->radar_detected = true;
+        if (dfs->cac_vif) {
+                ieee80211_radar_detected(dev->mt76.phy.hw, dfs->cac_vif);
+                dfs->cac_vif = NULL;
+        }
+}
+
 static int
 mt7921_start_radar_detection(struct ieee80211_hw *hw,
                              struct ieee80211_vif *vif,
@@ -1591,19 +1625,27 @@ mt7921_start_radar_detection(struct ieee80211_hw *hw,
         phy->dfs_state.radar_detected = false;
         phy->dfs_state.cac_band_idx = 0;
         phy->dfs_state.cac_time_ms = cac_time_ms;
+        phy->dfs_state.cac_vif = vif;
 
         mt792x_mutex_acquire(dev);
         ret = mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
                                 &req, sizeof(req), true);
         mt792x_mutex_release(dev);
 
-        if (ret)
+        if (ret) {
                 dev_err(dev->mt76.dev,
                         "Failed to start radar detection: %d\n", ret);
-        else
+                phy->dfs_state.cac_vif = NULL;
+        } else {
+                /* Arm CAC timer — if firmware doesn't send a radar event
+                 * before this expires, the channel is declared available.
+                 */
+                mod_timer(&phy->dfs_state.cac_timer,
+                          jiffies + msecs_to_jiffies(cac_time_ms));
                 dev_dbg(dev->mt76.dev,
                         "Radar detection started, CAC time %u ms\n",
                         cac_time_ms);
+        }
 
         return ret;
 }
@@ -1628,9 +1670,13 @@ mt7921_end_cac(struct ieee80211_hw *hw,
                 .enable = 0,
         };
 
+        /* Cancel CAC timer */
+        del_timer_sync(&phy->dfs_state.cac_timer);
+
         /* RUNTIME_VERIFY: CAC cancellation depends on firmware */
         phy->dfs_state.radar_detected = false;
         phy->dfs_state.cac_time_ms = 0;
+        phy->dfs_state.cac_vif = NULL;
 
         mt792x_mutex_acquire(dev);
         ret = mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
@@ -1676,6 +1722,7 @@ const struct ieee80211_ops mt7921_ops = {
         .get_et_stats = mt792x_get_et_stats,
         .get_tsf = mt792x_get_tsf,
         .set_tsf = mt792x_set_tsf,
+        .get_tstamp = mt7921_get_tstamp,
         .get_survey = mt76_get_survey,
         .get_antenna = mt76_get_antenna,
         .set_antenna = mt7921_set_antenna,

@@ -162,7 +162,7 @@ static void mt7921_mac_sta_poll(struct mt792x_dev *dev)
                 rssi[0] = to_rssi(GENMASK(7, 0), val);
                 rssi[1] = to_rssi(GENMASK(15, 8), val);
                 rssi[2] = to_rssi(GENMASK(23, 16), val);
-                rssi[3] = to_rssi(GENMASK(31, 14), val);
+                rssi[3] = to_rssi(GENMASK(31, 24), val);
 
                 mlink->ack_signal =
                         mt76_rx_signal(msta->vif->phy->mt76->antenna_mask, rssi);
@@ -684,6 +684,21 @@ void mt7921_mac_reset_work(struct work_struct *work)
         cancel_delayed_work_sync(&pm->ps_work);
         cancel_work_sync(&pm->wake_work);
 
+        /* Reset TWT state — firmware loses all agreements on reset */
+        dev->twt.table_mask = 0;
+        dev->twt.n_agrt = 0;
+        memset(&dev->twt.stats, 0, sizeof(dev->twt.stats));
+
+        /* Reset CSI state — firmware loses capture state on reset */
+        mt7921_csi_cleanup(dev);
+        mt7921_csi_init(dev);
+
+        /* Cancel DFS CAC timer — radar detection state is lost on reset */
+        del_timer_sync(&dev->phy.dfs_state.cac_timer);
+        dev->phy.dfs_state.cac_vif = NULL;
+        dev->phy.dfs_state.cac_time_ms = 0;
+        dev->phy.dfs_state.radar_detected = false;
+
         for (i = 0; i < 10; i++) {
                 mutex_lock(&dev->mt76.mutex);
                 ret = mt792x_dev_reset(dev);
@@ -857,6 +872,27 @@ static void mt7921_tx_hw_timestamp(struct mt792x_dev *dev, struct sk_buff *skb)
         skb_tstamp_tx(skb, &shwt);
 
         skb_shinfo(skb)->tx_flags &= ~SKBTX_HW_TSTAMP;
+}
+
+/* TASK-012: HW Timestamping — ndo_get_tstamp callback
+ * Reads the current TSF from the hardware registers and converts
+ * to a ktime_t for mac80211. Required for NL80211_FEATURE_HW_TIMESTAMP
+ * and PTP/PTP4L support.
+ */
+ktime_t mt7921_get_tstamp(struct ieee80211_hw *hw)
+{
+        struct mt792x_dev *dev = mt792x_hw_dev(hw);
+        union {
+                u64 t64;
+                u32 t32[2];
+        } ts;
+
+        /* Trigger TSF software read for HW_BSSID_0 */
+        mt76_set(dev, MT_LPON_TCR(0, HW_BSSID_0), MT_LPON_TCR_SW_MODE);
+        ts.t32[0] = mt76_rr(dev, MT_LPON_UTTR0(0));
+        ts.t32[1] = mt76_rr(dev, MT_LPON_UTTR1(0));
+
+        return ns_to_ktime(ts.t64 * NSEC_PER_USEC);
 }
 
 void mt7921_usb_sdio_tx_complete_skb(struct mt76_dev *mdev,

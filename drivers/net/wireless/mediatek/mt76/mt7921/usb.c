@@ -161,7 +161,8 @@ static void mt7921u_chip_cleanup(struct mt792x_dev *dev)
                 int i, j;
 
                 for (i = 0; i < MT76_N_WCIDS; i++) {
-                        wcid = rcu_dereference(dev->mt76.wcid[i]);
+                        wcid = rcu_dereference_protected(dev->mt76.wcid[i],
+                                                         lockdep_is_held(&dev->mt76.mutex));
                         if (!wcid || !wcid->sta)
                                 continue;
                         msta = container_of(wcid, struct mt792x_sta, deflink.wcid);

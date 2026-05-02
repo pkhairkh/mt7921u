@@ -1,0 +1,229 @@
+{
+  "pass": [
+    [
+      "T1.add_twt_setup",
+      ".add_twt_setup found in mt7921_ops"
+    ],
+    [
+      "T1.twt_teardown_request",
+      ".twt_teardown_request found in mt7921_ops"
+    ],
+    [
+      "T1.start_radar_detection",
+      ".start_radar_detection found in mt7921_ops"
+    ],
+    [
+      "T1.end_cac",
+      ".end_cac found in mt7921_ops"
+    ],
+    [
+      "T1.remain_on_channel",
+      ".remain_on_channel found in mt7921_ops"
+    ],
+    [
+      "T1.cancel_remain_on_channel",
+      ".cancel_remain_on_channel found in mt7921_ops"
+    ],
+    [
+      "T1.configure_filter",
+      ".configure_filter found in mt7921_ops"
+    ],
+    [
+      "T1.bss_info_changed",
+      ".bss_info_changed found in mt7921_ops"
+    ],
+    [
+      "T1.set_key",
+      ".set_key found in mt7921_ops"
+    ],
+    [
+      "T1.sta_state",
+      ".sta_state found in mt7921_ops"
+    ],
+    [
+      "T1.ampdu_action",
+      ".ampdu_action found in mt7921_ops"
+    ],
+    [
+      "T1.config",
+      ".config found in mt7921_ops"
+    ],
+    [
+      "T1.get_tstamp",
+      ".get_tstamp registered in mt7921_ops"
+    ],
+    [
+      "T1.dfs_wiphy_flag",
+      "WIPHY_FLAG_HAS_RADAR_DETECT set"
+    ],
+    [
+      "T2.mt7921_mcu_csi_control",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_mcu_csi_event",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_csi_start",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_csi_stop",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_csi_init",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_csi_cleanup",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_csi_nl80211_register",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_mcu_twt_agrt_update",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_mac_add_twt_setup",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_twt_teardown_request",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_twt_teardown_sta",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_twt_sp_event",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_acs_init",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_acs_cleanup",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_acs_update",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_acs_get_recommendation",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_acs_debugfs_init",
+      "has definition"
+    ],
+    [
+      "T2.mt7921_mcu_parse_response",
+      "has definition"
+    ],
+    [
+      "T3.csi_producer_spinlock",
+      "CSI producer uses spin_lock_irqsave"
+    ],
+    [
+      "T3.csi_consumer_spinlock",
+      "CSI consumer uses matching spinlock"
+    ],
+    [
+      "T3.mcu_timeout_atomic",
+      "mcu_timeout_count is atomic_t"
+    ],
+    [
+      "T4.twt_skb_ownership",
+      "TWT SP event uses break \u2014 skb freed by caller"
+    ],
+    [
+      "T4.csi_skb_ownership",
+      "CSI event handler frees skb \u2014 ownership correct"
+    ],
+    [
+      "T5.rcu_dereference_chip_cleanup",
+      "RCU dereference properly protected"
+    ],
+    [
+      "T6.tx_resource_sdio_guard",
+      "Caller guards TX resource parsing with mt76_is_sdio"
+    ],
+    [
+      "T6.wtbl_usb_timeout",
+      "WTBL update has USB-specific timeout"
+    ],
+    [
+      "T8.twt_flowid_bounds",
+      "TWT flow ID bounds checked after ffs()"
+    ],
+    [
+      "T8.twt_sp_flow_id_bounds",
+      "TWT SP event flow_id bounds checked"
+    ],
+    [
+      "T8.clc_zero_len_guard",
+      "CLC loop has zero-length guard"
+    ],
+    [
+      "T9.twt_reset_cleanup",
+      "TWT state cleaned up on reset"
+    ],
+    [
+      "T9.csi_reset_cleanup",
+      "CSI cleanup called on reset/chip_cleanup"
+    ],
+    [
+      "T9.dfs_state_present",
+      "DFS state struct exists"
+    ],
+    [
+      "T10.rssi_genmask",
+      "RSSI GENMASK values look correct"
+    ],
+    [
+      "T11.csi_nl80211_register_call",
+      "CSI nl80211 register called in init"
+    ],
+    [
+      "T11.vendor_cmd_count",
+      "4 vendor commands registered"
+    ],
+    [
+      "T12.rcu_dereference_protected",
+      "1 rcu_dereference_protected calls found"
+    ],
+    [
+      "T12.usb_rcu_protected",
+      "usb.c RCU usage is properly protected"
+    ]
+  ],
+  "fail": [
+    [
+      "T7.sta_add_error_cleanup",
+      "sta_add does NOT free wcid on error"
+    ]
+  ],
+  "warn": [
+    [
+      "T7.tx_prepare_error",
+      "Uses raw idr_remove \u2014 may not properly undo mt76_tx_status_skb_add"
+    ],
+    [
+      "T10.roc_token_id",
+      "roc_token_id is u8 \u2014 wraps at 255, potential confusion"
+    ]
+  ],
+  "summary": {
+    "total_pass": 51,
+    "total_fail": 1,
+    "total_warn": 2
+  }
+}

@@ -216,6 +216,7 @@ int mt7921_mcu_set_tx(struct mt792x_dev *dev, struct ieee80211_vif *vif);
 int mt7921_mcu_set_eeprom(struct mt792x_dev *dev);
 int mt7921_mcu_get_rx_rate(struct mt792x_phy *phy, struct ieee80211_vif *vif,
                            struct ieee80211_sta *sta, struct rate_info *rate);
+ktime_t mt7921_get_tstamp(struct ieee80211_hw *hw);
 int mt7921_mcu_fw_log_2_host(struct mt792x_dev *dev, u8 ctrl);
 void mt7921_mcu_rx_event(struct mt792x_dev *dev, struct sk_buff *skb);
 int mt7921_mcu_set_rxfilter(struct mt792x_dev *dev, u32 fif,
@@ -427,11 +428,17 @@ void mt7921_acs_debugfs_init(struct mt792x_dev *dev);
 #define MT7921_CSI_RING_SIZE            1000
 #define MT7921_CSI_DATA_SIZE            256
 
+/* DFS CAC timer callback (defined in main.c) */
+void mt7921_cac_timer(struct timer_list *t);
+void mt7921_radar_detected_event(struct mt792x_dev *dev, struct sk_buff *skb);
+
 /* TASK-013: DFS Master Preparation */
 struct mt7921_dfs_state {
         bool radar_detected;
         u8 cac_band_idx;
         u32 cac_time_ms;
+        struct timer_list cac_timer;
+        struct ieee80211_vif *cac_vif;
 };
 
 enum mt7921_csi_control_mode {

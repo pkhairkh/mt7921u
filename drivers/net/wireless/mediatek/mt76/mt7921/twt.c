@@ -196,11 +196,15 @@ void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
         }
 
         flowid = ffs(~msta->twt.flowid_mask) - 1;
+        if (flowid < 0 || flowid >= MT7921_MAX_STA_TWT_AGRT)
+                goto unlock;
         twt_agrt->req_type &= ~cpu_to_le16(IEEE80211_TWT_REQTYPE_FLOWID);
         twt_agrt->req_type |= le16_encode_bits(flowid,
                                                IEEE80211_TWT_REQTYPE_FLOWID);
 
         table_id = ffs(~dev->twt.table_mask) - 1;
+        if (table_id < 0 || table_id >= MT7921_MAX_TWT_AGRT)
+                goto unlock;
         exp = FIELD_GET(IEEE80211_TWT_REQTYPE_WAKE_INT_EXP, req_type);
         sta_setup_cmd = FIELD_GET(IEEE80211_TWT_REQTYPE_SETUP_CMD, req_type);
 
