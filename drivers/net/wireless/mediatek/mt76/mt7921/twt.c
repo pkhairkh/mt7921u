@@ -150,7 +150,7 @@ mt7921_twt_check_req(struct ieee80211_twt_setup *twt)
         return true;
 }
 
-static void
+void
 mt7921_twt_teardown_flow(struct mt792x_dev *dev,
                          struct mt792x_sta *msta,
                          u8 flowid)

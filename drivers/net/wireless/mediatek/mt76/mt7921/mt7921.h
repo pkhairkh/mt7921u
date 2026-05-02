@@ -353,11 +353,13 @@ int mt7921_mcu_abort_roc(struct mt792x_phy *phy, struct mt792x_vif *vif,
 void mt7921_roc_abort_sync(struct mt792x_dev *dev);
 int mt7921_mcu_set_rssimonitor(struct mt792x_dev *dev, struct ieee80211_vif *vif);
 
-/* TWT (Target Wake Time) — TASK-007 */
+/* TWT (Target Wake Time) — TASK-007
+ * Struct definitions are in mt792x.h (guarded by MT7921_TWT_DEFS_MOVED_TO_MT792X).
+ * Only define macros and structs here if not already defined by mt792x.h.
+ */
+#ifndef MT7921_TWT_DEFS_MOVED_TO_MT792X
 #define MT7921_MAX_TWT_AGRT             16
 #define MT7921_MAX_STA_TWT_AGRT         8
-#endif
-#define MT7921_MIN_TWT_DUR              64
 
 struct mt7921_twt_flow {
         u64 tsf;
@@ -379,6 +381,8 @@ struct mt7921_twt_agrt_stats {
         bool sp_active[MT7921_MAX_TWT_AGRT];
         u64 sp_start_tsf[MT7921_MAX_TWT_AGRT];
 };
+#endif
+#define MT7921_MIN_TWT_DUR              64
 
 void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
                               struct ieee80211_sta *sta,
@@ -386,6 +390,8 @@ void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
 void mt7921_twt_teardown_request(struct ieee80211_hw *hw,
                                  struct ieee80211_sta *sta,
                                  u8 flowid);
+void mt7921_twt_teardown_flow(struct mt792x_dev *dev,
+                             struct mt792x_sta *msta, u8 flowid);
 void mt7921_twt_teardown_sta(struct mt792x_dev *dev,
                              struct mt792x_sta *msta);
 int mt7921_mcu_twt_agrt_update(struct mt792x_dev *dev,
@@ -425,28 +431,7 @@ void mt7921_acs_update(struct mt792x_dev *dev);
 int mt7921_acs_get_recommendation(struct mt792x_dev *dev, u32 *freq);
 void mt7921_acs_debugfs_init(struct mt792x_dev *dev);
 
-/* CSI (Channel State Information) — TASK-008
- * Ring buffer size: 64 entries is sufficient for research-grade CSI.
- * 1000 entries was ~4.4 MB which is excessive for a kernel struct.
- * 64 × ~2 KB = ~128 KB — much more reasonable.
- */
-#ifndef MT7921_CSI_DEFS_MOVED_TO_MT792X
-#define MT7921_CSI_RING_SIZE            64
-#define MT7921_CSI_DATA_SIZE            256
-
-/* DFS CAC timer callback (defined in main.c) */
-void mt7921_cac_timer(struct timer_list *t);
-void mt7921_radar_detected_event(struct mt792x_dev *dev, struct sk_buff *skb);
-
-/* TASK-013: DFS Master Preparation */
-struct mt7921_dfs_state {
-        bool radar_detected;
-        u8 cac_band_idx;
-        u32 cac_time_ms;
-        struct timer_list cac_timer;
-        struct ieee80211_vif *cac_vif;
-};
-
+/* CSI enums — needed by function prototypes. Not in mt792x.h. */
 enum mt7921_csi_control_mode {
         MT7921_CSI_CONTROL_STOP,
         MT7921_CSI_CONTROL_START,
@@ -468,6 +453,29 @@ enum mt7921_csi_output_format {
         MT7921_CSI_OUTPUT_TONE_MASKED,
         MT7921_CSI_OUTPUT_TONE_MASKED_SHIFTED,
 };
+
+/* DFS CAC timer callback (defined in main.c) — always visible */
+void mt7921_cac_timer(struct timer_list *t);
+void mt7921_radar_detected_event(struct mt792x_dev *dev, struct sk_buff *skb);
+
+/* CSI function declarations — always visible (struct defs are in mt792x.h) */
+int mt7921_mcu_csi_control(struct mt792x_dev *dev, u8 band_idx,
+                           enum mt7921_csi_control_mode mode,
+                           enum mt7921_csi_config_item cfg_item,
+                           u8 val1, u8 val2);
+void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb);
+int mt7921_csi_start(struct mt792x_dev *dev, u8 band_idx,
+                     enum mt7921_csi_output_format output_format);
+int mt7921_csi_stop(struct mt792x_dev *dev, u8 band_idx);
+void mt7921_csi_init(struct mt792x_dev *dev);
+void mt7921_csi_cleanup(struct mt792x_dev *dev);
+int mt7921_csi_nl80211_register(struct wiphy *wiphy);
+
+/* CSI struct/data definitions — guarded, already in mt792x.h */
+#ifndef MT7921_CSI_DEFS_MOVED_TO_MT792X
+#define MT7921_CSI_DEFS_MOVED_TO_MT792X
+#define MT7921_CSI_RING_SIZE            64
+#define MT7921_CSI_DATA_SIZE            256
 
 struct mt7921_csi_data {
         u8 fw_ver;
@@ -498,18 +506,15 @@ struct mt7921_csi_info {
         bool enabled;
 };
 
-int mt7921_mcu_csi_control(struct mt792x_dev *dev, u8 band_idx,
-                           enum mt7921_csi_control_mode mode,
-                           enum mt7921_csi_config_item cfg_item,
-                           u8 val1, u8 val2);
-void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb);
-int mt7921_csi_start(struct mt792x_dev *dev, u8 band_idx,
-                     enum mt7921_csi_output_format output_format);
-int mt7921_csi_stop(struct mt792x_dev *dev, u8 band_idx);
-void mt7921_csi_init(struct mt792x_dev *dev);
-void mt7921_csi_cleanup(struct mt792x_dev *dev);
-
-int mt7921_csi_nl80211_register(struct wiphy *wiphy);
+/* TASK-013: DFS Master Preparation */
+struct mt7921_dfs_state {
+        bool radar_detected;
+        u8 cac_band_idx;
+        u32 cac_time_ms;
+        struct timer_list cac_timer;
+        struct ieee80211_vif *cac_vif;
+};
+#endif
 
 /*
  * Radiotap vendor-extension field definition for CSI data

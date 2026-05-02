@@ -10,6 +10,13 @@
 #include <linux/version.h>
 #include "mcu.h"
 
+/* Kernel 6.12 compat: _ieee80211_set_sband_iftype_data was renamed
+ * from ieee80211_set_sband_iftype_data in 6.13.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
+#define _ieee80211_set_sband_iftype_data ieee80211_set_sband_iftype_data
+#endif
+
 static int
 mt7921_init_he_caps(struct mt792x_phy *phy, enum nl80211_band band,
                     struct ieee80211_sband_iftype_data *data)

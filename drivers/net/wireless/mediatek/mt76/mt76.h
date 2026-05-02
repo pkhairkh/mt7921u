@@ -785,6 +785,7 @@ struct mt76_rx_status {
 
         u32 ampdu_ref;
         u32 timestamp;
+        u64 mactime;       /* 64-bit TSF for HW timestamping */
 
         u8 iv[6];
 

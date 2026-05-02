@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
+#include <linux/version.h>
 /*
  * Copyright (C) 2016 Felix Fietkau <nbd@nbd.name>
  */
@@ -1268,7 +1269,9 @@ mt76_rx_convert(struct mt76_dev *dev, struct sk_buff *skb,
 	status->chains = mstat.chains;
 	status->ampdu_reference = mstat.ampdu_ref;
 	status->device_timestamp = mstat.timestamp;
-	status->mactime = mstat.timestamp;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+	status->mactime = mstat.mactime;
+#endif
 	status->signal = mt76_rx_signal(mstat.chains, mstat.chain_signal);
 	if (status->signal <= -128)
 		status->flag |= RX_FLAG_NO_SIGNAL_VAL;
