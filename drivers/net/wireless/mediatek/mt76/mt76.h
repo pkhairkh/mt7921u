@@ -13,6 +13,8 @@
 #include <linux/leds.h>
 #include <linux/usb.h>
 #include <linux/average.h>
+#include <linux/version.h>
+#include <net/pkt_cls.h>
 #if IS_ENABLED(CONFIG_MT76_NPU)
 #include <linux/soc/airoha/airoha_offload.h>
 #else
@@ -2088,8 +2090,17 @@ static inline void mt76_put_page_pool_buf(void *buf, bool allow_direct)
 {
         struct page *page = virt_to_head_page(buf);
 
+        /*
+         * On newer kernels (6.13+), the page_pool pointer is accessed via
+         * pp_page_to_nmdesc(page)->pp (netmem_desc API). On older kernels
+         * (6.12 and earlier), page->pp directly stores the page_pool pointer.
+         */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
         page_pool_put_full_page(pp_page_to_nmdesc(page)->pp, page,
                                 allow_direct);
+#else
+        page_pool_put_full_page(page->pp, page, allow_direct);
+#endif
 }
 
 static inline void *

@@ -82,90 +82,90 @@ create_stub_headers() {
 #define _LINUX_AIROHA_OFFLOAD_H_STUB
 
 struct airoha_npu {
-	struct device *dev;
-	struct regmap *regmap;
-	int irqs[2];
+        struct device *dev;
+        struct regmap *regmap;
+        int irqs[2];
 };
 
 struct airoha_ppe_dev;
 
 enum airoha_npu_wlan_set_cmd {
-	WLAN_FUNC_SET_WAIT_DESC,
-	WLAN_FUNC_SET_WAIT_TX_RING_PCIE_ADDR,
-	WLAN_FUNC_SET_WAIT_PCIE_ADDR,
-	WLAN_FUNC_SET_WAIT_TOKEN_ID_SIZE,
-	WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
-	WLAN_FUNC_SET_WAIT_TX_BUF_SPACE_HW_BASE,
-	WLAN_FUNC_SET_WAIT_RX_RING_FOR_TXDONE_HW_BASE,
-	WLAN_FUNC_SET_WAIT_INODE_TXRX_REG_ADDR,
+        WLAN_FUNC_SET_WAIT_DESC,
+        WLAN_FUNC_SET_WAIT_TX_RING_PCIE_ADDR,
+        WLAN_FUNC_SET_WAIT_PCIE_ADDR,
+        WLAN_FUNC_SET_WAIT_TOKEN_ID_SIZE,
+        WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
+        WLAN_FUNC_SET_WAIT_TX_BUF_SPACE_HW_BASE,
+        WLAN_FUNC_SET_WAIT_RX_RING_FOR_TXDONE_HW_BASE,
+        WLAN_FUNC_SET_WAIT_INODE_TXRX_REG_ADDR,
 };
 
 enum airoha_npu_wlan_get_cmd {
-	WLAN_FUNC_GET_WAIT_NPU_VERSION,
-	WLAN_FUNC_GET_WAIT_RXDESC_BASE,
-	WLAN_FUNC_GET_WAIT_NPU_INFO,
+        WLAN_FUNC_GET_WAIT_NPU_VERSION,
+        WLAN_FUNC_GET_WAIT_RXDESC_BASE,
+        WLAN_FUNC_GET_WAIT_NPU_INFO,
 };
 
 struct airoha_npu_tx_dma_desc {
-	__le32 addr;
-	__le32 ctrl;
-	__le32 info;
-	__le32 txwi[4];
+        __le32 addr;
+        __le32 ctrl;
+        __le32 info;
+        __le32 txwi[4];
 };
 
 struct airoha_npu_rx_dma_desc {
-	__le32 addr;
-	__le32 ctrl;
-	__le32 info;
-	__le32 rxd[4];
+        __le32 addr;
+        __le32 ctrl;
+        __le32 info;
+        __le32 rxd[4];
 };
 
-#define NPU_RX_DMA_PKT_COUNT_MASK	GENMASK(23, 16)
-#define NPU_RX_DMA_DESC_CUR_LEN_MASK	GENMASK(13, 0)
-#define NPU_RX_DMA_DESC_DONE_MASK	BIT(31)
-#define NPU_RX_DMA_FOE_ID_MASK		GENMASK(25, 16)
-#define NPU_RX_DMA_CRSN_MASK		GENMASK(7, 4)
-#define NPU_TX_DMA_DESC_LEN_MASK	GENMASK(13, 0)
-#define NPU_TX_DMA_DESC_VEND_LEN_MASK	GENMASK(29, 16)
-#define NPU_TX_DMA_DESC_DONE_MASK	BIT(31)
+#define NPU_RX_DMA_PKT_COUNT_MASK       GENMASK(23, 16)
+#define NPU_RX_DMA_DESC_CUR_LEN_MASK    GENMASK(13, 0)
+#define NPU_RX_DMA_DESC_DONE_MASK       BIT(31)
+#define NPU_RX_DMA_FOE_ID_MASK          GENMASK(25, 16)
+#define NPU_RX_DMA_CRSN_MASK            GENMASK(7, 4)
+#define NPU_TX_DMA_DESC_LEN_MASK        GENMASK(13, 0)
+#define NPU_TX_DMA_DESC_VEND_LEN_MASK   GENMASK(29, 16)
+#define NPU_TX_DMA_DESC_DONE_MASK       BIT(31)
 
-#define PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED	0x1e
+#define PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED  0x1e
 
-#define NPU_RX0_DESC_NUM	512
-#define NPU_RX1_DESC_NUM	512
-#define NPU_TXWI_LEN		128
+#define NPU_RX0_DESC_NUM        512
+#define NPU_RX1_DESC_NUM        512
+#define NPU_TXWI_LEN            128
 
 static inline struct airoha_npu *airoha_npu_get(struct device *dev)
 {
-	return ERR_PTR(-EOPNOTSUPP);
+        return ERR_PTR(-EOPNOTSUPP);
 }
 
 static inline void airoha_npu_put(struct airoha_npu *npu) {}
 
 static inline struct airoha_ppe_dev *airoha_ppe_get_dev(struct device *dev)
 {
-	return ERR_PTR(-EOPNOTSUPP);
+        return ERR_PTR(-EOPNOTSUPP);
 }
 
 static inline void airoha_ppe_put_dev(struct airoha_ppe_dev *ppe_dev) {}
 
 static inline int airoha_npu_wlan_send_msg(struct airoha_npu *npu, int ifindex,
-					    enum airoha_npu_wlan_set_cmd cmd,
-					    void *data, int len, gfp_t gfp)
+                                            enum airoha_npu_wlan_set_cmd cmd,
+                                            void *data, int len, gfp_t gfp)
 {
-	return -EOPNOTSUPP;
+        return -EOPNOTSUPP;
 }
 
 static inline int airoha_npu_wlan_get_msg(struct airoha_npu *npu, int ifindex,
-					   enum airoha_npu_wlan_get_cmd cmd,
-					   void *data, int len, gfp_t gfp)
+                                           enum airoha_npu_wlan_get_cmd cmd,
+                                           void *data, int len, gfp_t gfp)
 {
-	return -EOPNOTSUPP;
+        return -EOPNOTSUPP;
 }
 
 static inline u32 airoha_npu_wlan_get_irq_status(struct airoha_npu *npu, int index)
 {
-	return 0;
+        return 0;
 }
 
 static inline void airoha_npu_wlan_set_irq_status(struct airoha_npu *npu, u32 status) {}
@@ -174,23 +174,23 @@ static inline void airoha_npu_wlan_enable_irq(struct airoha_npu *npu, int index)
 
 static inline int airoha_npu_wlan_init_reserved_memory(struct airoha_npu *npu)
 {
-	return -EOPNOTSUPP;
+        return -EOPNOTSUPP;
 }
 
 static inline u32 airoha_npu_wlan_get_queue_addr(struct airoha_npu *npu, int qid, bool xmit)
 {
-	return 0;
+        return 0;
 }
 
 static inline void airoha_ppe_dev_check_skb(struct airoha_ppe_dev *ppe_dev,
-					     struct sk_buff *skb, u16 hash, bool ether)
+                                             struct sk_buff *skb, u16 hash, bool ether)
 {
 }
 
 static inline int airoha_ppe_dev_setup_tc_block_cb(struct airoha_ppe_dev *ppe_dev,
-						    void *type_data)
+                                                    void *type_data)
 {
-	return -EOPNOTSUPP;
+        return -EOPNOTSUPP;
 }
 
 #endif /* _LINUX_AIROHA_OFFLOAD_H_STUB */
@@ -217,34 +217,35 @@ AIORA_STUB_EOF
 #define _LINUX_MTK_WED_H_STUB
 
 #include <linux/skbuff.h>
+#include <net/pkt_cls.h>
 
 struct mtk_wed_device {
-	struct {
-		void *hif2;
-		unsigned int token_start;
-	} wlan;
-	struct {
-		void *desc;
-	} rx_buf_ring;
-	struct {
-		u32 reg_base;
-	} tx_ring[8];
-	struct {
-		u32 reg_base;
-	} txfree_ring;
-	struct {
-		u32 reg_base;
-	} rx_ring[8];
+        struct {
+                void *hif2;
+                unsigned int token_start;
+        } wlan;
+        struct {
+                void *desc;
+        } rx_buf_ring;
+        struct {
+                u32 reg_base;
+        } tx_ring[8];
+        struct {
+                u32 reg_base;
+        } txfree_ring;
+        struct {
+                u32 reg_base;
+        } rx_ring[8];
 };
 
 struct mtk_wed_bm_desc {
-	__le32 buf0;
-	__le32 token;
+        __le32 buf0;
+        __le32 token;
 };
 
 static inline bool mtk_wed_device_active(struct mtk_wed_device *wed)
 {
-	return false;
+        return false;
 }
 
 static inline void mtk_wed_device_irq_set_mask(struct mtk_wed_device *wed, u32 mask) {}
@@ -253,35 +254,35 @@ static inline void mtk_wed_device_detach(struct mtk_wed_device *wed) {}
 static inline bool mtk_wed_get_rx_capa(struct mtk_wed_device *wed) { return false; }
 
 static inline int mtk_wed_device_tx_ring_setup(struct mtk_wed_device *wed, int ring,
-						u32 regs, bool reset) { return 0; }
+                                                u32 regs, bool reset) { return 0; }
 static inline int mtk_wed_device_txfree_ring_setup(struct mtk_wed_device *wed, u32 regs)
 { return 0; }
 static inline int mtk_wed_device_rx_ring_setup(struct mtk_wed_device *wed, int ring,
-						u32 regs, bool reset) { return 0; }
+                                                u32 regs, bool reset) { return 0; }
 static inline void mtk_wed_device_rro_rx_ring_setup(struct mtk_wed_device *wed, int ring,
-						     u32 regs) {}
+                                                     u32 regs) {}
 static inline void mtk_wed_device_msdu_pg_rx_ring_setup(struct mtk_wed_device *wed, int ring,
-							 u32 regs) {}
+                                                         u32 regs) {}
 static inline void mtk_wed_device_ind_rx_ring_setup(struct mtk_wed_device *wed, u32 regs) {}
 static inline int mtk_wed_device_setup_tc(struct mtk_wed_device *wed, struct net_device *dev,
-					   enum tc_setup_type type, void *type_data)
+                                           enum tc_setup_type type, void *type_data)
 { return -EOPNOTSUPP; }
 static inline void mtk_wed_device_stop(struct mtk_wed_device *wed) {}
 static inline void mtk_wed_device_start(struct mtk_wed_device *wed, u32 irq_mask) {}
 static inline void mtk_wed_device_start_hw_rro(struct mtk_wed_device *wed, u32 irq_mask,
-						bool reset) {}
+                                                bool reset) {}
 static inline void mtk_wed_device_dma_reset(struct mtk_wed_device *wed) {}
 static inline void mtk_wed_device_ppe_check(struct mtk_wed_device *wed, struct sk_buff *skb,
-					     u32 reason, u32 hash) {}
+                                             u32 reason, u32 hash) {}
 static inline int mtk_wed_device_attach(struct mtk_wed_device *wed) { return -ENODEV; }
 static inline int mtk_wed_device_update_msg(struct mtk_wed_device *wed, u32 id,
-					    void *msg, int len) { return 0; }
+                                            void *msg, int len) { return 0; }
 static inline bool mtk_wed_is_amsdu_supported(struct mtk_wed_device *wed) { return false; }
 static inline u32 mtk_wed_device_reg_read(struct mtk_wed_device *wed, u32 reg) { return 0; }
 static inline void mtk_wed_device_reg_write(struct mtk_wed_device *wed, u32 reg, u32 val) {}
 
-#define MTK_WED_WO_CMD_RXCNT_CTRL	0
-#define WED_WO_STA_REC		0
+#define MTK_WED_WO_CMD_RXCNT_CTRL       0
+#define WED_WO_STA_REC          0
 
 #endif /* _LINUX_MTK_WED_H_STUB */
 MTK_WED_STUB_EOF
