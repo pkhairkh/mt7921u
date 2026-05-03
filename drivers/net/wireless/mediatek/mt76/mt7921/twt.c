@@ -174,6 +174,7 @@ mt7921_twt_teardown_flow(struct mt792x_dev *dev,
         dev->twt.table_mask &= ~BIT(flow->table_id);
         dev->twt.n_agrt--;
 }
+EXPORT_SYMBOL_GPL(mt7921_twt_teardown_flow);
 
 void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
                               struct ieee80211_sta *sta,

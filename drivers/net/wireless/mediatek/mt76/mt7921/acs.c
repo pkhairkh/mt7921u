@@ -253,6 +253,7 @@ void mt7921_acs_cleanup(struct mt792x_dev *dev)
          */
         dev->acs.debugfs_dir = NULL;
 }
+EXPORT_SYMBOL_GPL(mt7921_acs_cleanup);
 
 int mt7921_acs_get_recommendation(struct mt792x_dev *dev, u32 *freq)
 {

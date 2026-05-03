@@ -312,3 +312,4 @@ void mt7921_csi_cleanup(struct mt792x_dev *dev)
 
         wake_up(&csi->waitq);
 }
+EXPORT_SYMBOL_GPL(mt7921_csi_cleanup);
