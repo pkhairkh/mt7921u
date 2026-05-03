@@ -173,10 +173,17 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
         ieee80211_set_sband_iftype_data(band, data)
 #endif
 
-/* ieee80211_radar_detected: 1 arg in 6.12, 2 in 6.13+ */
-#if MT792X_USE_MLINK_API
+/* ieee80211_radar_detected: 1 arg in stock 6.12, 2 args with chanctx_conf in
+ * RPi 6.12 backport, 2 args with vif in 6.13+. The RPi 6.12 backport added a
+ * 2nd chanctx_conf arg but NOT the vif arg. Pass NULL for chanctx_conf.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 #define mt792x_radar_detected(hw, vif) \
         ieee80211_radar_detected(hw, vif)
+#elif MT792X_USE_MLINK_API
+/* RPi 6.12 backport: 2 args but 2nd is chanctx_conf, not vif */
+#define mt792x_radar_detected(hw, vif) \
+        ieee80211_radar_detected(hw, NULL)
 #else
 #define mt792x_radar_detected(hw, vif) \
         ieee80211_radar_detected(hw)
@@ -197,7 +204,10 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
  * In 6.12, cfg80211_cac_event() takes struct net_device* first.
  * ======================================================================== */
 
-#if MT792X_USE_MLINK_API
+/* ieee80211_cac_finish: only exists in 6.13+ kernels.
+ * RPi 6.12 backported MLO structs but NOT this function.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 #define mt792x_cac_finish(hw, vif) \
         ieee80211_cac_finish(hw, vif)
 #else
