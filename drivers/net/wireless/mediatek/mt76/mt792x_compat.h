@@ -536,4 +536,17 @@ static inline u32 mt792x_wiphy_mbssid_max_interfaces(struct wiphy *wiphy)
  *   - IEEE80211_HW_CHANCTX_STA_CSA            (enum value)
  * ======================================================================== */
 
+/* ========================================================================
+ * Section 24: system_percpu_wq - 6.13+ only
+ *
+ * In 6.13, system_percpu_wq was introduced as a per-CPU workqueue.
+ * In 6.12, use system_wq as the equivalent fallback.
+ * ======================================================================== */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+/* Native */
+#else
+#define system_percpu_wq        system_wq
+#endif
+
 #endif /* __MT792X_COMPAT_H */
