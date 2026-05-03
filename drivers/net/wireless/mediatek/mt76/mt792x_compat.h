@@ -549,4 +549,17 @@ static inline u32 mt792x_wiphy_mbssid_max_interfaces(struct wiphy *wiphy)
 #define system_percpu_wq        system_wq
 #endif
 
+/* ========================================================================
+ * Section 25: IEEE80211_CHAN_NO_40MHZ - 6.13+ only
+ *
+ * In 6.13, IEEE80211_CHAN_NO_40MHZ was introduced as a single flag to
+ * indicate that 40 MHz bandwidth is not allowed on this channel.
+ * In 6.12, the equivalent is both NO_HT40PLUS and NO_HT40MINUS being set.
+ * ======================================================================== */
+
+#ifndef IEEE80211_CHAN_NO_40MHZ
+#define IEEE80211_CHAN_NO_40MHZ  (IEEE80211_CHAN_NO_HT40PLUS | \
+                                  IEEE80211_CHAN_NO_HT40MINUS)
+#endif
+
 #endif /* __MT792X_COMPAT_H */
