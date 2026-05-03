@@ -164,13 +164,18 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
  * Section 6: ieee80211 API signature differences (backported to RPi 6.12)
  * ======================================================================== */
 
-/* ieee80211_set_sband_iftype_data: 2 args in 6.12, 3 in 6.13+ */
-#if MT792X_USE_MLINK_API
+/* ieee80211_set_sband_iftype_data: In 6.12, this is a 2-arg MACRO that
+ * internally calls _ieee80211_set_sband_iftype_data(sband, iftd, ARRAY_SIZE(iftd)).
+ * Since we often pass a pointer (not an array), ARRAY_SIZE fails. We must
+ * call the 3-arg _ieee80211_set_sband_iftype_data function directly.
+ * In 6.13+, ieee80211_set_sband_iftype_data is a 3-arg function directly.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 #define mt792x_set_sband_iftype_data(band, data, n) \
         ieee80211_set_sband_iftype_data(band, data, n)
 #else
 #define mt792x_set_sband_iftype_data(band, data, n) \
-        ieee80211_set_sband_iftype_data(band, data)
+        _ieee80211_set_sband_iftype_data(band, data, n)
 #endif
 
 /* ieee80211_radar_detected: 1 arg in stock 6.12, 2 args with chanctx_conf in

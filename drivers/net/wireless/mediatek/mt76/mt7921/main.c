@@ -10,18 +10,23 @@
 #include <linux/version.h>
 #include "mcu.h"
 
-/* Kernel 6.12 compat: ieee80211_set_sband_iftype_data takes 2 args in
- * 6.12 (sband, iftd) but 3 args in 6.13+ (sband, iftd, n). The n count
- * parameter was added in 6.13 because the macro no longer computes the
- * array size automatically. Use a wrapper macro that accepts 3 args
- * and discards the third on older kernels.
+/* Kernel 6.12 compat: ieee80211_set_sband_iftype_data API differences.
+ *
+ * In 6.12, ieee80211_set_sband_iftype_data is a 2-arg MACRO that expands
+ * to _ieee80211_set_sband_iftype_data(sband, iftd, ARRAY_SIZE(iftd)).
+ * Since our data is a pointer (not an array), ARRAY_SIZE fails with
+ * BUILD_BUG_ON_ZERO. We must call the 3-arg _ieee80211_set_sband_iftype_data
+ * function directly, bypassing the 2-arg macro.
+ *
+ * In 6.13+, ieee80211_set_sband_iftype_data is a 3-arg function directly
+ * (the macro and underscore-prefixed version were removed).
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-#define _ieee80211_set_sband_iftype_data(sband, iftd, n) \
+#define mt7921_set_sband_iftype_data(sband, iftd, n) \
         ieee80211_set_sband_iftype_data(sband, iftd, n)
 #else
-#define _ieee80211_set_sband_iftype_data(sband, iftd, n) \
-        ieee80211_set_sband_iftype_data(sband, iftd)
+#define mt7921_set_sband_iftype_data(sband, iftd, n) \
+        _ieee80211_set_sband_iftype_data(sband, iftd, n)
 #endif
 
 static int
@@ -226,7 +231,7 @@ void mt7921_set_stream_he_caps(struct mt792x_phy *phy)
                 n = mt7921_init_he_caps(phy, NL80211_BAND_2GHZ, data);
 
                 band = &phy->mt76->sband_2g.sband;
-                _ieee80211_set_sband_iftype_data(band, data, n);
+                mt7921_set_sband_iftype_data(band, data, n);
         }
 
         if (phy->mt76->cap.has_5ghz) {
@@ -234,14 +239,14 @@ void mt7921_set_stream_he_caps(struct mt792x_phy *phy)
                 n = mt7921_init_he_caps(phy, NL80211_BAND_5GHZ, data);
 
                 band = &phy->mt76->sband_5g.sband;
-                _ieee80211_set_sband_iftype_data(band, data, n);
+                mt7921_set_sband_iftype_data(band, data, n);
 
                 if (phy->mt76->cap.has_6ghz) {
                         data = phy->iftype[NL80211_BAND_6GHZ];
                         n = mt7921_init_he_caps(phy, NL80211_BAND_6GHZ, data);
 
                         band = &phy->mt76->sband_6g.sband;
-                        _ieee80211_set_sband_iftype_data(band, data, n);
+                        mt7921_set_sband_iftype_data(band, data, n);
                 }
         }
 }
@@ -1674,6 +1679,7 @@ void mt7921_radar_detected_event(struct mt792x_dev *dev,
         }
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 static int
 mt7921_start_radar_detection(struct ieee80211_hw *hw,
                              struct ieee80211_vif *vif,
@@ -1766,6 +1772,7 @@ mt7921_end_cac(struct ieee80211_hw *hw,
 
         dev_dbg(dev->mt76.dev, "CAC ended, radar detection stopped\n");
 }
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) */
 
 
 /* Kernel 6.12 compatibility wrappers for ieee80211_ops callbacks.
@@ -1805,7 +1812,13 @@ static void mt792x_set_coverage_class_compat(struct ieee80211_hw *hw,
 {
         mt792x_set_coverage_class(hw, 0, coverage_class);
 }
+#endif
 
+/* start_ap/stop_ap compat: These ops have the link_conf parameter backported
+ * to RPi 6.12 (MT792X_USE_MLINK_API=1), so compat wrappers are only needed
+ * on kernels without the MLO struct backport.
+ */
+#if !MT792X_USE_MLINK_API
 static int mt7921_start_ap_compat(struct ieee80211_hw *hw,
                                   struct ieee80211_vif *vif)
 {
@@ -1817,8 +1830,8 @@ static void mt7921_stop_ap_compat(struct ieee80211_hw *hw,
 {
         mt7921_stop_ap(hw, vif, &vif->bss_conf);
 }
-
 #endif
+
 const struct ieee80211_ops mt7921_ops = {
         .tx = mt792x_tx,
         .start = mt7921_start,
