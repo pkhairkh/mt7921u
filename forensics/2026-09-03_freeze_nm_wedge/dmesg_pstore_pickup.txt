@@ -1,0 +1,8 @@
+[    0.000000] OF: reserved mem: 0x000000000b000000..0x000000000b00ffff (64 KiB) map non-reusable ramoops@b000000
+[    0.026096] pstore: Using crash dump compression: deflate
+[    0.026106] pstore: Registered ramoops as persistent store backend
+[    0.026128] ramoops: using 0x10000@0xb000000, ecc: 0
+[    5.051334] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+[    5.163520] systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+[    5.165887] systemd[1]: Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+[    5.259510] systemd[1]: systemd-pstore.service - Platform Persistent Storage Archival skipped, unmet condition check ConditionDirectoryNotEmpty=/sys/fs/pstore

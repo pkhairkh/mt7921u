@@ -1,0 +1,4 @@
+/var/lib/systemd/pstore/:
+total 8
+drwxr-xr-x  2 root root 4096 Jun 18 02:19 .
+drwxr-xr-x 13 root root 4096 Jun 18 02:27 ..
