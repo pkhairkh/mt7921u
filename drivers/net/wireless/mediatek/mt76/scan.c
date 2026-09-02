@@ -182,8 +182,8 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
         struct mt76_vif_link *mlink;
         int ret = 0;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
-        if (wiphy_n_radio(hw->wiphy) > 1) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,15,0)
+        if (hw->wiphy->n_radio > 1) {
                 phy = dev->band_phys[req->req.channels[0]->band];
                 if (!phy)
                         return -EINVAL;

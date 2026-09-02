@@ -340,7 +340,7 @@ EXPORT_SYMBOL_GPL(mt792x_tx_worker);
 
 void mt792x_roc_timer(struct timer_list *timer)
 {
-        struct mt792x_phy *phy = from_timer(phy, timer, roc_timer);
+        struct mt792x_phy *phy = timer_container_of(phy, timer, roc_timer);
 
         dev_dbg(phy->dev->mt76.dev, "roc_timer: fired, queueing roc_work\n");
         ieee80211_queue_work(phy->mt76->hw, &phy->roc_work);
@@ -349,7 +349,7 @@ EXPORT_SYMBOL_GPL(mt792x_roc_timer);
 
 void mt792x_csa_timer(struct timer_list *timer)
 {
-        struct mt792x_vif *mvif = from_timer(mvif, timer, csa_timer);
+        struct mt792x_vif *mvif = timer_container_of(mvif, timer, csa_timer);
 
         ieee80211_queue_work(mvif->phy->mt76->hw, &mvif->csa_work);
 }
@@ -792,8 +792,9 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
          * NL80211_FEATURE_HW_TIMESTAMP (set above), this enables PTP
          * (IEEE 1588) support for industrial IoT applications.
          * RUNTIME_VERIFY: use linuxptp ptp4l to measure sync accuracy
+         * NOTE: IEEE80211_HW_TIMING_DEVICE removed in kernel 6.18 (no replacement)
          */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) && LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
         ieee80211_hw_set(hw, TIMING_DEVICE);
 #endif
 

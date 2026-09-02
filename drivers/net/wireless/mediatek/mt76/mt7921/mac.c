@@ -696,7 +696,7 @@ void mt7921_mac_reset_work(struct work_struct *work)
         mt7921_csi_init(dev);
 
         /* Cancel DFS CAC timer — radar detection state is lost on reset */
-        del_timer_sync(&dev->phy.dfs_state.cac_timer);
+        timer_delete_sync(&dev->phy.dfs_state.cac_timer);
         dev->phy.dfs_state.cac_active = false;
         dev->phy.dfs_state.cac_vif = NULL;
         dev->phy.dfs_state.cac_time_ms = 0;

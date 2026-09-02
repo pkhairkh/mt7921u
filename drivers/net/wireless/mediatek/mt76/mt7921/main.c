@@ -21,7 +21,9 @@
  * In 6.13+, ieee80211_set_sband_iftype_data is a 3-arg function directly
  * (the macro and underscore-prefixed version were removed).
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+/* 6.18: ieee80211_set_sband_iftype_data is 2-arg (ARRAY_SIZE-based macro);
+ * use the _underscore variant with explicit n (still present in 6.18 cfg80211.h) */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) && LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
 #define mt7921_set_sband_iftype_data(sband, iftd, n) \
         ieee80211_set_sband_iftype_data(sband, iftd, n)
 #else
@@ -1631,7 +1633,7 @@ static void mt7921_rfkill_poll(struct ieee80211_hw *hw)
 
 void mt7921_cac_timer(struct timer_list *t)
 {
-        struct mt7921_dfs_state *dfs = from_timer(dfs, t, cac_timer);
+        struct mt7921_dfs_state *dfs = timer_container_of(dfs, t, cac_timer);
         struct mt792x_phy *phy = container_of(dfs, struct mt792x_phy, dfs_state);
         struct mt792x_dev *dev = phy->dev;
 
@@ -1665,7 +1667,7 @@ void mt7921_radar_detected_event(struct mt792x_dev *dev,
          * the timer callback is not running concurrently, preventing
          * a race between cac_timer expiry and radar event handling.
          */
-        del_timer_sync(&dfs->cac_timer);
+        timer_delete_sync(&dfs->cac_timer);
 
         dfs->radar_detected = true;
         dfs->cac_active = false;
@@ -1679,7 +1681,7 @@ void mt7921_radar_detected_event(struct mt792x_dev *dev,
         }
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) && LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
 static int
 mt7921_start_radar_detection(struct ieee80211_hw *hw,
                              struct ieee80211_vif *vif,
@@ -1752,7 +1754,7 @@ mt7921_end_cac(struct ieee80211_hw *hw,
         };
 
         /* Cancel CAC timer */
-        del_timer_sync(&phy->dfs_state.cac_timer);
+        timer_delete_sync(&phy->dfs_state.cac_timer);
 
         /* RUNTIME_VERIFY: CAC cancellation depends on firmware */
         phy->dfs_state.radar_detected = false;
@@ -1880,7 +1882,7 @@ const struct ieee80211_ops mt7921_ops = {
         .get_et_stats = mt792x_get_et_stats,
         .get_tsf = mt792x_get_tsf,
         .set_tsf = mt792x_set_tsf,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) && LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
         .get_tstamp = mt7921_get_tstamp,
 #endif
         .get_survey = mt76_get_survey,
@@ -1935,7 +1937,8 @@ const struct ieee80211_ops mt7921_ops = {
          * .start_radar_detection and .end_cac ops members don't exist
          * in struct ieee80211_ops on kernel 6.12 (even RPi backports).
          */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) && LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
+        /* 6.18 removed .start_radar_detection/.end_cac from ieee80211_ops */
         .start_radar_detection = mt7921_start_radar_detection,
         .end_cac = mt7921_end_cac,
 #endif

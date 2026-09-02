@@ -2890,7 +2890,7 @@ int mt76_connac_mcu_bss_basic_tlv(struct sk_buff *skb,
                         u8 bssid_id = vif->bss_conf.bssid_indicator;
                         struct wiphy *wiphy = phy->hw->wiphy;
 
-                        if (bssid_id > ilog2(wiphy_mbssid_max_interfaces(wiphy)))
+                        if (bssid_id > ilog2(wiphy->mbssid_max_interfaces))
                                 return -EINVAL;
 
                         bss->non_tx_bssid = vif->bss_conf.bssid_index;

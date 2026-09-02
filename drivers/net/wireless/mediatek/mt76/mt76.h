@@ -21,6 +21,11 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
 #define timer_delete_sync del_timer_sync
 #endif
+
+/* Kernel 6.16 renamed from_timer to timer_container_of. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,16,0)
+#define timer_container_of(var, timer, field) from_timer(var, timer, field)
+#endif
 #include <net/pkt_cls.h>
 #if IS_ENABLED(CONFIG_MT76_NPU)
 #include <linux/soc/airoha/airoha_offload.h>

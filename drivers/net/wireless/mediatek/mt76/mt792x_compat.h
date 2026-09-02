@@ -133,8 +133,8 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
 #define VIF_ARP_ADDR_LIST(vif)          ((vif)->bss_conf.arp_addr_list)
 #endif
 
-/* p2p: moved from vif->p2p to vif->cfg.p2p in 6.13+ (NOT backported to RPi 6.12) */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+/* p2p: vif->p2p on <=6.12 and 6.17+; vif->cfg.p2p only on 6.13..6.16 (verified on 6.18.34+rpt) */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) && LINUX_VERSION_CODE < KERNEL_VERSION(6,17,0)
 #define VIF_P2P(vif)                    ((vif)->cfg.p2p)
 #else
 #define VIF_P2P(vif)                    ((vif)->p2p)
@@ -182,7 +182,11 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
  * RPi 6.12 backport, 2 args with vif in 6.13+. The RPi 6.12 backport added a
  * 2nd chanctx_conf arg but NOT the vif arg. Pass NULL for chanctx_conf.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+/* 6.18: signature reverted to (hw, chanctx_conf) — derive it from the vif */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,18,0)
+#define mt792x_radar_detected(hw, vif) \
+        ieee80211_radar_detected(hw, rcu_access_pointer((vif)->bss_conf.chanctx_conf))
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
 #define mt792x_radar_detected(hw, vif) \
         ieee80211_radar_detected(hw, vif)
 #elif MT792X_USE_MLINK_API
@@ -212,7 +216,8 @@ link_conf_dereference_protected(struct ieee80211_vif *vif, unsigned int link_id)
 /* ieee80211_cac_finish: only exists in 6.13+ kernels.
  * RPi 6.12 backported MLO structs but NOT this function.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+/* 6.18: ieee80211_cac_finish() removed — use the cfg80211_cac_event() fallback */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0) && LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
 #define mt792x_cac_finish(hw, vif) \
         ieee80211_cac_finish(hw, vif)
 #else
