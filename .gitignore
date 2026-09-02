@@ -36,3 +36,16 @@ vendor-driver/**/.DS_Store
 # USB capture files
 *.pcap
 *.pcapng
+*.o
+*.ko
+*.o.d
+*.cmd
+*.mod
+*.mod.c
+*.order
+modules.order
+Module.symvers
+.tmp_versions/
+*.a
+*.unsigned
+*.usr
