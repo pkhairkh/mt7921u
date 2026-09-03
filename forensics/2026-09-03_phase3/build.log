@@ -1,0 +1,79 @@
+make: Entering directory '/usr/src/linux-headers-6.18.34+rpt-rpi-v8'
+make[1]: Entering directory '/home/pkhairkh/mt7921u_inspect/drivers/net/wireless/mediatek/mt76'
+  CC [M]  mmio.o
+  CC [M]  util.o
+  CC [M]  trace.o
+  CC [M]  dma.o
+  CC [M]  mac80211.o
+  CC [M]  debugfs.o
+  CC [M]  eeprom.o
+  CC [M]  tx.o
+  CC [M]  agg-rx.o
+  CC [M]  mcu.o
+  CC [M]  wed.o
+  CC [M]  scan.o
+  CC [M]  channel.o
+  CC [M]  pci.o
+  CC [M]  usb.o
+  CC [M]  usb_trace.o
+  CC [M]  mt76_connac_mcu.o
+  CC [M]  mt76_connac_mac.o
+  CC [M]  mt76_connac3_mac.o
+  CC [M]  mt792x_core.o
+  CC [M]  mt792x_mac.o
+mt792x_core.c:145:6: warning: no previous prototype for ‘__mt792x_stop’ [-Wmissing-prototypes]
+  145 | void __mt792x_stop(struct ieee80211_hw *hw)
+      |      ^~~~~~~~~~~~~
+mt792x_core.c:228:5: warning: no previous prototype for ‘__mt792x_conf_tx’ [-Wmissing-prototypes]
+  228 | int __mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+      |     ^~~~~~~~~~~~~~~~
+mt792x_core.c:368:5: warning: no previous prototype for ‘__mt792x_assign_vif_chanctx’ [-Wmissing-prototypes]
+  368 | int __mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+mt792x_core.c:403:6: warning: no previous prototype for ‘__mt792x_unassign_vif_chanctx’ [-Wmissing-prototypes]
+  403 | void __mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  CC [M]  mt792x_trace.o
+  CC [M]  mt792x_debugfs.o
+  CC [M]  mt792x_dma.o
+  CC [M]  mt792x_usb.o
+  CC [M]  mt7921/mac.o
+  LD [M]  mt76.o
+  CC [M]  mt7921/mcu.o
+  CC [M]  mt7921/main.o
+  LD [M]  mt76-usb.o
+  CC [M]  mt7921/init.o
+  CC [M]  mt7921/debugfs.o
+  CC [M]  mt7921/twt.o
+  LD [M]  mt76-connac-lib.o
+  LD [M]  mt792x-lib.o
+  CC [M]  mt7921/twt_debugfs.o
+  LD [M]  mt792x-usb.o
+  CC [M]  mt7921/csi.o
+  CC [M]  mt7921/csi_nl80211.o
+  CC [M]  mt7921/test_trigger_debugfs.o
+  CC [M]  mt7921/acs.o
+  CC [M]  mt7921/usb.o
+mt7921/test_trigger_debugfs.c:36:20: warning: ‘result_str’ defined but not used [-Wunused-function]
+   36 | static const char *result_str(int err)
+      |                    ^~~~~~~~~~
+  LD [M]  mt7921/mt7921u.o
+  LD [M]  mt7921/mt7921-common.o
+  MODPOST Module.symvers
+  CC [M]  mt76.mod.o
+  CC [M]  .module-common.o
+  CC [M]  mt76-usb.mod.o
+  CC [M]  mt76-connac-lib.mod.o
+  CC [M]  mt792x-lib.mod.o
+  CC [M]  mt792x-usb.mod.o
+  CC [M]  mt7921/mt7921-common.mod.o
+  CC [M]  mt7921/mt7921u.mod.o
+  LD [M]  mt76.ko
+  LD [M]  mt76-usb.ko
+  LD [M]  mt76-connac-lib.ko
+  LD [M]  mt792x-lib.ko
+  LD [M]  mt792x-usb.ko
+  LD [M]  mt7921/mt7921-common.ko
+  LD [M]  mt7921/mt7921u.ko
+make[1]: Leaving directory '/home/pkhairkh/mt7921u_inspect/drivers/net/wireless/mediatek/mt76'
+make: Leaving directory '/usr/src/linux-headers-6.18.34+rpt-rpi-v8'
