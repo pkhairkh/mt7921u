@@ -1,0 +1,15 @@
+# Module ID card - 2026-09-03 09:42 UTC kernel 6.18.34+rpt-rpi-v8
+
+path (all updates/ = patched stack) | sha256 | srcversion | running-srcversion-match
+- mt76: sha256:effa055b16e32db4 sv:FFC119F684AC675B6D8AC7A running:YES
+- mt76-usb: sha256:bb9d660e5cd18a33 sv:80E56A6693B320D494D4EBD running:YES
+- mt76-connac-lib: sha256:dfba9489099d4387 sv:B21365F6DAC07DDE3DE93A9 running:YES
+- mt792x-lib: sha256:fe8e5abaa9847866 sv:7CC1BA1134276D5E12C34C3 running:YES
+- mt792x-usb: sha256:8446704ee1c80e28 sv:E056239C65050376D961731 running:YES
+- mt7921-common: sha256:8a90ecca8f9516ea sv:E0F3EB292808561043CC822 running:YES
+- mt7921u: sha256:5a52cc94bbb812c3 sv:EFE770C012237CBF52842D2 running:YES
+
+lsmod sizes (patched fingerprint): mt76=143360 mt7921_common=102400
+modprobe --show-depends mt7921u resolves: all 7 via /lib/modules/6.18.34+rpt-rpi-v8/updates/ (verified)
+initramfs: no mt76/mt7921 modules present (checked initramfs_2712 + initramfs8)
+/etc/modprobe.d: no mt76/mt7921 overrides
