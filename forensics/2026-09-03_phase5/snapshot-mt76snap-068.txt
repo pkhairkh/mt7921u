@@ -1,0 +1,273 @@
+[  797.112835] wlan1: deauthenticating from dc:39:6f:ed:ba:e7 by local choice (Reason: 3=DEAUTH_LEAVING)
+[  808.939680] INFO: task kworker/u16:2:50 blocked for more than 10 seconds.
+[  808.939717]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  808.939729] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  808.939738] task:kworker/u16:2   state:D stack:0     pid:50    tgid:50    ppid:2      task_flags:0x4208060 flags:0x00000010
+[  808.939766] Workqueue: events_unbound cfg80211_wiphy_work [cfg80211]
+[  808.940064] Call trace:
+[  808.940074]  __switch_to+0xf0/0x1c8 (T)
+[  808.940099]  __schedule+0x3c8/0xc18
+[  808.940113]  schedule+0x3c/0x120
+[  808.940126]  schedule_preempt_disabled+0x2c/0x50
+[  808.940141]  __mutex_lock.constprop.0+0x50c/0xc80
+[  808.940158]  __mutex_lock_slowpath+0x1c/0x30
+[  808.940173]  mutex_lock+0x50/0x70
+[  808.940187]  cfg80211_wiphy_work+0x30/0x200 [cfg80211]
+[  808.940440]  process_one_work+0x158/0x3b8
+[  808.940461]  worker_thread+0x19c/0x328
+[  808.940480]  kthread+0x14c/0x210
+[  808.940497]  ret_from_fork+0x10/0x20
+[  808.940577] INFO: task kworker/u16:2:50 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  808.940612] INFO: task wpa_supplicant:628 blocked for more than 10 seconds.
+[  808.940622]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  808.940632] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  808.940638] task:wpa_supplicant  state:D stack:0     pid:628   tgid:628   ppid:1      task_flags:0x400100 flags:0x00000018
+[  808.940660] Call trace:
+[  808.940667]  __switch_to+0xf0/0x1c8 (T)
+[  808.940684]  __schedule+0x3c8/0xc18
+[  808.940697]  schedule+0x3c/0x120
+[  808.940710]  schedule_preempt_disabled+0x2c/0x50
+[  808.940724]  __mutex_lock.constprop.0+0x50c/0xc80
+[  808.940739]  __mutex_lock_slowpath+0x1c/0x30
+[  808.940754]  mutex_lock+0x50/0x70
+[  808.940768]  mt7921_mac_sta_remove+0x60/0x170 [mt7921_common]
+[  808.940819]  __mt76_sta_remove+0x80/0xe0 [mt76]
+[  808.940892]  mt76_sta_state+0xd0/0x238 [mt76]
+[  808.940957]  mt7921_sta_state+0x60/0xd0 [mt7921_common]
+[  808.940998]  drv_sta_state+0x104/0x670 [mac80211]
+[  808.941283]  __sta_info_destroy_part2+0x140/0x170 [mac80211]
+[  808.941543]  __sta_info_flush+0x180/0x268 [mac80211]
+[  808.941801]  ieee80211_set_disassoc+0x510/0x6a0 [mac80211]
+[  808.942068]  ieee80211_mgd_deauth+0x184/0x310 [mac80211]
+[  808.942329]  ieee80211_deauth+0x20/0x40 [mac80211]
+[  808.942591]  cfg80211_mlme_deauth+0xb8/0x220 [cfg80211]
+[  808.942851]  nl80211_deauthenticate+0xb8/0xe8 [cfg80211]
+[  808.943099]  genl_family_rcv_msg_doit+0xe8/0x160
+[  808.943119]  genl_rcv_msg+0x228/0x2b8
+[  808.943134]  netlink_rcv_skb+0x68/0x140
+[  808.943149]  genl_rcv+0x40/0x60
+[  808.943164]  netlink_unicast+0x344/0x3c8
+[  808.943178]  netlink_sendmsg+0x198/0x3f8
+[  808.943193]  __sock_sendmsg+0x64/0xc0
+[  808.943213]  ____sys_sendmsg+0x26c/0x2a8
+[  808.943229]  ___sys_sendmsg+0xb8/0x120
+[  808.943247]  __sys_sendmsg+0xa4/0x110
+[  808.943265]  __arm64_sys_sendmsg+0x2c/0x40
+[  808.943284]  invoke_syscall+0x4c/0x100
+[  808.943300]  el0_svc_common.constprop.0+0x48/0xf0
+[  808.943315]  do_el0_svc+0x24/0x38
+[  808.943330]  el0_svc+0x38/0x120
+[  808.943348]  el0t_64_sync_handler+0xa0/0xe8
+[  808.943366]  el0t_64_sync+0x198/0x1a0
+[  808.943440] INFO: task wpa_supplicant:628 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  808.943459] INFO: task kworker/u16:0:3283 blocked for more than 10 seconds.
+[  808.943469]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  808.943479] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  808.943485] task:kworker/u16:0   state:D stack:0     pid:3283  tgid:3283  ppid:2      task_flags:0x4208060 flags:0x00000010
+[  808.943508] Workqueue: phy2 mt792x_mac_work [mt792x_lib]
+[  808.943553] Call trace:
+[  808.943560]  __switch_to+0xf0/0x1c8 (T)
+[  808.943576]  __schedule+0x3c8/0xc18
+[  808.943589]  schedule+0x3c/0x120
+[  808.943602]  schedule_preempt_disabled+0x2c/0x50
+[  808.943616]  __mutex_lock.constprop.0+0x50c/0xc80
+[  808.943691]  __mutex_lock_slowpath+0x1c/0x30
+[  808.943713]  mutex_lock+0x50/0x70
+[  808.943727]  mt792x_mac_work+0x34/0xd0 [mt792x_lib]
+[  808.943764]  process_one_work+0x158/0x3b8
+[  808.943785]  worker_thread+0x19c/0x328
+[  808.943803]  kthread+0x14c/0x210
+[  808.943820]  ret_from_fork+0x10/0x20
+[  808.943882] INFO: task kworker/u16:0:3283 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  819.179764] INFO: task kworker/u16:2:50 blocked for more than 20 seconds.
+[  819.179801]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  819.179814] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  819.179822] task:kworker/u16:2   state:D stack:0     pid:50    tgid:50    ppid:2      task_flags:0x4208060 flags:0x00000010
+[  819.179849] Workqueue: events_unbound cfg80211_wiphy_work [cfg80211]
+[  819.180152] Call trace:
+[  819.180161]  __switch_to+0xf0/0x1c8 (T)
+[  819.180186]  __schedule+0x3c8/0xc18
+[  819.180200]  schedule+0x3c/0x120
+[  819.180214]  schedule_preempt_disabled+0x2c/0x50
+[  819.180229]  __mutex_lock.constprop.0+0x50c/0xc80
+[  819.180245]  __mutex_lock_slowpath+0x1c/0x30
+[  819.180261]  mutex_lock+0x50/0x70
+[  819.180275]  cfg80211_wiphy_work+0x30/0x200 [cfg80211]
+[  819.180528]  process_one_work+0x158/0x3b8
+[  819.180550]  worker_thread+0x19c/0x328
+[  819.180569]  kthread+0x14c/0x210
+[  819.180587]  ret_from_fork+0x10/0x20
+[  819.180664] INFO: task kworker/u16:2:50 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  819.180697] INFO: task wpa_supplicant:628 blocked for more than 20 seconds.
+[  819.180707]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  819.180717] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  819.180724] task:wpa_supplicant  state:D stack:0     pid:628   tgid:628   ppid:1      task_flags:0x400100 flags:0x00000018
+[  819.180745] Call trace:
+[  819.180752]  __switch_to+0xf0/0x1c8 (T)
+[  819.180770]  __schedule+0x3c8/0xc18
+[  819.180783]  schedule+0x3c/0x120
+[  819.180796]  schedule_preempt_disabled+0x2c/0x50
+[  819.180811]  __mutex_lock.constprop.0+0x50c/0xc80
+[  819.180826]  __mutex_lock_slowpath+0x1c/0x30
+[  819.180841]  mutex_lock+0x50/0x70
+[  819.180855]  mt7921_mac_sta_remove+0x60/0x170 [mt7921_common]
+[  819.180906]  __mt76_sta_remove+0x80/0xe0 [mt76]
+[  819.180980]  mt76_sta_state+0xd0/0x238 [mt76]
+[  819.181045]  mt7921_sta_state+0x60/0xd0 [mt7921_common]
+[  819.181086]  drv_sta_state+0x104/0x670 [mac80211]
+[  819.181374]  __sta_info_destroy_part2+0x140/0x170 [mac80211]
+[  819.181636]  __sta_info_flush+0x180/0x268 [mac80211]
+[  819.181893]  ieee80211_set_disassoc+0x510/0x6a0 [mac80211]
+[  819.182160]  ieee80211_mgd_deauth+0x184/0x310 [mac80211]
+[  819.182421]  ieee80211_deauth+0x20/0x40 [mac80211]
+[  819.182682]  cfg80211_mlme_deauth+0xb8/0x220 [cfg80211]
+[  819.182942]  nl80211_deauthenticate+0xb8/0xe8 [cfg80211]
+[  819.183191]  genl_family_rcv_msg_doit+0xe8/0x160
+[  819.183210]  genl_rcv_msg+0x228/0x2b8
+[  819.183226]  netlink_rcv_skb+0x68/0x140
+[  819.183241]  genl_rcv+0x40/0x60
+[  819.183255]  netlink_unicast+0x344/0x3c8
+[  819.183269]  netlink_sendmsg+0x198/0x3f8
+[  819.183284]  __sock_sendmsg+0x64/0xc0
+[  819.183303]  ____sys_sendmsg+0x26c/0x2a8
+[  819.183320]  ___sys_sendmsg+0xb8/0x120
+[  819.183338]  __sys_sendmsg+0xa4/0x110
+[  819.183356]  __arm64_sys_sendmsg+0x2c/0x40
+[  819.183374]  invoke_syscall+0x4c/0x100
+[  819.183390]  el0_svc_common.constprop.0+0x48/0xf0
+[  819.183406]  do_el0_svc+0x24/0x38
+[  819.183420]  el0_svc+0x38/0x120
+[  819.183438]  el0t_64_sync_handler+0xa0/0xe8
+[  819.183456]  el0t_64_sync+0x198/0x1a0
+[  819.183511] INFO: task wpa_supplicant:628 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  819.183531] INFO: task kworker/u16:0:3283 blocked for more than 20 seconds.
+[  819.183541]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  819.183551] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  819.183557] task:kworker/u16:0   state:D stack:0     pid:3283  tgid:3283  ppid:2      task_flags:0x4208060 flags:0x00000010
+[  819.183580] Workqueue: phy2 mt792x_mac_work [mt792x_lib]
+[  819.183624] Call trace:
+[  819.183631]  __switch_to+0xf0/0x1c8 (T)
+[  819.183647]  __schedule+0x3c8/0xc18
+[  819.183660]  schedule+0x3c/0x120
+[  819.183673]  schedule_preempt_disabled+0x2c/0x50
+[  819.183686]  __mutex_lock.constprop.0+0x50c/0xc80
+[  819.183701]  __mutex_lock_slowpath+0x1c/0x30
+[  819.183782]  mutex_lock+0x50/0x70
+[  819.183802]  mt792x_mac_work+0x34/0xd0 [mt792x_lib]
+[  819.183838]  process_one_work+0x158/0x3b8
+[  819.183859]  worker_thread+0x19c/0x328
+[  819.183877]  kthread+0x14c/0x210
+[  819.183894]  ret_from_fork+0x10/0x20
+[  819.183956] INFO: task kworker/u16:0:3283 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  829.419856] INFO: task kworker/u16:2:50 blocked for more than 30 seconds.
+[  829.419894]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  829.419906] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  829.419914] task:kworker/u16:2   state:D stack:0     pid:50    tgid:50    ppid:2      task_flags:0x4208060 flags:0x00000010
+[  829.419942] Workqueue: events_unbound cfg80211_wiphy_work [cfg80211]
+[  829.420245] Call trace:
+[  829.420254]  __switch_to+0xf0/0x1c8 (T)
+[  829.420280]  __schedule+0x3c8/0xc18
+[  829.420294]  schedule+0x3c/0x120
+[  829.420307]  schedule_preempt_disabled+0x2c/0x50
+[  829.420322]  __mutex_lock.constprop.0+0x50c/0xc80
+[  829.420339]  __mutex_lock_slowpath+0x1c/0x30
+[  829.420354]  mutex_lock+0x50/0x70
+[  829.420369]  cfg80211_wiphy_work+0x30/0x200 [cfg80211]
+[  829.420621]  process_one_work+0x158/0x3b8
+[  829.420643]  worker_thread+0x19c/0x328
+[  829.420662]  kthread+0x14c/0x210
+[  829.420679]  ret_from_fork+0x10/0x20
+[  829.420759] INFO: task kworker/u16:2:50 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  829.420792] INFO: task wpa_supplicant:628 blocked for more than 30 seconds.
+[  829.420803]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  829.420813] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  829.420820] task:wpa_supplicant  state:D stack:0     pid:628   tgid:628   ppid:1      task_flags:0x400100 flags:0x00000018
+[  829.420842] Call trace:
+[  829.420849]  __switch_to+0xf0/0x1c8 (T)
+[  829.420865]  __schedule+0x3c8/0xc18
+[  829.420878]  schedule+0x3c/0x120
+[  829.420891]  schedule_preempt_disabled+0x2c/0x50
+[  829.420905]  __mutex_lock.constprop.0+0x50c/0xc80
+[  829.420921]  __mutex_lock_slowpath+0x1c/0x30
+[  829.420936]  mutex_lock+0x50/0x70
+[  829.420950]  mt7921_mac_sta_remove+0x60/0x170 [mt7921_common]
+[  829.421000]  __mt76_sta_remove+0x80/0xe0 [mt76]
+[  829.421074]  mt76_sta_state+0xd0/0x238 [mt76]
+[  829.421137]  mt7921_sta_state+0x60/0xd0 [mt7921_common]
+[  829.421178]  drv_sta_state+0x104/0x670 [mac80211]
+[  829.421463]  __sta_info_destroy_part2+0x140/0x170 [mac80211]
+[  829.421724]  __sta_info_flush+0x180/0x268 [mac80211]
+[  829.421983]  ieee80211_set_disassoc+0x510/0x6a0 [mac80211]
+[  829.422251]  ieee80211_mgd_deauth+0x184/0x310 [mac80211]
+[  829.422514]  ieee80211_deauth+0x20/0x40 [mac80211]
+[  829.422775]  cfg80211_mlme_deauth+0xb8/0x220 [cfg80211]
+[  829.423037]  nl80211_deauthenticate+0xb8/0xe8 [cfg80211]
+[  829.423285]  genl_family_rcv_msg_doit+0xe8/0x160
+[  829.423308]  genl_rcv_msg+0x228/0x2b8
+[  829.423323]  netlink_rcv_skb+0x68/0x140
+[  829.423338]  genl_rcv+0x40/0x60
+[  829.423353]  netlink_unicast+0x344/0x3c8
+[  829.423367]  netlink_sendmsg+0x198/0x3f8
+[  829.423382]  __sock_sendmsg+0x64/0xc0
+[  829.423401]  ____sys_sendmsg+0x26c/0x2a8
+[  829.423418]  ___sys_sendmsg+0xb8/0x120
+[  829.423436]  __sys_sendmsg+0xa4/0x110
+[  829.423454]  __arm64_sys_sendmsg+0x2c/0x40
+[  829.423472]  invoke_syscall+0x4c/0x100
+[  829.423488]  el0_svc_common.constprop.0+0x48/0xf0
+[  829.423504]  do_el0_svc+0x24/0x38
+[  829.423518]  el0_svc+0x38/0x120
+[  829.423536]  el0t_64_sync_handler+0xa0/0xe8
+[  829.423554]  el0t_64_sync+0x198/0x1a0
+[  829.423639] INFO: task wpa_supplicant:628 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  829.423657] INFO: task NetworkManager:3169 blocked for more than 10 seconds.
+[  829.423667]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  829.423676] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  829.423684] task:NetworkManager  state:D stack:0     pid:3169  tgid:3169  ppid:1      task_flags:0x400100 flags:0x00000008
+[  829.423705] Call trace:
+[  829.423712]  __switch_to+0xf0/0x1c8 (T)
+[  829.423728]  __schedule+0x3c8/0xc18
+[  829.423741]  schedule+0x3c/0x120
+[  829.423754]  schedule_preempt_disabled+0x2c/0x50
+[  829.423767]  __mutex_lock.constprop.0+0x50c/0xc80
+[  829.423782]  __mutex_lock_slowpath+0x1c/0x30
+[  829.423797]  mutex_lock+0x50/0x70
+[  829.423857]  nl80211_pre_doit+0xac/0x238 [cfg80211]
+[  829.424126]  genl_family_rcv_msg_doit+0xd0/0x160
+[  829.424144]  genl_rcv_msg+0x228/0x2b8
+[  829.424159]  netlink_rcv_skb+0x68/0x140
+[  829.424174]  genl_rcv+0x40/0x60
+[  829.424189]  netlink_unicast+0x344/0x3c8
+[  829.424203]  netlink_sendmsg+0x198/0x3f8
+[  829.424218]  __sock_sendmsg+0x64/0xc0
+[  829.424236]  ____sys_sendmsg+0x26c/0x2a8
+[  829.424252]  ___sys_sendmsg+0xb8/0x120
+[  829.424270]  __sys_sendmsg+0xa4/0x110
+[  829.424288]  __arm64_sys_sendmsg+0x2c/0x40
+[  829.424307]  invoke_syscall+0x4c/0x100
+[  829.424322]  el0_svc_common.constprop.0+0x48/0xf0
+[  829.424337]  do_el0_svc+0x24/0x38
+[  829.424351]  el0_svc+0x38/0x120
+[  829.424369]  el0t_64_sync_handler+0xa0/0xe8
+[  829.424387]  el0t_64_sync+0x198/0x1a0
+[  829.424466] INFO: task NetworkManager:3169 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  829.424480] INFO: task kworker/u16:0:3283 blocked for more than 30 seconds.
+[  829.424491]       Tainted: G         C O        6.18.34+rpt-rpi-v8 #1 Debian 1:6.18.34-1+rpt1
+[  829.424501] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  829.424508] task:kworker/u16:0   state:D stack:0     pid:3283  tgid:3283  ppid:2      task_flags:0x4208060 flags:0x00000010
+[  829.424533] Workqueue: phy2 mt792x_mac_work [mt792x_lib]
+[  829.424579] Call trace:
+[  829.424586]  __switch_to+0xf0/0x1c8 (T)
+[  829.424602]  __schedule+0x3c8/0xc18
+[  829.424615]  schedule+0x3c/0x120
+[  829.424628]  schedule_preempt_disabled+0x2c/0x50
+[  829.424642]  __mutex_lock.constprop.0+0x50c/0xc80
+[  829.424657]  __mutex_lock_slowpath+0x1c/0x30
+[  829.424672]  mutex_lock+0x50/0x70
+[  829.424686]  mt792x_mac_work+0x34/0xd0 [mt792x_lib]
+[  829.424721]  process_one_work+0x158/0x3b8
+[  829.424742]  worker_thread+0x19c/0x328
+[  829.424760]  kthread+0x14c/0x210
+[  829.424777]  ret_from_fork+0x10/0x20
+[  829.424858] INFO: task kworker/u16:0:3283 is blocked on a mutex likely owned by task wpa_supplicant:628.
+[  829.424867] Future hung task reports are suppressed, see sysctl kernel.hung_task_warnings
