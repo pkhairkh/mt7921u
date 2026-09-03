@@ -1,0 +1,51 @@
+Tx power table (channel 1)
+                      1m     2m     5m    11m
+CCK (user)      :     20     20     20     20
+CCK (eeprom)    :     33     33     33     33
+CCK (tmac)      :     41     41     41     41
+                      6m     9m    12m    18m    24m    36m    48m    54m
+OFDM (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+OFDM (eeprom)   :     38     38     38     38     38     38     36     36
+OFDM (tmac)     :     46     46     46     46     46     46     44     44
+                    mcs0   mcs1   mcs2   mcs3   mcs4   mcs5   mcs6   mcs7
+HT20 (user)     :     24     24     24     24     24     24     24     24
+HT20 (eeprom)   :     37     37     37     37     37     35     34     33
+HT20 (tmac)     :     45     45     45     45     45     43     42     41
+                    mcs0   mcs1   mcs2   mcs3   mcs4   mcs5   mcs6   mcs7  mcs32
+HT40 (user)     :     24     24     24     24     24     24     24     24     24
+HT40 (eeprom)   :     37     37     37     37     37     35     34     33     37
+HT40 (tmac)     :     45     45     45     45     45     43     42     41     45
+                    mcs0   mcs1   mcs2   mcs3   mcs4   mcs5   mcs6   mcs7   mcs8   mcs9  mcs10  mcs11
+VHT20 (user)    :     24     24     24     24     24     24     24     24     24     24      0      0
+VHT20 (eeprom)  :     37     37     37     37     37     35     34     33     31     31      0      0
+VHT20 (tmac)    :     45     45     45     45     45     43     42     41     39     39      0      0
+VHT40 (user)    :     24     24     24     24     24     24     24     24     24     24      0      0
+VHT40 (eeprom)  :     37     37     37     37     37     35     34     33     31     31      0      0
+VHT40 (tmac)    :     45     45     45     45     45     43     42     41     39     39      0      0
+VHT80 (user)    :     40     40     40     40     40     40     40     40     40     40      0      0
+VHT80 (eeprom)  :     36     36     36     36     36     34     33     32     30     30      0      0
+VHT80 (tmac)    :     44     44     44     44     44     42     41     40     38     38      0      0
+VHT160 (user)   :     40     40     40     40     40     40     40     40     40     40      0      0
+VHT160 (eeprom) :     33     33     33     33     33     33     33     33     33     33      0      0
+VHT160 (tmac)   :     41     41     41     41     41     41     41     41     41     41      0      0
+HE26 (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE26 (eeprom)   :     37     37     37     37     37     35     34     33     31     31     28     28
+HE26 (tmac)     :     45     45     45     45     45     43     42     41     39     39     36     36
+HE52 (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE52 (eeprom)   :     37     37     37     37     37     35     34     33     31     31     28     28
+HE52 (tmac)     :     45     45     45     45     45     43     42     41     39     39     36     36
+HE106 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE106 (eeprom)  :     37     37     37     37     37     35     34     33     31     31     28     28
+HE106 (tmac)    :     45     45     45     45     45     43     42     41     39     39     36     36
+HE242 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE242 (eeprom)  :     37     37     37     37     37     35     34     33     31     31     28     28
+HE242 (tmac)    :     45     45     45     45     45     43     42     41     39     39     36     36
+HE484 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE484 (eeprom)  :     37     37     37     37     37     35     34     33     31     31     28     28
+HE484 (tmac)    :     45     45     45     45     45     43     42     41     39     39     36     36
+HE996 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE996 (eeprom)  :     36     36     36     36     36     34     33     32     30     30     28     28
+HE996 (tmac)    :     44     44     44     44     44     42     41     40     38     38     36     36
+HE996x2 (user)  :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE996x2 (eeprom):     33     33     33     33     33     33     33     33     33     33     33     33
+HE996x2 (tmac)  :     41     41     41     41     41     41     41     41     41     41     41     41

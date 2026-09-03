@@ -1,0 +1,66 @@
+=== hostapd -dd -t log (s7j run): setup + EAPOL + state ===
+1788433957.613457: nl80211: Use separate P2P group interface (driver advertised support)
+1788433957.613473: nl80211: interface wlan1 in phy phy2
+1788433957.613548: nl80211: Failed to set interface 5 to mode 3: -16 (Device or resource busy)
+1788433957.613581: nl80211: Try mode change after setting interface down
+1788433957.625476: nl80211: Mode change succeeded while interface is down
+1788433957.654999: nl80211: Add own interface ifindex 5 (ifidx_reason -1)
+1788433957.655011: nl80211: Do not open EAPOL RX socket - using control port for RX
+1788433957.655838: Completing interface initialization
+1788433957.655985: Using interface wlan1 with hwaddr e8:4e:06:b0:27:dc and ssid "MT7921U-S7"
+1788433957.669957: nl80211: Set beacon (beacon_set=0)
+1788433957.670171: nl80211: beacon_int=100
+1788433957.670174: nl80211: beacon_rate=0
+1788433957.670193:   * beacon_int=100
+1788433957.670235: nl80211: beacon_ies - hexdump(len=10): 7f 08 04 00 00 02 00 00 00 40
+1788433957.685879: nl80211: multicast to unicast disabled on interface wlan1
+1788433957.703665: wlan1: interface state UNINITIALIZED->ENABLED
+1788433957.703673: wlan1: AP-ENABLED 
+1788433957.703677: wlan1: Setup of interface done.
+1788433957.703753: nl80211: Ignore interface down event since interface wlan1 is up
+1788433965.250708: association request: STA=e8:4e:06:b0:1f:b7 capab_info=0x431 listen_interval=5 seq_ctrl=0x40
+1788433965.250778: 1788433965.250778: wlan1: STA e8:4e:06:b0:1f:b7 IEEE 802.11: association OK (aid 1)
+1788433965.256882: 1788433965.256883: wlan1: STA e8:4e:06:b0:1f:b7 IEEE 802.11: binding station to interface 'wlan1'
+1788433965.302672: WPA: Send EAPOL(version=2 secure=0 mic=0 ack=1 install=0 pairwise=1 kde_len=0 keyidx=0 encr=0)
+1788433965.302812: WPA: Use EAPOL-Key timeout of 100 ms (retry counter 1)
+1788433965.304494: wlan1: Event EAPOL_TX_STATUS (37) received
+1788433965.304504: WPA: EAPOL-Key TX status for STA e8:4e:06:b0:1f:b7 ack=1
+1788433965.304507: WPA: Increase initial EAPOL-Key 1/4 timeout by 1000 ms because of acknowledged frame
+1788433965.306462: wlan1: Event EAPOL_RX (23) received
+1788433965.306476: WPA: RX EAPOL data - hexdump(len=121): 01 03 00 75 02 01 0a 00 00 00 00 00 00 00 00 00 01 21 b2 e7 16 c5 da 24 97 e8 a2 3c 87 ed a3 2b 89 45 d0 58 9a a6 be e8 4e 98 7f 7c 56 39 01 42 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 a1 00 e8 9a 9f e2 ad cf 7e b9 4f d3 f2 45 93 10 00 16 30 14 01 00 00 0f ac 04 01 00 00 0f ac 04 01 00 00 0f ac 02 00 00
+1788433965.306516: WPA: Received EAPOL-Key from e8:4e:06:b0:1f:b7 key_info=0x10a type=2 mic_len=16 key_data_length=22
+1788433965.306520: WPA: EAPOL-Key header (ending before Key MIC) - hexdump(len=77): 02 01 0a 00 00 00 00 00 00 00 00 00 01 21 b2 e7 16 c5 da 24 97 e8 a2 3c 87 ed a3 2b 89 45 d0 58 9a a6 be e8 4e 98 7f 7c 56 39 01 42 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+1788433965.306546: WPA: EAPOL-Key Key MIC - hexdump(len=16): a1 00 e8 9a 9f e2 ad cf 7e b9 4f d3 f2 45 93 10
+1788433965.306579: 1788433965.306580: wlan1: STA e8:4e:06:b0:1f:b7 WPA: received EAPOL-Key frame (2/4 Pairwise)
+1788433965.306689: WPA: EAPOL-Key MIC using HMAC-SHA1
+1788433965.306704: WPA: RSN IE in EAPOL-Key - hexdump(len=22): 30 14 01 00 00 0f ac 04 01 00 00 0f ac 04 01 00 00 0f ac 02 00 00
+1788433965.306844: WPA: Send EAPOL(version=2 secure=1 mic=1 ack=1 install=1 pairwise=1 kde_len=46 keyidx=0 encr=1)
+1788433965.306856: Plaintext EAPOL-Key Key Data - hexdump(len=56): [REMOVED]
+1788433965.306877: WPA: EAPOL-Key MIC using HMAC-SHA1
+1788433965.306983: WPA: Use EAPOL-Key timeout of 100 ms (retry counter 1)
+1788433965.309162: wlan1: Event EAPOL_TX_STATUS (37) received
+1788433965.309171: WPA: EAPOL-Key TX status for STA e8:4e:06:b0:1f:b7 ack=1
+1788433965.310457: wlan1: Event EAPOL_RX (23) received
+1788433965.310469: WPA: RX EAPOL data - hexdump(len=99): 01 03 00 5f 02 03 0a 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ac 98 6b df af 1f 27 34 78 cd 8b 3d 4c 73 1f 92 00 00
+1788433965.310503: WPA: Received EAPOL-Key from e8:4e:06:b0:1f:b7 key_info=0x30a type=2 mic_len=16 key_data_length=0
+1788433965.310507: WPA: EAPOL-Key header (ending before Key MIC) - hexdump(len=77): 02 03 0a 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+1788433965.310534: WPA: EAPOL-Key Key MIC - hexdump(len=16): ac 98 6b df af 1f 27 34 78 cd 8b 3d 4c 73 1f 92
+1788433965.310565: 1788433965.310565: wlan1: STA e8:4e:06:b0:1f:b7 WPA: received EAPOL-Key frame (4/4 Pairwise)
+1788433965.310570: WPA: EAPOL-Key MIC using HMAC-SHA1
+1788433965.328385: wlan1: EAPOL-4WAY-HS-COMPLETED e8:4e:06:b0:1f:b7
+1788434007.310607: hostapd_interface_deinit_free(0x55b437f570)
+1788434007.310614: hostapd_interface_deinit_free: num_bss=1 conf->num_bss=1
+1788434007.310618: hostapd_interface_deinit(0x55b437f570)
+1788434007.310637: wlan1: interface state ENABLED->DISABLED
+1788434007.311164: hostapd_interface_deinit_free: driver=0x557c34e588 drv_priv=0x55b4387950 -> hapd_deinit
+1788434007.311179: nl80211: Remove monitor interface: refcount=0
+1788434007.311182: nl80211: Remove beacon (ifindex=5)
+1788434007.508918: nl80211: Failed to set interface 5 to mode 2: -16 (Device or resource busy)
+1788434007.508965: nl80211: Try mode change after setting interface down
+1788434007.516708: nl80211: Mode change succeeded while interface is down
+1788434007.556298: hostapd_interface_free(0x55b437f570)
+
+=== T1 (WPA2 self-ping artifact) ===
+1788433049.760424: wlan1: EAPOL-4WAY-HS-COMPLETED e8:4e:06:b0:1f:b7
+(T1/T2 same-host pings were invalid methodology: dst IP was local to the other
+ interface; kernel local-route/oif semantics bypass the radio. Kept for the record.)

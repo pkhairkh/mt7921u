@@ -1,0 +1,51 @@
+Tx power table (channel 0)
+                      1m     2m     5m    11m
+CCK (user)      :    N.A    N.A    N.A    N.A
+CCK (eeprom)    :      0      0      0      0
+CCK (tmac)      :      0      0      0      0
+                      6m     9m    12m    18m    24m    36m    48m    54m
+OFDM (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+OFDM (eeprom)   :      5      5      5      5      5      5      3      3
+OFDM (tmac)     :      0      0      0      0      0      0      0      0
+                    mcs0   mcs1   mcs2   mcs3   mcs4   mcs5   mcs6   mcs7
+HT20 (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HT20 (eeprom)   :      4      4      4      4      4      2      1      0
+HT20 (tmac)     :      0      0      0      0      0      0      0      0
+                    mcs0   mcs1   mcs2   mcs3   mcs4   mcs5   mcs6   mcs7  mcs32
+HT40 (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HT40 (eeprom)   :      4      4      4      4      4      2      1      0      4
+HT40 (tmac)     :      0      0      0      0      0      0      0      0      0
+                    mcs0   mcs1   mcs2   mcs3   mcs4   mcs5   mcs6   mcs7   mcs8   mcs9  mcs10  mcs11
+VHT20 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A      0      0
+VHT20 (eeprom)  :      4      4      4      4      4      2      1      0     -2     -2      0      0
+VHT20 (tmac)    :      0      0      0      0      0      0      0      0      0      0      0      0
+VHT40 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A      0      0
+VHT40 (eeprom)  :      4      4      4      4      4      2      1      0     -2     -2      0      0
+VHT40 (tmac)    :      0      0      0      0      0      0      0      0      0      0      0      0
+VHT80 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A      0      0
+VHT80 (eeprom)  :      3      3      3      3      3      1      0     -1     -3     -3      0      0
+VHT80 (tmac)    :      0      0      0      0      0      0      0      0      0      0      0      0
+VHT160 (user)   :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A      0      0
+VHT160 (eeprom) :      0      0      0      0      0      0      0      0      0      0      0      0
+VHT160 (tmac)   :      0      0      0      0      0      0      0      0      0      0      0      0
+HE26 (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE26 (eeprom)   :      4      4      4      4      4      2      1      0     -2     -2     -5     -5
+HE26 (tmac)     :      0      0      0      0      0      0      0      0      0      0      0      0
+HE52 (user)     :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE52 (eeprom)   :      4      4      4      4      4      2      1      0     -2     -2     -5     -5
+HE52 (tmac)     :      0      0      0      0      0      0      0      0      0      0      0      0
+HE106 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE106 (eeprom)  :      4      4      4      4      4      2      1      0     -2     -2     -5     -5
+HE106 (tmac)    :      0      0      0      0      0      0      0      0      0      0      0      0
+HE242 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE242 (eeprom)  :      4      4      4      4      4      2      1      0     -2     -2     -5     -5
+HE242 (tmac)    :      0      0      0      0      0      0      0      0      0      0      0      0
+HE484 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE484 (eeprom)  :      4      4      4      4      4      2      1      0     -2     -2     -5     -5
+HE484 (tmac)    :      0      0      0      0      0      0      0      0      0      0      0      0
+HE996 (user)    :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE996 (eeprom)  :      3      3      3      3      3      1      0     -1     -3     -3     -5     -5
+HE996 (tmac)    :      0      0      0      0      0      0      0      0      0      0      0      0
+HE996x2 (user)  :    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A    N.A
+HE996x2 (eeprom):      0      0      0      0      0      0      0      0      0      0      0      0
+HE996x2 (tmac)  :      0      0      0      0      0      0      0      0      0      0      0      0

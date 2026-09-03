@@ -1,0 +1,51 @@
+S7-J v4 (netns method — phy3/wlan2 moved to netns "sta77" via `iw phy3 set netns name sta77`)
+host: wlan1 (phy2, dongle #1) = AP via hostapd -dd (WPA2-PSK/CCMP, ch6, HT20)
+netns: wlan2 (phy3, dongle #2) = STA via netns-local wpa_supplicant
+
+--- association ---
+associated after 4s
+Connected to e8:4e:06:b0:27:dc (on wlan2)
+        SSID: MT7921U-S7
+        freq: 2437.0
+        signal: -2 dBm
+        rx bitrate: 1.0 MBit/s
+        tx bitrate: 130.0 MBit/s MCS 15
+
+--- REAL RADIO TEST (separate network namespaces = true two-host path) ---
+netns->host ping 56B : 15 packets transmitted, 15 received, 0% packet loss, rtt avg 2.700 ms
+host->netns ping 56B : 15 packets transmitted, 15 received, 0% packet loss, rtt avg 18.201 ms
+1472B payload ping   : 20 packets transmitted, 20 received, 0% packet loss, rtt avg 1.355 ms
+
+--- AP-side station dump (radio counters after traffic) ---
+        rx bytes: 34394   rx packets: 67
+        tx bytes: 33881   tx packets: 58
+        tx retries: 0     tx failed: 0
+        tx bitrate: 130.0 MBit/s MCS 15
+        rx bitrate: 130.0 MBit/s MCS 15
+        signal: -2 [-4, -6] dBm
+        authorized: yes
+
+--- TX POWER RF PROOF (AP-side txpower steps, STA-side RSSI, 1472B pings each step) ---
+[baseline]        signal: -2 dBm   loss: 0%
+[iw set txpower fixed 2000 (20 dBm)] signal: -2 dBm   loss: 0%
+[iw set txpower fixed 300 (3 dBm)]  signal: -7 dBm   loss: 0%   <-- RSSI DROPS
+[iw set txpower fixed 2000 again]   signal: -2 dBm   loss: 0%   <-- REVERSIBLE
+[iw set txpower auto]               signal: -2 dBm   loss: 0%
+
+Interpretation: user dBm settings reach the RF chain (measurable, reversible RSSI response,
+zero disruption to the link). Dongles are co-located on one USB hub -> near-field receiver
+saturation compresses the observed delta (-2 -> -7 for a 17 dB step); exact dBm accuracy
+requires physical separation or a power meter. Readback stays broken (see BUG-08).
+
+--- BUG-08 (upstream mt76 quirk, root-caused this phase) ---
+iw dev wlan1 info ALWAYS reports "txpower 3.00 dBm" regardless of settings.
+Root cause: mt76_get_txpower() reports DIV_ROUND_UP(phy->txpower_cur + delta, 2), but
+NOTHING in the mt7921/connac path ever writes phy->txpower_cur (it stays 0; the 3.00 dBm
+is 0 + 2-chain path delta 6 half-dB). All sibling drivers maintain it after programming
+rate power (mt7615/mcu.c:2075, mt7996/mcu.c:5352, mt7915/mcu.c:3390) — mt7921 forgot.
+Write path is upstream-complete: iw set txpower -> mac80211 conf.power_level ->
+mt7921_config(IEEE80211_CONF_CHANGE_POWER) -> mt7921_set_tx_sar_pwr ->
+mt76_connac_mcu_set_rate_txpower -> per-channel MCU_CE_CMD(SET_RATE_TX_POWER) batches.
+
+--- kernel health ---
+dmesg mt76/mt79 filter (err|fail|timeout|warn|panic|oops): EMPTY for the whole phase.
