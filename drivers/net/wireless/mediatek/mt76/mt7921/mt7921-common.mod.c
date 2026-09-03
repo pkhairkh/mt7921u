@@ -294,4 +294,4 @@ __used __section("__versions") = {
 MODULE_INFO(depends, "mt76-connac-lib,mt76,mac80211,mt792x-lib,cfg80211");
 
 
-MODULE_INFO(srcversion, "B109C847A13271ED8D176B9");
+MODULE_INFO(srcversion, "E0F3EB292808561043CC822");

@@ -952,11 +952,13 @@ void mt7921_mac_sta_remove(struct mt76_dev *mdev, struct ieee80211_vif *vif,
         mt76_connac_free_pending_tx_skbs(&dev->pm, &msta->deflink.wcid);
         mt76_connac_pm_wake(&dev->mphy, &dev->pm);
 
-        /* Tear down all TWT flows for this STA and continue removal
-         * under the same pm_wake context — no separate mutex needed
-         * since we already hold pm protection.
+        /* Locking: the mt76 core wrapper mt76_sta_remove() (see
+         * mt76/mac80211.c) already holds dev->mt76.mutex while calling
+         * drv->sta_remove. Acquiring it again here (mt792x_mutex_acquire)
+         * is a recursive acquisition of a non-recursive mutex => instant
+         * self-deadlock. This was the cause of the disconnect hang.
+         * Do NOT re-add the acquire/release pair.
          */
-        mt792x_mutex_acquire(dev);
         mt7921_twt_teardown_sta(dev, msta);
 
         mt7921_mcu_sta_update(dev, sta, vif, false, MT76_STA_INFO_STATE_NONE);
@@ -980,7 +982,6 @@ void mt7921_mac_sta_remove(struct mt76_dev *mdev, struct ieee80211_vif *vif,
         spin_unlock_bh(&dev->mt76.sta_poll_lock);
 
         mt7921_regd_set_6ghz_power_type(vif, false);
-        mt792x_mutex_release(dev);
 
         mt76_connac_power_save_sched(&dev->mphy, &dev->pm);
 }

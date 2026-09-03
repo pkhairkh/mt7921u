@@ -1,0 +1,9 @@
+make: Entering directory '/usr/src/linux-headers-6.18.34+rpt-rpi-v8'
+make[1]: Entering directory '/home/pkhairkh/mt7921u_inspect/drivers/net/wireless/mediatek/mt76'
+  CC [M]  mt7921/main.o
+  LD [M]  mt7921/mt7921-common.o
+  MODPOST Module.symvers
+  CC [M]  mt7921/mt7921-common.mod.o
+  LD [M]  mt7921/mt7921-common.ko
+make[1]: Leaving directory '/home/pkhairkh/mt7921u_inspect/drivers/net/wireless/mediatek/mt76'
+make: Leaving directory '/usr/src/linux-headers-6.18.34+rpt-rpi-v8'
