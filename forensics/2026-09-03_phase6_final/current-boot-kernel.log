@@ -1,0 +1,544 @@
+Sep 03 11:04:14 net-master-0x01 kernel: Booting Linux on physical CPU 0x0000000000 [0x410fd083]
+Sep 03 11:04:14 net-master-0x01 kernel: Linux version 6.18.34+rpt-rpi-v8 (serge@raspberrypi.com) (aarch64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0, GNU ld (GNU Binutils for Debian) 2.44) #1 SMP PREEMPT Debian 1:6.18.34-1+rpt1 (2026-06-09)
+Sep 03 11:04:14 net-master-0x01 kernel: KASLR enabled
+Sep 03 11:04:14 net-master-0x01 kernel: random: crng init done
+Sep 03 11:04:14 net-master-0x01 kernel: Machine model: Raspberry Pi 4 Model B Rev 1.1
+Sep 03 11:04:14 net-master-0x01 kernel: efi: UEFI not found.
+Sep 03 11:04:14 net-master-0x01 kernel: Reserved memory: created CMA memory pool at 0x000000000e000000, size 512 MiB
+Sep 03 11:04:14 net-master-0x01 kernel: OF: reserved mem: initialized node linux,cma, compatible id shared-dma-pool
+Sep 03 11:04:14 net-master-0x01 kernel: OF: reserved mem: 0x000000000e000000..0x000000002dffffff (524288 KiB) map reusable linux,cma
+Sep 03 11:04:14 net-master-0x01 kernel: OF: reserved mem: 0x000000000b000000..0x000000000b00ffff (64 KiB) map non-reusable ramoops@b000000
+Sep 03 11:04:14 net-master-0x01 kernel: OF: reserved mem: 0x000000003ef74d60..0x000000003ef75192 (1 KiB) nomap non-reusable nvram@0
+Sep 03 11:04:14 net-master-0x01 kernel: OF: reserved mem: 0x000000003ef74b20..0x000000003ef74d1f (0 KiB) nomap non-reusable nvram@1
+Sep 03 11:04:14 net-master-0x01 kernel: NUMA: Faking a node at [mem 0x0000000000000000-0x00000000fbffffff]
+Sep 03 11:04:14 net-master-0x01 kernel: Faking node 0 at [mem 0x0000000000000000-0x000000007fffffff] (2048MB)
+Sep 03 11:04:14 net-master-0x01 kernel: Faking node 1 at [mem 0x0000000080000000-0x00000000fbffffff] (1984MB)
+Sep 03 11:04:14 net-master-0x01 kernel: NODE_DATA(0) allocated [mem 0x7fffd280-0x7fffffff]
+Sep 03 11:04:14 net-master-0x01 kernel: NODE_DATA(1) allocated [mem 0xfb7fa280-0xfb7fcfff]
+Sep 03 11:04:14 net-master-0x01 kernel: Zone ranges:
+Sep 03 11:04:14 net-master-0x01 kernel:   DMA      [mem 0x0000000000000000-0x000000003fffffff]
+Sep 03 11:04:14 net-master-0x01 kernel:   DMA32    [mem 0x0000000040000000-0x00000000fbffffff]
+Sep 03 11:04:14 net-master-0x01 kernel:   Normal   empty
+Sep 03 11:04:14 net-master-0x01 kernel: Movable zone start for each node
+Sep 03 11:04:14 net-master-0x01 kernel: Early memory node ranges
+Sep 03 11:04:14 net-master-0x01 kernel:   node   0: [mem 0x0000000000000000-0x000000003b3fffff]
+Sep 03 11:04:14 net-master-0x01 kernel:   node   0: [mem 0x0000000040000000-0x000000007fffffff]
+Sep 03 11:04:14 net-master-0x01 kernel:   node   1: [mem 0x0000000080000000-0x00000000fbffffff]
+Sep 03 11:04:14 net-master-0x01 kernel: Initmem setup node 0 [mem 0x0000000000000000-0x000000007fffffff]
+Sep 03 11:04:14 net-master-0x01 kernel: Initmem setup node 1 [mem 0x0000000080000000-0x00000000fbffffff]
+Sep 03 11:04:14 net-master-0x01 kernel: On node 0, zone DMA32: 19456 pages in unavailable ranges
+Sep 03 11:04:14 net-master-0x01 kernel: On node 1, zone DMA32: 16384 pages in unavailable ranges
+Sep 03 11:04:14 net-master-0x01 kernel: percpu: Embedded 33 pages/cpu s95512 r8192 d31464 u135168
+Sep 03 11:04:14 net-master-0x01 kernel: pcpu-alloc: s95512 r8192 d31464 u135168 alloc=33*4096
+Sep 03 11:04:14 net-master-0x01 kernel: pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+Sep 03 11:04:14 net-master-0x01 kernel: Detected PIPT I-cache on CPU0
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: Spectre-v2
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: Spectre-v3a
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: Spectre-v4
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: Spectre-BHB
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: kernel page table isolation forced ON by KASLR
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: Kernel page table isolation (KPTI)
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: ARM erratum 1742098
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: ARM errata 1165522, 1319367, or 1530923
+Sep 03 11:04:14 net-master-0x01 kernel: alternatives: applying boot alternatives
+Sep 03 11:04:14 net-master-0x01 kernel: Kernel command line: coherent_pool=1M 8250.nr_uarts=0 snd_bcm2835.enable_headphones=0 cgroup_disable=memory numa_policy=interleave nvme.max_host_mem_size_mb=32 snd_bcm2835.enable_headphones=1 snd_bcm2835.enable_hdmi=1 snd_bcm2835.enable_hdmi=0  numa=fake=2 system_heap.max_order=0 iommu_dma_numa_policy=interleave smsc95xx.macaddr=DC:A6:32:4F:D9:D0 vc_mem.mem_base=0x3ec00000 vc_mem.mem_size=0x40000000  console=ttyS0,115200 console=tty1 root=PARTUUID=21dfc53e-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE
+Sep 03 11:04:14 net-master-0x01 kernel: cgroup: Disabling memory control group subsystem
+Sep 03 11:04:14 net-master-0x01 kernel: mempolicy: NUMA default policy overridden to 'interleave:0-1'
+Sep 03 11:04:14 net-master-0x01 kernel: DMA IOMMU NUMA default policy overridden to 'interleave:0-1'
+Sep 03 11:04:14 net-master-0x01 kernel: Unknown kernel command line parameters "ds=nocloud;i=rpi-imager-1788423870688", will be passed to user space.
+Sep 03 11:04:14 net-master-0x01 kernel: printk: log buffer data + meta data: 131072 + 458752 = 589824 bytes
+Sep 03 11:04:14 net-master-0x01 kernel: software IO TLB: area num 4.
+Sep 03 11:04:14 net-master-0x01 kernel: software IO TLB: mapped [mem 0x0000000037400000-0x000000003b400000] (64MB)
+Sep 03 11:04:14 net-master-0x01 kernel: Fallback order for Node 0: 0 1 
+Sep 03 11:04:14 net-master-0x01 kernel: Fallback order for Node 1: 1 0 
+Sep 03 11:04:14 net-master-0x01 kernel: Built 2 zonelists, mobility grouping on.  Total pages: 1012736
+Sep 03 11:04:14 net-master-0x01 kernel: Policy zone: DMA32
+Sep 03 11:04:14 net-master-0x01 kernel: mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+Sep 03 11:04:14 net-master-0x01 kernel: SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=2
+Sep 03 11:04:14 net-master-0x01 kernel: ftrace: allocating 46711 entries in 184 pages
+Sep 03 11:04:14 net-master-0x01 kernel: ftrace: allocated 184 pages with 4 groups
+Sep 03 11:04:14 net-master-0x01 kernel: rcu: Preemptible hierarchical RCU implementation.
+Sep 03 11:04:14 net-master-0x01 kernel: rcu:         RCU event tracing is enabled.
+Sep 03 11:04:14 net-master-0x01 kernel:         Trampoline variant of Tasks RCU enabled.
+Sep 03 11:04:14 net-master-0x01 kernel:         Rude variant of Tasks RCU enabled.
+Sep 03 11:04:14 net-master-0x01 kernel:         Tracing variant of Tasks RCU enabled.
+Sep 03 11:04:14 net-master-0x01 kernel: rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+Sep 03 11:04:14 net-master-0x01 kernel: RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 03 11:04:14 net-master-0x01 kernel: RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 03 11:04:14 net-master-0x01 kernel: RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 03 11:04:14 net-master-0x01 kernel: NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+Sep 03 11:04:14 net-master-0x01 kernel: Root IRQ handler: gic_handle_irq
+Sep 03 11:04:14 net-master-0x01 kernel: GIC: Using split EOI/Deactivate mode
+Sep 03 11:04:14 net-master-0x01 kernel: rcu: srcu_init: Setting srcu_struct sizes based on contention.
+Sep 03 11:04:14 net-master-0x01 kernel: arch_timer: cp15 timer running at 54.00MHz (phys).
+Sep 03 11:04:14 net-master-0x01 kernel: clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0xc743ce346, max_idle_ns: 440795203123 ns
+Sep 03 11:04:14 net-master-0x01 kernel: sched_clock: 56 bits at 54MHz, resolution 18ns, wraps every 4398046511102ns
+Sep 03 11:04:14 net-master-0x01 kernel: Console: colour dummy device 80x25
+Sep 03 11:04:14 net-master-0x01 kernel: printk: legacy console [tty1] enabled
+Sep 03 11:04:14 net-master-0x01 kernel: Calibrating delay loop (skipped), value calculated using timer frequency.. 108.00 BogoMIPS (lpj=216000)
+Sep 03 11:04:14 net-master-0x01 kernel: pid_max: default: 32768 minimum: 301
+Sep 03 11:04:14 net-master-0x01 kernel: LSM: initializing lsm=capability
+Sep 03 11:04:14 net-master-0x01 kernel: Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: rcu: Hierarchical SRCU implementation.
+Sep 03 11:04:14 net-master-0x01 kernel: rcu:         Max phase no-delay instances is 1000.
+Sep 03 11:04:14 net-master-0x01 kernel: Timer migration: 2 hierarchy levels; 8 children per group; 1 crossnode level
+Sep 03 11:04:14 net-master-0x01 kernel: EFI services will not be available.
+Sep 03 11:04:14 net-master-0x01 kernel: smp: Bringing up secondary CPUs ...
+Sep 03 11:04:14 net-master-0x01 kernel: Detected PIPT I-cache on CPU1
+Sep 03 11:04:14 net-master-0x01 kernel: CPU1: Booted secondary processor 0x0000000001 [0x410fd083]
+Sep 03 11:04:14 net-master-0x01 kernel: Detected PIPT I-cache on CPU2
+Sep 03 11:04:14 net-master-0x01 kernel: CPU2: Booted secondary processor 0x0000000002 [0x410fd083]
+Sep 03 11:04:14 net-master-0x01 kernel: Detected PIPT I-cache on CPU3
+Sep 03 11:04:14 net-master-0x01 kernel: CPU3: Booted secondary processor 0x0000000003 [0x410fd083]
+Sep 03 11:04:14 net-master-0x01 kernel: smp: Brought up 2 nodes, 4 CPUs
+Sep 03 11:04:14 net-master-0x01 kernel: SMP: Total of 4 processors activated.
+Sep 03 11:04:14 net-master-0x01 kernel: CPU: All CPU(s) started at EL2
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: 32-bit EL0 Support
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: 32-bit EL1 Support
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: CRC32 instructions
+Sep 03 11:04:14 net-master-0x01 kernel: CPU features: detected: PMUv3
+Sep 03 11:04:14 net-master-0x01 kernel: alternatives: applying system-wide alternatives
+Sep 03 11:04:14 net-master-0x01 kernel: Memory: 3332288K/4050944K available (15040K kernel code, 2442K rwdata, 5084K rodata, 2048K init, 505K bss, 182104K reserved, 524288K cma-reserved)
+Sep 03 11:04:14 net-master-0x01 kernel: devtmpfs: initialized
+Sep 03 11:04:14 net-master-0x01 kernel: Enabled cp15_barrier support
+Sep 03 11:04:14 net-master-0x01 kernel: Enabled setend support
+Sep 03 11:04:14 net-master-0x01 kernel: clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+Sep 03 11:04:14 net-master-0x01 kernel: posixtimers hash table entries: 2048 (order: 3, 32768 bytes, vmalloc)
+Sep 03 11:04:14 net-master-0x01 kernel: futex hash table entries: 512 (32768 bytes on 2 NUMA nodes, total 64 KiB, linear).
+Sep 03 11:04:14 net-master-0x01 kernel: 2G module region forced by RANDOMIZE_MODULE_REGION_FULL
+Sep 03 11:04:14 net-master-0x01 kernel: 0 pages in range for non-PLT usage
+Sep 03 11:04:14 net-master-0x01 kernel: 517952 pages in range for PLT usage
+Sep 03 11:04:14 net-master-0x01 kernel: pinctrl core: initialized pinctrl subsystem
+Sep 03 11:04:14 net-master-0x01 kernel: DMI not present or invalid.
+Sep 03 11:04:14 net-master-0x01 kernel: NET: Registered PF_NETLINK/PF_ROUTE protocol family
+Sep 03 11:04:14 net-master-0x01 kernel: DMA: preallocated 1024 KiB GFP_KERNEL pool for atomic allocations
+Sep 03 11:04:14 net-master-0x01 kernel: DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+Sep 03 11:04:14 net-master-0x01 kernel: DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+Sep 03 11:04:14 net-master-0x01 kernel: audit: initializing netlink subsys (disabled)
+Sep 03 11:04:14 net-master-0x01 kernel: audit: type=2000 audit(0.024:1): state=initialized audit_enabled=0 res=1
+Sep 03 11:04:14 net-master-0x01 kernel: thermal_sys: Registered thermal governor 'step_wise'
+Sep 03 11:04:14 net-master-0x01 kernel: cpuidle: using governor menu
+Sep 03 11:04:14 net-master-0x01 kernel: hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+Sep 03 11:04:14 net-master-0x01 kernel: ASID allocator initialised with 32768 entries
+Sep 03 11:04:14 net-master-0x01 kernel: Serial: AMBA PL011 UART driver
+Sep 03 11:04:14 net-master-0x01 kernel: pstore: Using crash dump compression: deflate
+Sep 03 11:04:14 net-master-0x01 kernel: pstore: Registered ramoops as persistent store backend
+Sep 03 11:04:14 net-master-0x01 kernel: ramoops: using 0x10000@0xb000000, ecc: 0
+Sep 03 11:04:14 net-master-0x01 kernel: /soc/interrupt-controller@40041000: Fixed dependency cycle(s) with /soc/interrupt-controller@40041000
+Sep 03 11:04:14 net-master-0x01 kernel: bcm2835-mbox fe00b880.mailbox: mailbox enabled
+Sep 03 11:04:14 net-master-0x01 kernel: raspberrypi-firmware soc:firmware: Attached to firmware from 2026-05-21T11:20:25, variant start
+Sep 03 11:04:14 net-master-0x01 kernel: raspberrypi-firmware soc:firmware: Firmware hash is 288930ab4712b99596f32732664aaaeb881ef1e0
+Sep 03 11:04:14 net-master-0x01 kernel: /scb/pcie@7d500000: Fixed dependency cycle(s) with /scb/pcie@7d500000
+Sep 03 11:04:14 net-master-0x01 kernel: /scb/pcie@7d500000: Fixed dependency cycle(s) with /scb/pcie@7d500000
+Sep 03 11:04:14 net-master-0x01 kernel: bcm2835-dma fe007000.dma-controller: DMA legacy API manager, dmachans=0x1
+Sep 03 11:04:14 net-master-0x01 kernel: iommu: Default domain type: Translated
+Sep 03 11:04:14 net-master-0x01 kernel: iommu: DMA domain TLB invalidation policy: strict mode
+Sep 03 11:04:14 net-master-0x01 kernel: SCSI subsystem initialized
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new interface driver usbfs
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new interface driver hub
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new device driver usb
+Sep 03 11:04:14 net-master-0x01 kernel: pps_core: LinuxPPS API ver. 1 registered
+Sep 03 11:04:14 net-master-0x01 kernel: pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+Sep 03 11:04:14 net-master-0x01 kernel: PTP clock support registered
+Sep 03 11:04:14 net-master-0x01 kernel: vgaarb: loaded
+Sep 03 11:04:14 net-master-0x01 kernel: clocksource: Switched to clocksource arch_sys_counter
+Sep 03 11:04:14 net-master-0x01 kernel: VFS: Disk quotas dquot_6.6.0
+Sep 03 11:04:14 net-master-0x01 kernel: VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+Sep 03 11:04:14 net-master-0x01 kernel: NET: Registered PF_INET protocol family
+Sep 03 11:04:14 net-master-0x01 kernel: IP idents hash table entries: 65536 (order: 7, 524288 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, vmalloc)
+Sep 03 11:04:14 net-master-0x01 kernel: Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: TCP established hash table entries: 32768 (order: 6, 262144 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: TCP: Hash tables configured (established 32768 bind 32768)
+Sep 03 11:04:14 net-master-0x01 kernel: MPTCP token hash table entries: 4096 (order: 5, 98304 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: UDP hash table entries: 2048 (order: 5, 131072 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: UDP-Lite hash table entries: 2048 (order: 5, 131072 bytes, vmalloc hugepage)
+Sep 03 11:04:14 net-master-0x01 kernel: NET: Registered PF_UNIX/PF_LOCAL protocol family
+Sep 03 11:04:14 net-master-0x01 kernel: RPC: Registered named UNIX socket transport module.
+Sep 03 11:04:14 net-master-0x01 kernel: RPC: Registered udp transport module.
+Sep 03 11:04:14 net-master-0x01 kernel: RPC: Registered tcp transport module.
+Sep 03 11:04:14 net-master-0x01 kernel: RPC: Registered tcp-with-tls transport module.
+Sep 03 11:04:14 net-master-0x01 kernel: RPC: Registered tcp NFSv4.1 backchannel transport module.
+Sep 03 11:04:14 net-master-0x01 kernel: PCI: CLS 0 bytes, default 64
+Sep 03 11:04:14 net-master-0x01 kernel: Trying to unpack rootfs image as initramfs...
+Sep 03 11:04:14 net-master-0x01 kernel: kvm [1]: nv: 568 coarse grained trap handlers
+Sep 03 11:04:14 net-master-0x01 kernel: kvm [1]: IPA Size Limit: 44 bits
+Sep 03 11:04:14 net-master-0x01 kernel: kvm [1]: vgic interrupt IRQ9
+Sep 03 11:04:14 net-master-0x01 kernel: kvm [1]: Hyp nVHE mode initialized successfully
+Sep 03 11:04:14 net-master-0x01 kernel: Freeing initrd memory: 15952K
+Sep 03 11:04:14 net-master-0x01 kernel: Initialise system trusted keyrings
+Sep 03 11:04:14 net-master-0x01 kernel: workingset: timestamp_bits=42 max_order=20 bucket_order=0
+Sep 03 11:04:14 net-master-0x01 kernel: NFS: Registering the id_resolver key type
+Sep 03 11:04:14 net-master-0x01 kernel: Key type id_resolver registered
+Sep 03 11:04:14 net-master-0x01 kernel: Key type id_legacy registered
+Sep 03 11:04:14 net-master-0x01 kernel: nfs4filelayout_init: NFSv4 File Layout Driver Registering...
+Sep 03 11:04:14 net-master-0x01 kernel: nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
+Sep 03 11:04:14 net-master-0x01 kernel: Key type asymmetric registered
+Sep 03 11:04:14 net-master-0x01 kernel: Asymmetric key parser 'x509' registered
+Sep 03 11:04:14 net-master-0x01 kernel: Block layer SCSI generic (bsg) driver version 0.4 loaded (major 246)
+Sep 03 11:04:14 net-master-0x01 kernel: io scheduler mq-deadline registered
+Sep 03 11:04:14 net-master-0x01 kernel: io scheduler kyber registered
+Sep 03 11:04:14 net-master-0x01 kernel: io scheduler bfq registered
+Sep 03 11:04:14 net-master-0x01 kernel: irq_brcmstb_l2: registered L2 intc (/soc/interrupt-controller@7ef00100, parent irq: 23)
+Sep 03 11:04:14 net-master-0x01 kernel: pinctrl-bcm2835 fe200000.gpio: GPIO_OUT persistence: yes
+Sep 03 11:04:14 net-master-0x01 kernel: ledtrig-cpu: registered to indicate activity on CPUs
+Sep 03 11:04:14 net-master-0x01 kernel: brcm-pcie fd500000.pcie: host bridge /scb/pcie@7d500000 ranges:
+Sep 03 11:04:14 net-master-0x01 kernel: brcm-pcie fd500000.pcie:      MEM 0x0600000000..0x063fffffff -> 0x00c0000000
+Sep 03 11:04:14 net-master-0x01 kernel: brcm-pcie fd500000.pcie:   IB MEM 0x0000000000..0x00bfffffff -> 0x0400000000
+Sep 03 11:04:14 net-master-0x01 kernel: brcm-pcie fd500000.pcie: PCI host bridge to bus 0000:00
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:00: root bus resource [bus 00-ff]
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:00: root bus resource [mem 0x600000000-0x63fffffff] (bus address [0xc0000000-0xffffffff])
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0: [14e4:2711] type 01 class 0x060400 PCIe Root Port
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0: PCI bridge to [bus 00]
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0:   bridge window [mem 0x80000000-0xbfffffff]
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0: PME# supported from D0 D3hot
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0: bridge configuration invalid ([bus 00-00]), reconfiguring
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:01: supply vpcie3v3 not found, using dummy regulator
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:01: supply vpcie3v3aux not found, using dummy regulator
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:01: supply vpcie12v not found, using dummy regulator
+Sep 03 11:04:14 net-master-0x01 kernel: brcm-pcie fd500000.pcie: clkreq-mode set to default
+Sep 03 11:04:14 net-master-0x01 kernel: brcm-pcie fd500000.pcie: link up, 5.0 GT/s PCIe x1 (SSC)
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:01:00.0: [1106:3483] type 00 class 0x0c0330 PCIe Endpoint
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:01:00.0: BAR 0 [mem 0x00000000-0x00000fff 64bit]
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:01:00.0: ASPM: VL805 fixup applied
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:01:00.0: PME# supported from D0 D3cold
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:01:00.0: ASPM: default states L0s L1
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:01: busn_res: [bus 01-ff] end is updated to 01
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0: bridge window [mem 0x600000000-0x6000fffff]: assigned
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:01:00.0: BAR 0 [mem 0x600000000-0x600000fff 64bit]: assigned
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0: PCI bridge to [bus 01]
+Sep 03 11:04:14 net-master-0x01 kernel: pci 0000:00:00.0:   bridge window [mem 0x600000000-0x6000fffff]
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:00: resource 4 [mem 0x600000000-0x63fffffff]
+Sep 03 11:04:14 net-master-0x01 kernel: pci_bus 0000:01: resource 1 [mem 0x600000000-0x6000fffff]
+Sep 03 11:04:14 net-master-0x01 kernel: pcieport 0000:00:00.0: enabling device (0000 -> 0002)
+Sep 03 11:04:14 net-master-0x01 kernel: pcieport 0000:00:00.0: PME: Signaling with IRQ 27
+Sep 03 11:04:14 net-master-0x01 kernel: pcieport 0000:00:00.0: AER: enabled with IRQ 27
+Sep 03 11:04:14 net-master-0x01 kernel: iproc-rng200 fe104000.rng: hwrng registered
+Sep 03 11:04:14 net-master-0x01 kernel: vc-mem: phys_addr:0x00000000 mem_base=0x3ec00000 mem_size:0x40000000(1024 MiB)
+Sep 03 11:04:14 net-master-0x01 kernel: brd: module loaded
+Sep 03 11:04:14 net-master-0x01 kernel: loop: module loaded
+Sep 03 11:04:14 net-master-0x01 kernel: Loading iSCSI transport class v2.0-870.
+Sep 03 11:04:14 net-master-0x01 kernel: bcmgenet fd580000.ethernet: GENET 5.0 EPHY: 0x0000
+Sep 03 11:04:14 net-master-0x01 kernel: unimac-mdio unimac-mdio.-19: Broadcom UniMAC MDIO bus
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new interface driver lan78xx
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new interface driver smsc95xx
+Sep 03 11:04:14 net-master-0x01 kernel: xhci_hcd 0000:01:00.0: enabling device (0000 -> 0002)
+Sep 03 11:04:14 net-master-0x01 kernel: xhci_hcd 0000:01:00.0: xHCI Host Controller
+Sep 03 11:04:14 net-master-0x01 kernel: xhci_hcd 0000:01:00.0: new USB bus registered, assigned bus number 1
+Sep 03 11:04:14 net-master-0x01 kernel: xhci_hcd 0000:01:00.0: hcc params 0x002841eb hci version 0x100 quirks 0x0300240000000890
+Sep 03 11:04:14 net-master-0x01 kernel: xhci_hcd 0000:01:00.0: xHCI Host Controller
+Sep 03 11:04:14 net-master-0x01 kernel: xhci_hcd 0000:01:00.0: new USB bus registered, assigned bus number 2
+Sep 03 11:04:14 net-master-0x01 kernel: xhci_hcd 0000:01:00.0: Host supports USB 3.0 SuperSpeed
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb1: New USB device found, idVendor=1d6b, idProduct=0002, bcdDevice= 6.18
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb1: Product: xHCI Host Controller
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb1: Manufacturer: Linux 6.18.34+rpt-rpi-v8 xhci-hcd
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb1: SerialNumber: 0000:01:00.0
+Sep 03 11:04:14 net-master-0x01 kernel: hub 1-0:1.0: USB hub found
+Sep 03 11:04:14 net-master-0x01 kernel: hub 1-0:1.0: 1 port detected
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb2: New USB device found, idVendor=1d6b, idProduct=0003, bcdDevice= 6.18
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb2: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb2: Product: xHCI Host Controller
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb2: Manufacturer: Linux 6.18.34+rpt-rpi-v8 xhci-hcd
+Sep 03 11:04:14 net-master-0x01 kernel: usb usb2: SerialNumber: 0000:01:00.0
+Sep 03 11:04:14 net-master-0x01 kernel: hub 2-0:1.0: USB hub found
+Sep 03 11:04:14 net-master-0x01 kernel: hub 2-0:1.0: 4 ports detected
+Sep 03 11:04:14 net-master-0x01 kernel: dwc_otg: version 3.00a 10-AUG-2012 (platform bus)
+Sep 03 11:04:14 net-master-0x01 kernel: dwc_otg: FIQ enabled
+Sep 03 11:04:14 net-master-0x01 kernel: dwc_otg: NAK holdoff enabled
+Sep 03 11:04:14 net-master-0x01 kernel: dwc_otg: FIQ split-transaction FSM enabled
+Sep 03 11:04:14 net-master-0x01 kernel: Module dwc_common_port init
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new interface driver uas
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new interface driver usb-storage
+Sep 03 11:04:14 net-master-0x01 kernel: mousedev: PS/2 mouse device common for all mice
+Sep 03 11:04:14 net-master-0x01 kernel: sdhci: Secure Digital Host Controller Interface driver
+Sep 03 11:04:14 net-master-0x01 kernel: sdhci: Copyright(c) Pierre Ossman
+Sep 03 11:04:14 net-master-0x01 kernel: sdhci-pltfm: SDHCI platform and OF driver helper
+Sep 03 11:04:14 net-master-0x01 kernel: hid: raw HID events driver (C) Jiri Kosina
+Sep 03 11:04:14 net-master-0x01 kernel: usbcore: registered new interface driver usbhid
+Sep 03 11:04:14 net-master-0x01 kernel: usbhid: USB HID core driver
+Sep 03 11:04:14 net-master-0x01 kernel: hw perfevents: enabled with armv8_cortex_a72 PMU driver, 7 (0,8000003f) counters available
+Sep 03 11:04:14 net-master-0x01 kernel: NET: Registered PF_PACKET protocol family
+Sep 03 11:04:14 net-master-0x01 kernel: Key type dns_resolver registered
+Sep 03 11:04:14 net-master-0x01 kernel: registered taskstats version 1
+Sep 03 11:04:14 net-master-0x01 kernel: Loading compiled-in X.509 certificates
+Sep 03 11:04:14 net-master-0x01 kernel: Demotion targets for Node 0: null
+Sep 03 11:04:14 net-master-0x01 kernel: Demotion targets for Node 1: null
+Sep 03 11:04:14 net-master-0x01 kernel: Key type .fscrypt registered
+Sep 03 11:04:14 net-master-0x01 kernel: Key type fscrypt-provisioning registered
+Sep 03 11:04:14 net-master-0x01 kernel: uart-pl011 fe201000.serial: there is not valid maps for state default
+Sep 03 11:04:14 net-master-0x01 kernel: uart-pl011 fe201000.serial: cts_event_workaround enabled
+Sep 03 11:04:14 net-master-0x01 kernel: fe201000.serial: ttyAMA1 at MMIO 0xfe201000 (irq = 39, base_baud = 0) is a PL011 rev3
+Sep 03 11:04:14 net-master-0x01 kernel: serial serial0: tty port ttyAMA1 registered
+Sep 03 11:04:14 net-master-0x01 kernel: bcm2835-wdt bcm2835-wdt: Broadcom BCM2835 watchdog timer
+Sep 03 11:04:14 net-master-0x01 kernel: bcm2835-power bcm2835-power: Broadcom BCM2835 power domains driver
+Sep 03 11:04:14 net-master-0x01 kernel: mmc-bcm2835 fe300000.mmcnr: mmc_debug:0 mmc_debug2:0
+Sep 03 11:04:14 net-master-0x01 kernel: mmc-bcm2835 fe300000.mmcnr: DMA channel allocated
+Sep 03 11:04:14 net-master-0x01 kernel: of_cfs_init
+Sep 03 11:04:14 net-master-0x01 kernel: of_cfs_init: OK
+Sep 03 11:04:14 net-master-0x01 kernel: clk: Disabling unused clocks
+Sep 03 11:04:14 net-master-0x01 kernel: PM: genpd: Disabling unused power domains
+Sep 03 11:04:14 net-master-0x01 kernel: mmc0: SDHCI controller on fe340000.mmc [fe340000.mmc] using ADMA
+Sep 03 11:04:14 net-master-0x01 kernel: Freeing unused kernel memory: 2048K
+Sep 03 11:04:14 net-master-0x01 kernel: Run /init as init process
+Sep 03 11:04:14 net-master-0x01 kernel:   with arguments:
+Sep 03 11:04:14 net-master-0x01 kernel:     /init
+Sep 03 11:04:14 net-master-0x01 kernel:   with environment:
+Sep 03 11:04:14 net-master-0x01 kernel:     HOME=/
+Sep 03 11:04:14 net-master-0x01 kernel:     TERM=linux
+Sep 03 11:04:14 net-master-0x01 kernel:     ds=nocloud;i=rpi-imager-1788423870688
+Sep 03 11:04:14 net-master-0x01 kernel: mmc1: new high speed SDIO card at address 0001
+Sep 03 11:04:14 net-master-0x01 kernel: mmc0: new UHS-I speed DDR50 SDXC card at address 0001
+Sep 03 11:04:14 net-master-0x01 kernel: mmcblk0: mmc0:0001 SD 58.2 GiB
+Sep 03 11:04:14 net-master-0x01 kernel:  mmcblk0: p1 p2
+Sep 03 11:04:14 net-master-0x01 kernel: mmcblk0: mmc0:0001 SD 58.2 GiB
+Sep 03 11:04:14 net-master-0x01 kernel: usb 1-1: new high-speed USB device number 2 using xhci_hcd
+Sep 03 11:04:14 net-master-0x01 kernel: usb 1-1: New USB device found, idVendor=2109, idProduct=3431, bcdDevice= 4.21
+Sep 03 11:04:14 net-master-0x01 kernel: usb 1-1: New USB device strings: Mfr=0, Product=1, SerialNumber=0
+Sep 03 11:04:14 net-master-0x01 kernel: usb 1-1: Product: USB2.0 Hub
+Sep 03 11:04:14 net-master-0x01 kernel: hub 1-1:1.0: USB hub found
+Sep 03 11:04:14 net-master-0x01 kernel: hub 1-1:1.0: 4 ports detected
+Sep 03 11:04:14 net-master-0x01 kernel: brcmstb-i2c fef04500.i2c:  @97500hz registered in polling mode
+Sep 03 11:04:14 net-master-0x01 kernel: brcmstb-i2c fef09500.i2c:  @97500hz registered in polling mode
+Sep 03 11:04:14 net-master-0x01 kernel: usb 2-2: new SuperSpeed USB device number 2 using xhci_hcd
+Sep 03 11:04:14 net-master-0x01 kernel: usb 2-2: New USB device found, idVendor=0e8d, idProduct=7961, bcdDevice= 1.00
+Sep 03 11:04:14 net-master-0x01 kernel: usb 2-2: New USB device strings: Mfr=2, Product=3, SerialNumber=4
+Sep 03 11:04:14 net-master-0x01 kernel: usb 2-2: Product: Wireless_Device
+Sep 03 11:04:14 net-master-0x01 kernel: usb 2-2: Manufacturer: MediaTek Inc.
+Sep 03 11:04:14 net-master-0x01 kernel: usb 2-2: SerialNumber: 000000000
+Sep 03 11:04:14 net-master-0x01 kernel: EXT4-fs (mmcblk0p2): orphan cleanup on readonly fs
+Sep 03 11:04:14 net-master-0x01 kernel: EXT4-fs (mmcblk0p2): mounted filesystem 15f4c6be-1102-4331-9904-f78e78afd1fd ro with ordered data mode. Quota mode: none.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: System time advanced to timestamp on /var/lib/systemd/timesync/clock: Thu 2026-09-03 11:04:12 CEST
+Sep 03 11:04:14 net-master-0x01 kernel: NET: Registered PF_INET6 protocol family
+Sep 03 11:04:14 net-master-0x01 kernel: Segment Routing with IPv6
+Sep 03 11:04:14 net-master-0x01 kernel: In-situ OAM (IOAM) with IPv6
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd 257.13-1~deb13u1 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +IPE +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF -XKBCOMMON -UTMP +SYSVINIT +LIBARCHIVE)
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Detected architecture arm64.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Hostname set to <net-master-0x01>.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: bpf-restrict-fs: BPF LSM hook not enabled in the kernel, BPF LSM not supported.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Using hardware watchdog 'Broadcom BCM2835 Watchdog timer', version 0, device /dev/watchdog0
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Watchdog running with a hardware timeout of 1min.
+Sep 03 11:04:14 net-master-0x01 zram_generator::config[213]: zram0: system has too much memory (3795MB), limit is 0MB, ignoring.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Queued start job for default target multi-user.target.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Created slice system-getty.slice - Slice /system/getty.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Created slice system-rpi\x2dsetup\x2dloop.slice - Slice /system/rpi-setup-loop.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Created slice system-systemd\x2dfsck.slice - Slice /system/systemd-fsck.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Created slice system-systemd\x2dzram\x2dsetup.slice - Slice /system/systemd-zram-setup.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Created slice user.slice - User and Session Slice.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Expecting device dev-disk-by\x2dpartuuid-21dfc53e\x2d01.device - /dev/disk/by-partuuid/21dfc53e-01...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Expecting device dev-zram0.device - /dev/zram0...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Reached target paths.target - Path Units.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Reached target remote-fs.target - Remote File Systems.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Reached target slices.target - Slice Units.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Listening on systemd-creds.socket - Credential Encryption/Decryption.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Listening on systemd-journald.socket - Journal Sockets.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-pcrextend.socket - TPM PCR Measurements skipped, unmet condition check ConditionSecurity=measured-uki
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-pcrlock.socket - Make TPM PCR Policy skipped, unmet condition check ConditionSecurity=measured-uki
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: dev-hugepages.mount - Huge Pages File System skipped, unmet condition check ConditionPathExists=/sys/kernel/mm/hugepages
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounting run-lock.mount - Legacy Locks Directory /run/lock...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting keyboard-setup.service - Set the console keyboard layout...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-fsck-root.service - File System Check on Root Device skipped, unmet condition check ConditionPathExists=!/run/initramfs/fsck-root
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-hibernate-clear.service - Clear Stale Hibernate Storage Info skipped, unmet condition check ConditionPathExists=/sys/firmware/efi/efivars/HibernateLocation-8cf2644b-4b0b-428f-9387-6d876050dc67
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-journald.service - Journal Service...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-pcrmachine.service - TPM PCR Machine ID Measurement skipped, unmet condition check ConditionSecurity=measured-uki
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-tpm2-setup-early.service - Early TPM SRK Setup skipped, unmet condition check ConditionSecurity=measured-uki
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-udev-load-credentials.service - Load udev Rules from Credentials...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounted run-lock.mount - Legacy Locks Directory /run/lock.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounted sys-kernel-tracing.mount - Kernel Trace File System.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished kmod-static-nodes.service - Create List of Static Device Nodes.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: modprobe@configfs.service: Deactivated successfully.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+Sep 03 11:04:14 net-master-0x01 kernel: fuse: init (API version 7.45)
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounting sys-kernel-config.mount - Kernel Configuration File System...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: modprobe@fuse.service: Deactivated successfully.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished modprobe@fuse.service - Load Kernel Module fuse.
+Sep 03 11:04:14 net-master-0x01 kernel: zram: Added device: zram0
+Sep 03 11:04:14 net-master-0x01 kernel: EXT4-fs (mmcblk0p2): re-mounted 15f4c6be-1102-4331-9904-f78e78afd1fd r/w.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounting sys-fs-fuse-connections.mount - FUSE Control File System...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: modprobe@drm.service: Deactivated successfully.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished systemd-remount-fs.service - Remount Root and Kernel File Systems.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished systemd-udev-load-credentials.service - Load udev Rules from Credentials.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: regenerate_ssh_host_keys.service - Regenerate SSH host keys skipped, unmet condition check ConditionFirstBoot=yes
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting rpi-resize-swap-file.service - rpi-resize-var-swap-service - resize swapfile...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-hwdb-update.service - Rebuild Hardware Database skipped, unmet condition check ConditionNeedsUpdate=/etc
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-pstore.service - Platform Persistent Storage Archival skipped, unmet condition check ConditionDirectoryNotEmpty=/sys/fs/pstore
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-random-seed.service - Load/Save OS Random Seed...
+Sep 03 11:04:14 net-master-0x01 systemd-journald[290]: Collecting audit messages is disabled.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-sysctl.service - Apply Kernel Variables...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-tpm2-setup.service - TPM SRK Setup skipped, unmet condition check ConditionSecurity=measured-uki
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounted sys-kernel-config.mount - Kernel Configuration File System.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Mounted sys-fs-fuse-connections.mount - FUSE Control File System.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Finished systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: systemd-sysusers.service - Create System Users skipped, no trigger condition checks were met.
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-timesyncd.service - Network Time Synchronization...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Starting systemd-tmpfiles-setup-dev.service - Create Static Device Nodes in /dev...
+Sep 03 11:04:14 net-master-0x01 systemd[1]: Started systemd-journald.service - Journal Service.
+Sep 03 11:04:15 net-master-0x01 systemd-journald[290]: Received client request to flush runtime journal.
+Sep 03 11:04:15 net-master-0x01 systemd-journald[290]: /var/log/journal/eae35a63e72d446fb695890ec9d45202/system.journal: Realtime clock jumped backwards relative to last journal entry, rotating.
+Sep 03 11:04:15 net-master-0x01 systemd-journald[290]: Rotating system journal.
+Sep 03 11:04:15 net-master-0x01 kernel: loop0: detected capacity change from 0 to 4194304
+Sep 03 11:04:15 net-master-0x01 kernel: zram: setup backing device /dev/disk/by-backingfile/var-swap
+Sep 03 11:04:15 net-master-0x01 kernel: zram0: detected capacity change from 0 to 4194304
+Sep 03 11:04:15 net-master-0x01 kernel: Adding 2097148k swap on /dev/zram0.  Priority:100 extents:1 across:2097148k SS
+Sep 03 11:04:15 net-master-0x01 kernel: rpi-gpiomem fe200000.gpiomem: window base 0xfe200000 size 0x00001000
+Sep 03 11:04:15 net-master-0x01 kernel: rpi-gpiomem fe200000.gpiomem: initialised 1 regions as /dev/gpiomem
+Sep 03 11:04:15 net-master-0x01 kernel: mc: Linux media interface: v0.10
+Sep 03 11:04:15 net-master-0x01 kernel: snd_bcm2835: module is from the staging directory, the quality is unknown, you have been warned.
+Sep 03 11:04:15 net-master-0x01 kernel: bcm2835-audio bcm2835-audio: card created with 8 channels
+Sep 03 11:04:15 net-master-0x01 kernel: videodev: Linux video capture interface: v2.00
+Sep 03 11:04:15 net-master-0x01 kernel: v3d fec00000.v3d: [drm] Transparent Hugepage support is recommended for optimal performance on this platform!
+Sep 03 11:04:15 net-master-0x01 kernel: [drm] Initialized v3d 1.0.0 for fec00000.v3d on minor 0
+Sep 03 11:04:15 net-master-0x01 kernel: vc_sm_cma: module is from the staging directory, the quality is unknown, you have been warned.
+Sep 03 11:04:15 net-master-0x01 kernel: bcm2835_vc_sm_cma_probe: Videocore shared memory driver
+Sep 03 11:04:15 net-master-0x01 kernel: [vc_sm_connected_init]: start
+Sep 03 11:04:15 net-master-0x01 kernel: [vc_sm_connected_init]: installed successfully
+Sep 03 11:04:15 net-master-0x01 kernel: bcm2835_mmal_vchiq: module is from the staging directory, the quality is unknown, you have been warned.
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: Core ver 2.22
+Sep 03 11:04:16 net-master-0x01 kernel: cfg80211: Loading compiled-in X.509 certificates for regulatory database
+Sep 03 11:04:16 net-master-0x01 kernel: NET: Registered PF_BLUETOOTH protocol family
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: HCI device and connection manager initialized
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: HCI socket layer initialized
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: L2CAP socket layer initialized
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: SCO socket layer initialized
+Sep 03 11:04:16 net-master-0x01 kernel: Loaded X.509 cert 'benh@debian.org: 577e021cb980e0e820821ba7b54b4961b8b4fadf'
+Sep 03 11:04:16 net-master-0x01 kernel: Loaded X.509 cert 'romain.perier@gmail.com: 3abbc6ec146e09d1b6016ab9d6cf71dd233f0328'
+Sep 03 11:04:16 net-master-0x01 kernel: Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+Sep 03 11:04:16 net-master-0x01 kernel: Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835_codec: module is from the staging directory, the quality is unknown, you have been warned.
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Device registered as /dev/video10
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Loaded V4L2 decode
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Device registered as /dev/video11
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Loaded V4L2 encode
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835_isp: module is from the staging directory, the quality is unknown, you have been warned.
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835_v4l2: module is from the staging directory, the quality is unknown, you have been warned.
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Device registered as /dev/video12
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Loaded V4L2 isp
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: HCI UART driver ver 2.3
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: HCI UART protocol H4 registered
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Device registered as /dev/video18
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Loaded V4L2 image_fx
+Sep 03 11:04:16 net-master-0x01 kernel: rpi-hevc-dec feb00000.codec: Device registered as /dev/video19
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: HCI UART protocol Three-wire (H5) registered
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node output[0] registered as /dev/video13
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: HCI UART protocol Broadcom registered
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Device registered as /dev/video31
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-codec bcm2835-codec: Loaded V4L2 encode_image
+Sep 03 11:04:16 net-master-0x01 kernel: hci_uart_bcm serial0-0: supply vbat not found, using dummy regulator
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fe400000.hvs (ops vc4_hvs_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node capture[0] registered as /dev/video14
+Sep 03 11:04:16 net-master-0x01 kernel: brcmfmac: F1 signature read @0x18000000=0x15264345
+Sep 03 11:04:16 net-master-0x01 kernel: brcmfmac: brcmf_fw_alloc_request: using brcm/brcmfmac43455-sdio for chip BCM4345/6
+Sep 03 11:04:16 net-master-0x01 kernel: hci_uart_bcm serial0-0: supply vddio not found, using dummy regulator
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node capture[1] registered as /dev/video15
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node stats[2] registered as /dev/video16
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register output node 0 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register capture node 1 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register capture node 2 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register capture node 3 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: usbcore: registered new interface driver brcmfmac
+Sep 03 11:04:16 net-master-0x01 kernel: Registered IR keymap rc-cec
+Sep 03 11:04:16 net-master-0x01 kernel: rc rc0: vc4-hdmi-0 as /devices/platform/soc/fef00700.hdmi/rc/rc0
+Sep 03 11:04:16 net-master-0x01 kernel: input: vc4-hdmi-0 as /devices/platform/soc/fef00700.hdmi/rc/rc0/input0
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node output[0] registered as /dev/video20
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node capture[0] registered as /dev/video21
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node capture[1] registered as /dev/video22
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Device node stats[2] registered as /dev/video23
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register output node 0 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register capture node 1 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register capture node 2 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Register capture node 3 with media controller
+Sep 03 11:04:16 net-master-0x01 kernel: input: vc4-hdmi-0 HDMI Jack as /devices/platform/soc/fef00700.hdmi/sound/card1/input1
+Sep 03 11:04:16 net-master-0x01 kernel: bcm2835-isp bcm2835-isp: Loaded V4L2 bcm2835-isp
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fef00700.hdmi (ops vc4_hdmi_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: Registered IR keymap rc-cec
+Sep 03 11:04:16 net-master-0x01 kernel: rc rc1: vc4-hdmi-1 as /devices/platform/soc/fef05700.hdmi/rc/rc1
+Sep 03 11:04:16 net-master-0x01 kernel: input: vc4-hdmi-1 as /devices/platform/soc/fef05700.hdmi/rc/rc1/input2
+Sep 03 11:04:16 net-master-0x01 kernel: input: vc4-hdmi-1 HDMI Jack as /devices/platform/soc/fef05700.hdmi/sound/card2/input3
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fef05700.hdmi (ops vc4_hdmi_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fe004000.txp (ops vc4_txp_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fe206000.pixelvalve (ops vc4_crtc_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fe207000.pixelvalve (ops vc4_crtc_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fe20a000.pixelvalve (ops vc4_crtc_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fe216000.pixelvalve (ops vc4_crtc_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: bound fec12000.pixelvalve (ops vc4_crtc_ops [vc4])
+Sep 03 11:04:16 net-master-0x01 kernel: [drm] Initialized vc4 0.0.0 for gpu on minor 1
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: [drm] Cannot find any crtc or sizes
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: [drm] Cannot find any crtc or sizes
+Sep 03 11:04:16 net-master-0x01 kernel: vc4-drm gpu: [drm] Cannot find any crtc or sizes
+Sep 03 11:04:16 net-master-0x01 kernel: brcmfmac: brcmf_c_process_txcap_blob: no txcap_blob available (err=-2)
+Sep 03 11:04:16 net-master-0x01 kernel: brcmfmac: brcmf_c_preinit_dcmds: Firmware: BCM4345/6 wl0: Aug 29 2023 01:47:08 version 7.45.265 (28bca26 CY) FWID 01-b677b91b
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: hci0: BCM: chip id 107
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: hci0: BCM: features 0x2f
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: hci0: BCM4345C0
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: hci0: BCM4345C0 (003.001.025) build 0000
+Sep 03 11:04:16 net-master-0x01 kernel: Bluetooth: hci0: BCM4345C0 'brcm/BCM4345C0.raspberrypi,4-model-b.hcd' Patch
+Sep 03 11:04:16 net-master-0x01 kernel: mt76: loading out-of-tree module taints kernel.
+Sep 03 11:04:16 net-master-0x01 kernel: usb 2-2: reset SuperSpeed USB device number 2 using xhci_hcd
+Sep 03 11:04:16 net-master-0x01 kernel: usbcore: registered new interface driver mt7921u
+Sep 03 11:04:16 net-master-0x01 kernel: mt7921u 2-2:1.0: HW/SW Version: 0x8a108a10, Build Time: 20241106151007a
+Sep 03 11:04:17 net-master-0x01 kernel: mt7921u 2-2:1.0: WM Firmware Version: ____010000, Build Time: 20241106151045
+Sep 03 11:04:17 net-master-0x01 kernel: Bluetooth: hci0: BCM: features 0x2f
+Sep 03 11:04:17 net-master-0x01 kernel: Bluetooth: hci0: BCM43455 37.4MHz Raspberry Pi 3+-0190
+Sep 03 11:04:17 net-master-0x01 kernel: Bluetooth: hci0: BCM4345C0 (003.001.025) build 0382
+Sep 03 11:04:19 net-master-0x01 kernel: Bluetooth: BNEP (Ethernet Emulation) ver 1.3
+Sep 03 11:04:19 net-master-0x01 kernel: Bluetooth: BNEP filters: protocol multicast
+Sep 03 11:04:19 net-master-0x01 kernel: Bluetooth: BNEP socket layer initialized
+Sep 03 11:04:19 net-master-0x01 kernel: Bluetooth: MGMT ver 1.23
+Sep 03 11:04:19 net-master-0x01 kernel: NET: Registered PF_ALG protocol family
+Sep 03 11:04:19 net-master-0x01 kernel: Bluetooth: RFCOMM TTY layer initialized
+Sep 03 11:04:19 net-master-0x01 kernel: Bluetooth: RFCOMM socket layer initialized
+Sep 03 11:04:19 net-master-0x01 kernel: Bluetooth: RFCOMM ver 1.11
+Sep 03 11:04:24 net-master-0x01 kernel: bcmgenet fd580000.ethernet: configuring instance for external RGMII (RX delay)
+Sep 03 11:04:24 net-master-0x01 kernel: bcmgenet fd580000.ethernet eth0: Link is Down
+Sep 03 11:04:28 net-master-0x01 kernel: bcmgenet fd580000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+Sep 03 11:14:02 net-master-0x01 kernel: usbcore: deregistering interface driver mt7921u
+Sep 03 11:14:08 net-master-0x01 kernel: usb 2-2: reset SuperSpeed USB device number 2 using xhci_hcd
+Sep 03 11:14:08 net-master-0x01 kernel: usbcore: registered new interface driver mt7921u
+Sep 03 11:14:08 net-master-0x01 kernel: mt7921u 2-2:1.0: HW/SW Version: 0x8a108a10, Build Time: 20241106151007a
+Sep 03 11:14:08 net-master-0x01 kernel: mt7921u 2-2:1.0: WM Firmware Version: ____010000, Build Time: 20241106151045
+Sep 03 11:15:44 net-master-0x01 kernel: wlan1: authenticate with dc:39:6f:ed:ba:e7 (local address=e8:4e:06:b0:27:dc)
+Sep 03 11:15:45 net-master-0x01 kernel: wlan1: send auth to dc:39:6f:ed:ba:e7 (try 1/3)
+Sep 03 11:15:45 net-master-0x01 kernel: wlan1: authenticated
+Sep 03 11:15:45 net-master-0x01 kernel: wlan1: associate with dc:39:6f:ed:ba:e7 (try 1/3)
+Sep 03 11:15:45 net-master-0x01 kernel: wlan1: RX AssocResp from dc:39:6f:ed:ba:e7 (capab=0x1431 status=0 aid=1)
+Sep 03 11:15:45 net-master-0x01 kernel: wlan1: associated
+Sep 03 11:15:45 net-master-0x01 kernel: wlan1: Limiting TX power to 20 (20 - 0) dBm as advertised by dc:39:6f:ed:ba:e7
+Sep 03 11:16:41 net-master-0x01 kernel: wlan1: deauthenticating from dc:39:6f:ed:ba:e7 by local choice (Reason: 3=DEAUTH_LEAVING)
+Sep 03 11:16:44 net-master-0x01 kernel: wlan1: authenticate with dc:39:6f:ed:ba:e7 (local address=e8:4e:06:b0:27:dc)
+Sep 03 11:16:44 net-master-0x01 kernel: wlan1: send auth to dc:39:6f:ed:ba:e7 (try 1/3)
+Sep 03 11:16:44 net-master-0x01 kernel: wlan1: authenticated
+Sep 03 11:16:44 net-master-0x01 kernel: wlan1: associate with dc:39:6f:ed:ba:e7 (try 1/3)
+Sep 03 11:16:44 net-master-0x01 kernel: wlan1: RX AssocResp from dc:39:6f:ed:ba:e7 (capab=0x1431 status=0 aid=1)
+Sep 03 11:16:44 net-master-0x01 kernel: wlan1: associated
+Sep 03 11:16:44 net-master-0x01 kernel: wlan1: Limiting TX power to 20 (20 - 0) dBm as advertised by dc:39:6f:ed:ba:e7
+Sep 03 11:17:03 net-master-0x01 kernel: wlan1: deauthenticating from dc:39:6f:ed:ba:e7 by local choice (Reason: 3=DEAUTH_LEAVING)

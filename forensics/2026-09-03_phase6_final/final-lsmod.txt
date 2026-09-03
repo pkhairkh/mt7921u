@@ -1,0 +1,9 @@
+mt7921u                12288  0
+mt7921_common         102400  1 mt7921u
+mt792x_usb             16384  1 mt7921u
+mt792x_lib             61440  3 mt792x_usb,mt7921_common,mt7921u
+mt76_connac_lib        90112  3 mt792x_lib,mt7921_common,mt7921u
+mt76_usb               40960  2 mt792x_usb,mt7921u
+mt76                  143360  6 mt792x_lib,mt792x_usb,mt76_usb,mt7921_common,mt76_connac_lib,mt7921u
+mac80211             1163264  4 mt792x_lib,mt76,mt7921_common,mt76_connac_lib
+cfg80211             1085440  6 mt76,brcmfmac_cyw,brcmfmac,mac80211,mt7921_common,mt76_connac_lib

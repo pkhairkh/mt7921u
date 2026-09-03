@@ -858,3 +858,31 @@ The following test plan is designed to provide runtime verification of the findi
 **Expected outcome (with CLC data, assuming Patch 4 is successful):** The transmit power should conform to the configured regulatory domain.
 
 **Note:** This test requires specialized RF measurement equipment and should be conducted in a controlled laboratory environment.
+
+---
+
+## Part II Addendum (2026-09-03): Runtime-Proven Bug Found During Deployment
+
+### BUG-07: Double `dev->mt76.mutex` acquisition in `mt7921_mac_sta_remove` — Disconnect Self-Deadlock
+
+| Field | Value |
+|-------|-------|
+| **Severity** | Critical (full system wedge, watchdog reset) |
+| **Category** | Deadlock / port-skew |
+| **Evidence** | `EVIDENCE: PROVEN` (runtime capture + code reading + fix verification) |
+| **Location** | `mt7921/main.c:959` (acquire) / `mt7921/main.c:983` (release) vs `mt76/mac80211.c:1630` (`mt76_sta_remove` wrapper) |
+| **Status** | **FIXED + RUNTIME VERIFIED** (2026-09-03) |
+| **Fix** | Remove the `mt792x_mutex_acquire(dev)` / `mt792x_mutex_release(dev)` pair from `mt7921_mac_sta_remove`; the mt76 core wrapper already holds the mutex around `drv->sta_remove` |
+
+#### Finding
+
+The mt76 core changed its locking contract: `mt76_sta_state()` -> (inlined) `mt76_sta_remove()` holds `dev->mt76.mutex` while calling `dev->drv->sta_remove`. The vendored mt7921 port kept the legacy self-locking style in `mt7921_mac_sta_remove()` (`mt792x_mutex_acquire(dev)` = `mutex_lock(&dev->mt76.mutex)`), producing a recursive acquisition of a non-recursive mutex on every STA removal under the wrapper.
+
+Asymmetry explains the "connect works, disconnect kills" symptom: `mt7921_mac_sta_add()` does NOT internally acquire (safe under wrapper); `mt7921_mac_sta_event()` acquires but is called WITHOUT the wrapper (safe); only the remove path double-locks.
+
+#### Runtime proof (2026-09-03, Pi 4, kernel 6.18.34+rpt-rpi-v8)
+
+- Pre-fix `nmcli device disconnect`: rc=3 ('Timeout 10 sec expired'), hung_task reports wpa_supplicant:628 D-state blocked in `mutex_lock` from `mt7921_mac_sta_remove+0x60` via `nl80211_deauthenticate -> ieee80211_set_disassoc -> __sta_info_flush -> drv_sta_state -> mt76_sta_state`; kernel: "mutex likely owned by task wpa_supplicant:628" = self-deadlock; kworkers `cfg80211_wiphy_work` and `mt792x_mac_work` pile up behind it; BCM2835 watchdog (60 s) hard-resets the box ~2 min later. Full logs: `forensics/2026-09-03_phase5/`.
+- Post-fix: two full connect/disconnect cycles rc=0, zero dmesg noise, zero hung tasks, no reset. Full logs: `forensics/2026-09-03_phase6_final/`.
+
+This bug reproduces the three historical machine freezes attributed to "NM connect/disconnect on the dongle" — the trigger was the disconnect STA-removal path, not NetworkManager itself.

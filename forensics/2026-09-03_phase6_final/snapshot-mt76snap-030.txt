@@ -1,0 +1,1 @@
+[  522.063448] wlan1: deauthenticating from dc:39:6f:ed:ba:e7 by local choice (Reason: 3=DEAUTH_LEAVING)
