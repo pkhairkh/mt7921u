@@ -49,3 +49,4 @@ Module.symvers
 *.a
 *.unsigned
 *.usr
+*.mod.c
