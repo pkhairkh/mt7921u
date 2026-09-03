@@ -38,3 +38,8 @@
 - The post-CHECKPOINT-5 outage (11:20-11:36 CEST) remains UNEXPLAINED but unreproduced: no forensic signature (quiet journal, empty pstore), and the identical state was held clean for 10 min in S5 + this reboot cycle. Most consistent with external power/network intervention, driver-side silent-freeze not excluded but now heavily tested against.
 - Harness bugs (3) were found and corrected in-run; all recounts confirmed true PASS (documented in STATUS-S1/S2/S3).
 - Long-duration soak (>1h) and AP-side edge cases (DFS radar, band steering) not covered - follow-up optional.
+
+## Appendix: grep-artifact clarification (10:20 UTC)
+- 'boot dmesg badness: 3' in S6 raw output = the three ramoops banner lines ('ram**oops**' matches the 'oops' pattern; known artifact since S0). No actual oops/panic/hung-task occurred.
+- '6 matches' for boot -1 shutdown grep = systemd-shutdown's normal watchdog lines ('Using hardware watchdog ... / Watchdog running with a hardware timeout of 2min') + watchdog driver banner. Expected at every clean shutdown; NOT a watchdog reset event. Actual reset-free proof: pstore empty + clean journal end + normal boot -0 start.
+- Re-verified: this boot zero REAL badness; stack 7/7 patched (srcversion match); dongle unmanaged (state 10); eth0 connected; capture unit restarted.
