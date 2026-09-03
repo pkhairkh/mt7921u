@@ -915,7 +915,7 @@ failed recovery cycles, RX-URB watchdog while associated.
 |-------|-------|
 | **Severity** | Critical (userspace D-storm → systemd stall → freeze, even with patches/0012 active) |
 | **Evidence** | PROVEN (source-level call-graph math + runtime D-stack correlation from live sessions 2026-09-04 19:00-23:59) |
-| **Status** | Patched (patches/0013, offline draft — needs on-target build + runtime verification) |
+| **Status** | Patched (patches/0013; **built + installed on-target 2026-09-05**, kernel 6.18.34+rpt-rpi-v8, updates/; runtime verification pending next dongle attach) |
 | **Found by** | Offline audit session 4 (device unreachable, analysis against this repo + session worklog) |
 
 ### Mechanism (proven)
@@ -958,7 +958,7 @@ This explains why the box still froze 4× on 2026-09-04 22:47-23:59 despite the 
 |-------|-------|
 | **Severity** | Critical (freeze loop: recovery cycles never terminate, watchdogs die after first reset) |
 | **Evidence** | PROVEN (source-level, on-target audit of the 0012+0013 tree on the Pi, 2026-09-05) |
-| **Status** | Patched (patches/0014, built on-target) |
+| **Status** | Patched (patches/0014; **built + installed on-target 2026-09-05**, kernel 6.18.34+rpt-rpi-v8, updates/; runtime verification pending next dongle attach) |
 | **Found by** | Full-tree solo audit ("quirks out" session, 2026-09-05) |
 
 ### Findings
