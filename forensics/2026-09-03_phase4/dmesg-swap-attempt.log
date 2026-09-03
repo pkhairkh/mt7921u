@@ -1,0 +1,32 @@
+[  340.075560] usbcore: deregistering interface driver mt7921u
+[  342.473237] mt792x_usb: loading out-of-tree module taints kernel.
+[  342.473277] mt792x_usb: disagrees about version of symbol mt792x_stop
+[  342.473282] mt792x_usb: Unknown symbol mt792x_stop (err -22)
+[  342.473296] mt792x_usb: disagrees about version of symbol __mt76u_vendor_request
+[  342.473299] mt792x_usb: Unknown symbol __mt76u_vendor_request (err -22)
+[  342.473308] mt792x_usb: disagrees about version of symbol ___mt76u_wr
+[  342.473311] mt792x_usb: Unknown symbol ___mt76u_wr (err -22)
+[  342.473326] mt792x_usb: disagrees about version of symbol mt76u_resume_rx
+[  342.473329] mt792x_usb: Unknown symbol mt76u_resume_rx (err -22)
+[  342.473342] mt792x_usb: disagrees about version of symbol mt76_free_device
+[  342.473345] mt792x_usb: Unknown symbol mt76_free_device (err -22)
+[  342.473352] mt792x_usb: disagrees about version of symbol mt76u_queues_deinit
+[  342.473355] mt792x_usb: Unknown symbol mt76u_queues_deinit (err -22)
+[  342.473365] mt792x_usb: disagrees about version of symbol mt76_unregister_device
+[  342.473368] mt792x_usb: Unknown symbol mt76_unregister_device (err -22)
+[  342.473376] mt792x_usb: disagrees about version of symbol mt76u_stop_tx
+[  342.473379] mt792x_usb: Unknown symbol mt76u_stop_tx (err -22)
+[  342.473385] mt792x_usb: disagrees about version of symbol mt76u_vendor_request
+[  342.473388] mt792x_usb: Unknown symbol mt76u_vendor_request (err -22)
+[  342.473395] mt792x_usb: disagrees about version of symbol ____mt76_poll_msec
+[  342.473398] mt792x_usb: Unknown symbol ____mt76_poll_msec (err -22)
+[  342.473410] mt792x_usb: disagrees about version of symbol mt76u_stop_rx
+[  342.473413] mt792x_usb: Unknown symbol mt76u_stop_rx (err -22)
+[  342.473419] mt792x_usb: disagrees about version of symbol ___mt76u_rr
+[  342.473422] mt792x_usb: Unknown symbol ___mt76u_rr (err -22)
+[  342.473430] mt792x_usb: disagrees about version of symbol __mt76_poll
+[  342.473433] mt792x_usb: Unknown symbol __mt76_poll (err -22)
+[  398.931926] usb 2-2: reset SuperSpeed USB device number 2 using xhci_hcd
+[  398.982244] usbcore: registered new interface driver mt7921u
+[  398.983917] mt7921u 2-2:1.0: HW/SW Version: 0x8a108a10, Build Time: 20241106151007a
+[  398.996059] mt7921u 2-2:1.0: WM Firmware Version: ____010000, Build Time: 20241106151045
