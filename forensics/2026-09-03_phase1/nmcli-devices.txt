@@ -1,0 +1,5 @@
+DEVICE  TYPE      STATE                   CONNECTION   
+eth0    ethernet  connected               netplan-eth0 
+lo      loopback  connected (externally)  lo           
+wlan0   wifi      unmanaged               --           
+wlan1   wifi      unmanaged               --           

@@ -1,0 +1,2 @@
+[keyfile]
+unmanaged-devices=driver:mt7921u,driver:mt792x_usb,interface-name:wlan0,interface-name:wlan1,interface-name:wlan2

@@ -1,0 +1,3 @@
+NAME          UUID                                  TYPE      DEVICE 
+netplan-eth0  75a1216a-9d1a-30cd-8aca-ace5526ec021  ethernet  eth0   
+lo            e92796a6-776d-4e59-b8da-be01a1e3d4ac  loopback  lo     
