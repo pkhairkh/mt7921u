@@ -171,6 +171,48 @@ static void mt7921_mac_sta_poll(struct mt792x_dev *dev)
         }
 }
 
+
+/* BUG-10 fix (repo): real per-channel noise floor for survey/ACS.
+ * Upstream mt7921 only updates survey data for the CURRENT channel
+ * (MIB/IRPI reads in mt792x_update_channel). Channels visited only by
+ * firmware scans never report SURVEY_INFO_NOISE_DBM, so hostapd
+ * survey-based ACS aborts with "Survey is missing noise floor".
+ * During FW scans the RX path knows each frame's channel (RXD3
+ * CH_FREQ) and its RCPI; track the weakest decoded signal per channel
+ * as the noise+interference floor estimate.
+ */
+static void mt7921_rx_update_chan_nf(struct mt792x_dev *dev, u8 chfreq,
+                                     enum nl80211_band band, s8 signal)
+{
+        struct mt76_phy *mphy = &dev->mt76.phy;
+        struct mt76_sband *msband;
+        int freq, i;
+
+        if (chfreq == 0 || signal == -128 ||
+            !test_bit(MT76_HW_SCANNING, &mphy->state))
+                return;
+
+        freq = ieee80211_channel_to_frequency(chfreq, band);
+        if (!freq)
+                return;
+
+        if (band == NL80211_BAND_2GHZ)
+                msband = &mphy->sband_2g;
+        else if (band == NL80211_BAND_6GHZ)
+                msband = &mphy->sband_6g;
+        else
+                msband = &mphy->sband_5g;
+
+        for (i = 0; i < msband->sband.n_channels; i++)
+                if (msband->sband.channels[i].center_freq == freq)
+                        break;
+        if (i == msband->sband.n_channels)
+                return;
+
+        if (!msband->chan[i].noise || signal < msband->chan[i].noise)
+                msband->chan[i].noise = signal;
+}
+
 static int
 mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
 {
@@ -395,6 +437,9 @@ mt7921_mac_fill_rx(struct mt792x_dev *dev, struct sk_buff *skb)
                         status->signal = max(status->signal,
                                              status->chain_signal[i]);
                 }
+
+                mt7921_rx_update_chan_nf(dev, chfreq, status->band,
+                                         status->signal);
         }
 
         amsdu_info = FIELD_GET(MT_RXD4_NORMAL_PAYLOAD_FORMAT, rxd4);

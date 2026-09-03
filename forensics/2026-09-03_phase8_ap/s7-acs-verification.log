@@ -1,0 +1,21 @@
+BUG-10 POST-FIX VERIFICATION (s7u, kernel 6.18.34+rpt-rpi-v8, phy10/phy11)
+
+survey AFTER scan (38 noise lines):
+  2412 MHz noise: -62 dBm      2437 MHz noise: -66 dBm
+  2417 MHz noise: -110 dBm     2442 MHz noise: -60 dBm
+  2422..2432: -110             2447..2457: -110 (quiet -> receiver floor)
+  2472 MHz noise: -32 dBm (strong interferer on ch13)
+
+hostapd channel=0:
+  ACS: Survey analysis for channel 1 (2412 MHz)
+  ACS: 1: min_nf=-110 interference_factor=2.51189e-13 nf=-63 time=0 busy=0 rx=0
+  ACS: 2: min_nf=-110 interference_factor=1e-22 nf=-110 ...
+  ...
+  wlan1: ACS-COMPLETED freq=2457 channel=10
+  wlan1: AP-ENABLED
+  (round 1: AP on channel after 6s; rounds 2,3: ACS-COMPLETED channel=10, 6s each)
+
+vendor acs debugfs (now with real data):
+    1 (2412 MHz): 942  noise=-64 dBm     6 (2437 MHz): 939  noise=-63 dBm
+    7 (2442 MHz): 948  noise=-66 dBm    13 (2472 MHz): 846  noise=-32 dBm
+   quiet channels: noise=-110 dBm       recommended: 40 (5200 MHz) score 1150

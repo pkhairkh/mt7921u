@@ -1096,6 +1096,46 @@ static int mt7921_sta_state(struct ieee80211_hw *hw,
         return mt76_sta_state(hw, vif, sta, old_state, new_state);
 }
 
+/* BUG-10 fix (repo): survey noise-floor lifecycle.
+ * nf_reset: clear per-channel NF at scan start so each ACS round
+ * collects fresh data from that scan's dwell.
+ * fill_defaults: at scan completion, channels that decoded no frames
+ * get the receiver floor measured by the MIB/IRPI histogram (same RX
+ * chain; NF is channel-independent to first order). Falls back to a
+ * conservative -110 dBm if no MIB data is available yet.
+ */
+static void mt7921_survey_nf_reset(struct mt76_phy *mphy)
+{
+        struct mt76_sband *msband[] = { &mphy->sband_2g, &mphy->sband_5g,
+                                        &mphy->sband_6g };
+        int i, j;
+
+        for (i = 0; i < ARRAY_SIZE(msband); i++)
+                for (j = 0; j < msband[i]->sband.n_channels; j++)
+                        msband[i]->chan[j].noise = 0;
+}
+
+static void mt7921_survey_fill_defaults(struct mt792x_phy *phy)
+{
+        struct mt76_phy *mphy = phy->mt76;
+        struct mt76_sband *msband[] = { &mphy->sband_2g, &mphy->sband_5g,
+                                        &mphy->sband_6g };
+        s8 nf;
+        int i, j;
+
+        if (mphy->dev->drv->update_survey)
+                mphy->dev->drv->update_survey(mphy);
+
+        nf = mphy->chan_state->noise;
+        if (!nf)
+                nf = -110; /* conservative receiver floor */
+
+        for (i = 0; i < ARRAY_SIZE(msband); i++)
+                for (j = 0; j < msband[i]->sband.n_channels; j++)
+                        if (!msband[i]->chan[j].noise)
+                                msband[i]->chan[j].noise = nf;
+}
+
 void mt7921_scan_work(struct work_struct *work)
 {
         struct mt792x_phy *phy;
@@ -1123,6 +1163,9 @@ void mt7921_scan_work(struct work_struct *work)
                                 .aborted = false,
                         };
 
+                        mt792x_mutex_acquire(phy->dev);
+                        mt7921_survey_fill_defaults(phy);
+                        mt792x_mutex_release(phy->dev);
                         ieee80211_scan_completed(phy->mt76->hw, &info);
                 }
                 dev_kfree_skb(skb);
@@ -1138,6 +1181,7 @@ mt7921_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
         int err;
 
         mt792x_mutex_acquire(dev);
+        mt7921_survey_nf_reset(mphy);
         err = mt76_connac_mcu_hw_scan(mphy, vif, req);
         mt792x_mutex_release(dev);
 
