@@ -12,3 +12,15 @@
 - RULE for all future scripts: only ever run non-stdin-reading commands under sudo (cp, bash -c with file args, systemctl, modprobe); NEVER tee/cat-redirect under sudo with a password pipe.
 
 ## Next: single planned reboot to arm ramoops + prove journal persistence
+
+## Post-reboot verification (2026-09-03 08:52 UTC)
+- Reboot clean, SSH back in ~1 min
+- wlan0 + wlan1 both unmanaged (driver-based rule holds across boots; this boot: wlan0=brcmfmac onboard, wlan1=mt7921u dongle)
+- ramoops ARMED: 64 KiB reserved 0xb000000, pstore registered as persistent store backend
+- journald persistent: /var/log/journal/<machine-id>/system.journal + user-1000.journal exist (NOTE: pre-reboot volatile boot log did not migrate on shutdown flush - accepted loss; all future boots persist)
+- eth0 lifeline: default route via 192.168.178.1 intact
+
+## pstore
+total 0
+drwxr-x---  2 root root 0 Sep  3 10:49 .
+drwxr-xr-x 10 root root 0 Jan  1  1970 ..
