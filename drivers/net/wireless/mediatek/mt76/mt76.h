@@ -972,6 +972,7 @@ struct mt76_phy {
         u8 macaddr[ETH_ALEN];
 
         int txpower_cur;
+        int txpower_vif;
         u8 antenna_mask;
         u16 chainmask;
 

@@ -1,0 +1,28 @@
+POST-FIX VERIFICATION (s7o2 + s7j runs, kernel 6.18.34+rpt-rpi-v8, phy8/phy9)
+
+[AP up]       txpower 23.00 dBm          (channel max — real value, no longer garbage)
+SKU user rows BEFORE: CCK 20 / OFDM 24
+[iw set txpower fixed 1000]
+[fixed 10dBm] txpower 10.00 dBm
+SKU user rows @10dBm:  CCK 20 / OFDM 20  (== 2 x 10 dBm half-dB)
+[iw set txpower fixed 300]
+[fixed 3dBm]  txpower 3.00 dBm
+SKU user rows @3dBm:   CCK 6 / OFDM 6    (== 2 x 3 dBm half-dB)
+[fixed 20dBm] txpower 20.00 dBm
+[auto]        txpower 20.00 dBm          (regdom cap)
+
+END-TO-END (netns AP<->STA, WPA2-CCMP, live 1472B traffic during changes):
+[baseline]   signal: -4 dBm   AP-readback: txpower 10.00 dBm   loss: 0%
+[fixed 20dBm] signal: -5 dBm  AP-readback: txpower 20.00 dBm   loss: 0%
+[fixed 10dBm] signal: -7 dBm  AP-readback: txpower 10.00 dBm   loss: 0%
+[fixed 3dBm]  signal: -4 dBm  AP-readback: txpower 3.00 dBm    loss: 0%
+[fixed 20dBm again] signal: -11 dBm  AP-readback: txpower 20.00 dBm  loss: 0%
+[auto]        signal: -11 dBm  AP-readback: txpower 20.00 dBm  loss: 0%
+(rssi = near-field saturated AGC; authoritative proof = readback + SKU table)
+
+Radio path: 15/15, 15/15, 20/20 pings 0% loss; 130 Mbps MCS15 both directions;
+tx retries 0, tx failed 0. dmesg mt76/mt79 error filter: EMPTY.
+
+ftrace (pre-fix, proving the bug):
+              iw-12344   [003] .....  mt7921_bss_info_changed <- drv_link_info_changed
+  (only bss_info_changed fired; mt7921_config + set_tx_sar_pwr never called)

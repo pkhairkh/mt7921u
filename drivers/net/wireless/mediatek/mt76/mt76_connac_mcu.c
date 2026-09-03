@@ -2215,6 +2215,8 @@ mt76_connac_mcu_rate_txpower_band(struct mt76_phy *phy,
         tx_power = 2 * phy->hw->conf.power_level;
         if (!tx_power)
                 tx_power = 127;
+        if (phy->txpower_vif)
+                tx_power = min_t(int, tx_power, phy->txpower_vif);
 
         if (band == NL80211_BAND_2GHZ) {
                 n_chan = ARRAY_SIZE(chan_list_2ghz);

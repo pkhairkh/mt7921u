@@ -677,6 +677,8 @@ void mt7921_set_runtime_pm(struct mt792x_dev *dev)
         mt76_connac_mcu_set_deep_sleep(&dev->mt76, pm->ds_enable);
 }
 
+static void mt7921_update_txpower_cur(struct ieee80211_hw *hw);
+
 static int mt7921_config(struct ieee80211_hw *hw, int radio_idx, u32 changed)
 {
         struct mt792x_dev *dev = mt792x_hw_dev(hw);
@@ -696,6 +698,9 @@ static int mt7921_config(struct ieee80211_hw *hw, int radio_idx, u32 changed)
                 if (ret)
                         goto out;
         }
+
+        if (changed & IEEE80211_CONF_CHANGE_CHANNEL)
+                mt7921_update_txpower_cur(hw);
 
         if (changed & IEEE80211_CONF_CHANGE_MONITOR) {
                 ieee80211_iterate_active_interfaces(hw,
@@ -755,6 +760,24 @@ static void mt7921_bss_info_changed(struct ieee80211_hw *hw,
                         phy->slottime = slottime;
                         mt792x_mac_set_timeing(phy);
                 }
+        }
+
+        if (changed & BSS_CHANGED_TXPOWER) {
+                struct mt76_phy *mphy = phy->mt76;
+
+                /* BUG-09 fix (repo): upstream mt7921 ignores BSS_CHANGED_TXPOWER
+                 * entirely (mac80211 delivers user txpower via bss_conf->txpower;
+                 * mt7996/main.c implements it, mt7921 never did -> iw set txpower
+                 * was a silent no-op at driver level). Store the per-vif limit
+                 * (half-dBm, 127 = unset) and reprogram the SKU + readback.
+                 */
+                if (info->txpower_type == NL80211_TX_POWER_AUTOMATIC ||
+                    info->txpower == INT_MIN)
+                        mphy->txpower_vif = 127;
+                else
+                        mphy->txpower_vif = 2 * info->txpower;
+
+                mt7921_set_tx_sar_pwr(hw, NULL);
         }
 
         if (changed & (BSS_CHANGED_BEACON |
@@ -1338,6 +1361,41 @@ static void mt7921_ipv6_addr_change(struct ieee80211_hw *hw,
 }
 #endif
 
+/* BUG-08 fix (repo): maintain mphy->txpower_cur so .get_txpower reports the
+ * real effective per-channel limit. Upstream mt76 never writes txpower_cur in
+ * the mt7921/connac path (mt7615/mcu.c, mt7996/mcu.c and mt7915/mcu.c all do),
+ * so iw dev info permanently reports an uninitialized value
+ * (txpower_cur=0 + 2-chain path delta 6 half-dB -> "3.00 dBm" garbage).
+ * Mirrors the same inputs the SET_RATE_TX_POWER MCU table uses:
+ * min(user, regdom, sar, sku) for the current channel, per-chain.
+ */
+static void mt7921_update_txpower_cur(struct ieee80211_hw *hw)
+{
+        struct mt76_phy *mphy = hw->priv;
+        struct mt76_power_limits limits = {};
+        struct ieee80211_channel *chan = mphy->chandef.chan;
+        int delta, tx_power;
+
+        if (!chan)
+                return;
+
+        tx_power = 2 * hw->conf.power_level;
+        if (!tx_power)
+                tx_power = 127;
+        if (mphy->txpower_vif)
+                tx_power = min_t(int, tx_power, mphy->txpower_vif);
+        if (tx_power == 127)
+                tx_power = 2 * chan->max_power; /* no user limit: channel max */
+
+        tx_power = mt76_connac_get_ch_power(mphy, chan, tx_power);
+        tx_power = mt76_get_sar_power(mphy, chan, tx_power);
+        tx_power = mt76_get_rate_power_limits(mphy, chan, &limits,
+                                              tx_power);
+
+        delta = mt76_tx_power_path_delta(hweight16(mphy->chainmask));
+        mphy->txpower_cur = tx_power - delta;
+}
+
 int mt7921_set_tx_sar_pwr(struct ieee80211_hw *hw,
                           const struct cfg80211_sar_specs *sar)
 {
@@ -1350,6 +1408,8 @@ int mt7921_set_tx_sar_pwr(struct ieee80211_hw *hw,
                         return err;
         }
         mt792x_init_acpi_sar_power(mt792x_hw_phy(hw), !sar);
+
+        mt7921_update_txpower_cur(hw);
 
         return mt76_connac_mcu_set_rate_txpower(mphy);
 }
