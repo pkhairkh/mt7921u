@@ -496,7 +496,12 @@ void mt792x_pm_power_save_work(struct work_struct *work)
         }
 
         if (!mt792x_mcu_fw_pmctrl(dev)) {
-                cancel_delayed_work(&mphy->mac_work);
+                /* BUG-15 (deep audit 2026-09-05): restore the upstream
+                 * sync cancel. A non-sync cancel lets a concurrently
+                 * running mac_work access registers while the chip is
+                 * already in fw-own (sleep) state. Bounded by the
+                 * fast-fail wedge mode, so sync waiting is safe. */
+                cancel_delayed_work_sync(&mphy->mac_work);
                 return;
         }
 out:

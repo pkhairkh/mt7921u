@@ -990,3 +990,74 @@ This explains why the box still froze 4× on 2026-09-04 22:47-23:59 despite the 
 |---|---|---|
 | `usbcore.quirks=0e8d:7961:n` (DELAY_CTRL_MSG on the MT7921U) | Harmful throttle: 200 ms `msleep` after **every** `usb_control_msg` — firmware download alone is thousands of control chunks; regressed driver load to minutes; deployed outside the repo without documentation or measured benefit; the driver itself already sets `disable_hub_initiated_lpm` and now owns wedge recovery end-to-end | **REMOVED** from the Pi cmdline |
 | `usb-storage.quirks=152d:0583:u` (JMS583 UAS→BOT) | Boot-critical, different subsystem: PHASE 10 proved 2/2 xHCI host death under UAS and the system root is on this SSD; no mt76-tree fix can substitute | **KEPT** (documented; revert = SSD loss under I/O) |
+
+---
+
+## Part VIII — Deep Solo Audit (2026-09-05, session 6)
+
+Full-tree read (all build-chain files + wdiff vs upstream v6.18 reference).
+Kernel target: 6.18.34+rpt-rpi-v8 (Pi 4B, aarch64, Debian 13). Device: MT7921U
+0e8d:7961 x2. Base lineage: post-v6.18 master snapshot (has beacon-mon,
+offchannel_notify, MT7902) + 6.12 compat layer + project features.
+
+### VIII.1 Fork identity (the "mega quirk" root)
+- Q-01 STRUCTURAL: entire tree re-indented to spaces (0 tab-indented lines
+  vs kernel style). Permanent divergence: 6,165 wdiff lines vs v6.18 before
+  semantics; no upstream patch will ever apply. Future syncs = manual re-ports.
+- Q-02 LICENSING: every file's SPDX changed ISC -> BSD-3-Clause-Clear,
+  including ISC-licensed files by Fietkau/Bianconi (agg-rx.c, tx.c,
+  mac80211.c, ...). Blocks upstream submission; legally wrong.
+- Q-04: mt792x_compat.h carries dual 6.12/6.13+ paths; 6.12 branches are
+  dead weight on the 6.18 target (kept for portability, documented).
+
+### VIII.2 Quirks removed this audit (code changes, build RC=0)
+- BUG-14 scan.c: probe-skb leak. Upstream frees the skb when
+  ieee80211_tx_prepare_skb() rejects it; the fork had dropped the free ->
+  one leaked skb per failed probe, every scan. FIXED: free restored.
+- Q-05 mt792x_core.c: MBSSID advertised (SUPPORTS_MULTI_BSSID +
+  SUPPORTS_ONLY_HE_MULTI_BSSID) but never implemented (wiphy->
+  mbssid_max_interfaces never set for mt7921; only unbuilt mt7915/mt7996
+  set it; no nontransmitted-BSSID handling). FIXED: flags removed.
+- Q-07 usb.c: force_num_out_eps=4/5 selected the 6-EP map (PSD -> EP5 on a
+  4/5-EP device = TX to invalid pipe). FIXED: 6-EP map only on explicit 6
+  or auto-detected 6-EP descriptor; all other values -> shared mapping.
+- Q-08 mt792x_core.c: u8 return of request_firmware errno truncated
+  (-ENOENT -> 0xFE) setting MT792x_FW_CAP_CNM -> CNM/ROC op set on
+  missing-firmware devices. Upstream v6.18 shares the defect. FIXED:
+  fail closed (return 0).
+- BUG-15 mt792x_mac.c: non-sync cancel_delayed_work(mac_work) in
+  pm_power_save_work let mac_work race the chip into fw-own sleep.
+  FIXED: cancel_delayed_work_sync restored (bounded by fast-fail mode).
+
+### VIII.3 Quirks documented, kept
+- Wedge engine 0012/0013/0014: architecture sound (decay-only counters,
+  RUNNING-gated escalation, port-reset terminal). KEEP.
+- fw_ack_enable (connac_mcu.c): placebo knob - logs only; DL_MODE_NEED_RSP
+  is already default. Documented; no behavior change.
+- clc_force_usb / mcu_timeout_retries / test_trigger_enable: operator
+  knobs, documented, defaults sane. KEEP.
+- Q-06: beacon-mon infrastructure (mt76_rx_beacon/mt76_beacon_mon_check)
+  implemented + exported but called only from unbuilt mt7996. Inert in the
+  mt792x build; the custom RX-URB watchdog covers the need. Noted.
+- BUG-15-adjacent: relaxed endpoint check (out_ep < 2 vs exact count) is
+  deliberate for TASK-017 fallback. Noted.
+
+### VIII.4 Missing features (platform gaps, by design or pending)
+1. 6 GHz CLC on USB: fallback disables 6 GHz (TASK-005; vendor
+   CMD_ID_CAL_BACKUP_IN_HOST_V2 path unimplemented).
+2. DFS: start_radar/end_cac ops + RDD_REPORT event handler exist; radar
+   event -> channel-switch completion pending (TASK-013d/e). Relevant to
+   5 GHz AP use (DFS ch132 wedge history).
+3. TWT: full custom re-add (upstream removed it); HE TWT_REQ|TWT_RES cap
+   bits forced on. If firmware TWT misbehaves over USB, STA may negotiate
+   TWT with capable APs. Consider default-off runtime knob.
+4. testmode: CONFIG_NL80211_TESTMODE unset on Pi kernel -> testmode.o
+   excluded (platform-correct); test_trigger_debugfs is the substitute.
+5. Beacon-loss detection for mt792x (call mt76_beacon_mon_check from
+   mt792x_mac_work) - available, unwired. Opportunity, not regression.
+
+### VIII.5 Recommended next (strategic)
+- R1: re-indent tree to kernel style (checkpatch --fix-inplace) to make
+  future upstream diffs meaningful. Mechanical, large, zero-semantic.
+- R2: restore ISC SPDX on non-MediaTek-authored files (upstream-submittable).
+- R3: rebase onto v6.18.y once R1 done, re-applying the feature set.

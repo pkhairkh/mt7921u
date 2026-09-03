@@ -1008,9 +1008,15 @@ mt76u_ac_to_hwq(struct mt76_dev *dev, struct mt76_queue *q, u8 qid)
         }
         case 0x7961:
         case 0x7925:
-                /* TASK-017: Multi-Endpoint TX QoS */
-                if ((force_num_out_eps >= 6 || dev->usb.num_out_eps >= 6) &&
-                    force_num_out_eps != 2 && force_num_out_eps != 3) {
+                /* TASK-017: Multi-Endpoint TX QoS.
+                 * Q-07 (deep audit 2026-09-05): the 6-EP map is selected
+                 * ONLY on an explicit force of 6 or an auto-detected 6-EP
+                 * descriptor. Forcing 4/5 previously selected the 6-EP map
+                 * (EP5 PSD submit on a 4/5-EP device = TX to invalid
+                 * pipe); any other value (incl. out-of-range) falls back
+                 * to the shared 2-3 EP mapping. */
+                if (force_num_out_eps == 6 ||
+                    (!force_num_out_eps && dev->usb.num_out_eps >= 6)) {
                         /* 6-endpoint mapping: each AC + MCU + FWDL
                          * gets its own endpoint.
                          * EP0: BK (AC_BK)

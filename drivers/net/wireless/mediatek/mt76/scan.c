@@ -70,8 +70,13 @@ mt76_scan_send_probe(struct mt76_dev *dev, struct cfg80211_ssid *ssid)
 
         rcu_read_lock();
 
-        if (!ieee80211_tx_prepare_skb(phy->hw, vif, skb, band, NULL))
+        if (!ieee80211_tx_prepare_skb(phy->hw, vif, skb, band, NULL)) {
+                /* BUG-14 (deep audit 2026-09-05): upstream frees the probe
+                 * skb when mac80211 rejects it; the fork dropped the free,
+                 * leaking one skb per failed probe during every scan. */
+                ieee80211_free_txskb(phy->hw, skb);
                 goto out;
+        }
 
         info = IEEE80211_SKB_CB(skb);
         if (req->no_cck)

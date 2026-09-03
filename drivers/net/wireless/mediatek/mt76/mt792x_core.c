@@ -778,10 +778,12 @@ int mt792x_init_wiphy(struct ieee80211_hw *hw)
         ieee80211_hw_set(hw, SUPPORTS_DYNAMIC_PS);
         ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
         ieee80211_hw_set(hw, CONNECTION_MONITOR);
-#if MT792X_USE_MLINK_API
-        ieee80211_hw_set(hw, SUPPORTS_MULTI_BSSID);
-        ieee80211_hw_set(hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
-#endif
+/* Q-05 (deep audit 2026-09-05): MBSSID hw flags REMOVED. The fork set
+ * SUPPORTS_MULTI_BSSID / SUPPORTS_ONLY_HE_MULTI_BSSID but never sets
+ * wiphy->mbssid_max_interfaces for mt7921 (only mt7915/mt7996, which are
+ * not built) and implements no nontransmitted-BSSID handling. Advertising
+ * capability that is not wired invites mac80211 down unimplemented paths
+ * (mt76_connac_mcu validates bssid_id against ilog2(max_interfaces)). */
 
 #if MT792X_USE_MLINK_API
         ieee80211_hw_set(hw, CHANCTX_STA_CSA);
@@ -818,8 +820,15 @@ mt792x_get_offload_capability(struct device *dev, const char *fw_wm)
         u8 offload_caps = 0;
 
         ret = request_firmware(&fw, fw_wm, dev);
-        if (ret)
-                return ret;
+        if (ret) {
+                /* Q-08 (deep audit 2026-09-05): returning a negative errno
+                 * from a u8 function truncates it (-ENOENT -> 0xFE), which
+                 * sets MT792x_FW_CAP_CNM (BIT(7)) and selects the CNM/ROC
+                 * op set on a device whose firmware never loaded. Upstream
+                 * v6.18 has the same defect; fail closed here instead. */
+                dev_err(dev, "firmware request failed: %d\n", ret);
+                return 0;
+        }
 
         if (!fw || !fw->data || fw->size < sizeof(*hdr)) {
                 dev_err(dev, "Invalid firmware\n");
