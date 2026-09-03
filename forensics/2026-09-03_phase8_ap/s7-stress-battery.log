@@ -1,0 +1,18 @@
+S7-W AP-MODE STRESS BATTERY (kernel 6.18.34+rpt-rpi-v8, phy10/phy11, patched stack)
+
+10x AP cycles: cycle 1..10: AP OK (10/10)
+5x STA churn: churn 1..5: assoc=1 loss=0% packet loss (5/5)
+txpower churn under load:
+  fixed 100:  readback 1.00 dBm   loss 0%
+  fixed 300:  readback 3.00 dBm   loss 0%
+  fixed 800:  readback 8.00 dBm   loss 0%
+  fixed 1500: readback 15.00 dBm  loss 0%
+  fixed 2000: readback 20.00 dBm  loss 0%
+  auto:       readback 20.00 dBm  loss 0%
+ACS repeat: acs 1: channel 10 (2457 MHz) 0 missing-NF; acs 2: channel 10 0 missing-NF
+monitor churn: 5 cycles, 0 ifaces left each
+AP+AP: wlan1 AP ch6 20MHz + wlan2 AP ch36 20MHz, 2/2 AP-ENABLED
+VHT80 (S7-R4/R5): width 80MHz center1 5210; station 780.0 MBit/s VHT-MCS 9
+  80MHz VHT-NSS 2 both directions; authorized: yes; tx failed: 0; 0% loss
+kernel badness filter (err|fail|warn|timeout|panic|oops|hung): EMPTY
+uptime: continuous through entire battery
