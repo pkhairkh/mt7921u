@@ -1,0 +1,145 @@
+=== SAFETY GATE ===
+sd* devices: 1
+serial: Samsung_SSD_860_QVO_1TB_S4CZNF0N320630D
+sysfs path: /sys/devices/platform/scb/fd500000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/usb2/2-2/2-2:1.0/host0/target0:0:0/0:0:0:0/block/sda
+size bytes: 1000204886016
+sda disk
+mounts before: ''
+GATE PASSED — wiping Samsung_SSD_860_QVO_1TB_S4CZNF0N320630D
+
+=== WIPE (3 layers) ===
+/dev/sda: 8 bytes were erased at offset 0x00000200 (gpt): 45 46 49 20 50 41 52 54
+/dev/sda: 8 bytes were erased at offset 0xe8e0db5e00 (gpt): 45 46 49 20 50 41 52 54
+/dev/sda: 2 bytes were erased at offset 0x000001fe (PMBR): 55 aa
+/dev/sda: calling ioctl to re-read partition table: Success
+Creating new GPT entries in memory.
+GPT data structures destroyed! You may now partition the disk using fdisk or
+other utilities.
+blockdev: Unknown command: --getsectors
+Try 'blockdev --help' for more information.
+dd: invalid number: '-1'
+(no signatures left — good)
+
+=== PARTITION: MBR, 512MiB boot + full-capacity root ===
+Checking that no-one is using this disk right now ... OK
+
+Disk /dev/sda: 931.51 GiB, 1000204886016 bytes, 1953525168 sectors
+Disk model: Tech            
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 4096 bytes
+I/O size (minimum/optimal): 4096 bytes / 4096 bytes
+
+>>> line 1: unsupported command
+
+New situation:
+Leaving.
+
+sfdisk: /dev/sda: failed to set disklabel ID
+sfdisk: /dev/sda: does not contain a recognized partition table
+
+=== MKFS ===
+mkfs.vfat: unable to open /dev/sda1: No such file or directory
+mkfs.fat 4.2 (2021-01-31)
+mke2fs 1.47.2 (1-Jan-2025)
+The file /dev/sda2 does not exist and no size was specified.
+
+=== MOUNT SKELETON ===
+mount: /mnt/newroot: fsconfig() failed: /dev/sda2: Can't lookup blockdev.
+       dmesg(1) may have more information after failed mount system call.
+mount: /mnt/newboot: fsconfig() failed: /dev/sda1: Can't lookup blockdev.
+       dmesg(1) may have more information after failed mount system call.
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/mmcblk0p2   57G  4.2G   51G   8% /
+/dev/mmcblk0p2   57G  4.2G   51G   8% /
+M2_DONE
+=== re-verify blank ===
+(blank — good)
+1953525168
+
+=== PARTITION (sfdisk from file) ===
+sfdisk: failed to parse partition number: '/tmp/s9_layout'
+new disk-id: 0xbaedd400
+sfdisk: /dev/sda: failed to set disklabel ID
+sfdisk: /dev/sda: does not contain a recognized partition table
+ls: cannot access '/dev/sda1': No such file or directory
+ls: cannot access '/dev/sda2': No such file or directory
+
+=== MKFS ===
+mkfs.vfat: unable to open /dev/sda1: No such file or directory
+mkfs.fat 4.2 (2021-01-31)
+mke2fs 1.47.2 (1-Jan-2025)
+The file /dev/sda2 does not exist and no size was specified.
+
+=== MOUNT + SKELETON ===
+mount: /mnt/newroot: fsconfig() failed: /dev/sda2: Can't lookup blockdev.
+       dmesg(1) may have more information after failed mount system call.
+mount: /mnt/newboot: fsconfig() failed: /dev/sda1: Can't lookup blockdev.
+       dmesg(1) may have more information after failed mount system call.
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/mmcblk0p2   57G  4.2G   51G   8% /
+/dev/mmcblk0p2   57G  4.2G   51G   8% /
+M2B_DONE
+(still blank — good)
+=== PARTITION (layout on stdin) ===
+Checking that no-one is using this disk right now ... OK
+
+Disk /dev/sda: 931.51 GiB, 1000204886016 bytes, 1953525168 sectors
+Disk model: Tech            
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 4096 bytes
+I/O size (minimum/optimal): 4096 bytes / 4096 bytes
+
+>>> Script header accepted.
+>>> Script header accepted.
+>>> Created a new DOS (MBR) disklabel with disk identifier 0xffbc70da.
+/dev/sda1: Created a new partition 1 of type 'W95 FAT32 (LBA)' and of size 512 MiB.
+/dev/sda2: Created a new partition 2 of type 'Linux' and of size 931 GiB.
+/dev/sda3: Done.
+
+New situation:
+Disklabel type: dos
+Disk identifier: 0xffbc70da
+
+Device     Boot   Start        End    Sectors  Size Id Type
+/dev/sda1  *       8192    1056767    1048576  512M  c W95 FAT32 (LBA)
+/dev/sda2       1056768 1953525167 1952468400  931G 83 Linux
+
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
+label: dos
+label-id: 0xffbc70da
+device: /dev/sda
+unit: sectors
+sector-size: 512
+
+/dev/sda1 : start=        8192, size=     1048576, type=c, bootable
+/dev/sda2 : start=     1056768, size=  1952468400, type=83
+brw-rw---- 1 root disk 8, 1 Sep  3 15:02 /dev/sda1
+brw-rw---- 1 root disk 8, 2 Sep  3 15:02 /dev/sda2
+
+=== MKFS ===
+mkfs.fat: Warning: lowercase labels might not work properly on some systems
+mkfs.fat 4.2 (2021-01-31)
+mke2fs 1.47.2 (1-Jan-2025)
+Discarding device blocks:         0/244058550 79167488/244058550191889408/244058550                   done                            
+Creating filesystem with 244058550 4k blocks and 61022208 inodes
+Filesystem UUID: 281bee03-7d7b-441d-a7c8-7604261bcf2a
+Superblock backups stored on blocks: 
+	32768, 98304, 163840, 229376, 294912, 819200, 884736, 1605632, 2654208, 
+	4096000, 7962624, 11239424, 20480000, 23887872, 71663616, 78675968, 
+	102400000, 214990848
+
+Allocating group tables:    0/7449         done                            
+Writing inode tables:    0/7449         done                            
+Creating journal (262144 blocks): done
+Writing superblocks and filesystem accounting information:    0/7449         done
+
+/dev/sda1: LABEL_FATBOOT="bootfs" LABEL="bootfs" UUID="FCB3-8097" BLOCK_SIZE="512" TYPE="vfat" PARTUUID="ffbc70da-01"
+/dev/sda2: LABEL="rootfs" UUID="281bee03-7d7b-441d-a7c8-7604261bcf2a" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="ffbc70da-02"
+
+=== MOUNT + SKELETON ===
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2       916G  2.1M  906G   1% /mnt/newroot
+/dev/sda1       511M  4.0K  511M   1% /mnt/newboot
+M2C_DONE

@@ -1,0 +1,75 @@
+=== source file count (root fs only) ===
+source files: 67599
+=== PASS 1: bulk (rootfs, one filesystem) ===
+
+Number of files: 79,978 (reg: 67,598, dir: 6,075, link: 6,305)
+Number of created files: 79,968 (reg: 67,598, dir: 6,065, link: 6,305)
+Number of deleted files: 0
+Number of regular files transferred: 67,219
+Total file size: 2,184,900,867 bytes
+Total transferred file size: 2,166,407,086 bytes
+Literal data: 2,166,407,086 bytes
+Matched data: 0 bytes
+File list size: 2,359,091
+File list generation time: 0.001 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 2,171,896,165
+Total bytes received: 1,348,811
+
+sent 2,171,896,165 bytes  received 1,348,811 bytes  28,408,431.06 bytes/sec
+total size is 2,184,900,867  speedup is 1.01
+
+real	1m16.344s
+user	0m9.316s
+sys	0m35.227s
+
+=== boot files (FAT target: -rt + modify window) ===
+
+Number of files: 513 (reg: 496, dir: 17)
+Number of created files: 512 (reg: 496, dir: 16)
+Number of deleted files: 0
+Number of regular files transferred: 496
+Total file size: 78,858,159 bytes
+Total transferred file size: 78,858,159 bytes
+Literal data: 78,858,159 bytes
+Matched data: 0 bytes
+File list size: 0
+File list generation time: 0.001 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 78,907,948
+Total bytes received: 9,516
+
+sent 78,907,948 bytes  received 9,516 bytes  22,547,846.86 bytes/sec
+total size is 78,858,159  speedup is 1.00
+
+real	0m2.275s
+user	0m0.146s
+sys	0m1.324s
+
+=== PASS 2: delta catch-up + itemized (what changed while live) ===
+>f.st...... home/pkhairkh/mt7921u_inspect/forensics/2026-09-03_phase9_usbboot/m3_copy.log
+.d..t...... sys/
+>f..t...... var/log/journal/eae35a63e72d446fb695890ec9d45202/user-1000.journal
+(above: files that changed during pass1 — expected: journal/db/hwclock only)
+
+=== VERIFY ===
+target files: 67598 (source 67599)
+boot files: src=496 dst=496
+--- critical files present? ---
+MISSING  boot/firmware/cmdline.txt
+MISSING  boot/firmware/config.txt
+MISSING  boot/firmware/start4.elf
+MISSING  boot/firmware/kernel8.img
+OK  etc/fstab
+OK  etc/machine-id
+OK  etc/ssh/ssh_host_ed25519_key
+OK  etc/NetworkManager/system-connections
+MISSING  boot/initrd.img
+OK  var/lib/systemd/random-seed
+OK  lib/modules/6.18.34+rpt-rpi-v8/kernel/drivers/net/wireless/mediatek/mt76/mt7921/mt7921u.ko.xz
+OK  home/pkhairkh/mt7921u_inspect/.git
+--- /var/swap correctly dropped? ---
+OK dropped (zram swap is the active one)
+--- du ---
+2.1G	/mnt/newroot
+M3_DONE

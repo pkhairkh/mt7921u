@@ -1,0 +1,148 @@
+############ D1 DIAGNOSE Thu  3 Sep 13:20:16 UTC 2026 ############
+running system: root=/dev/mmcblk0p2  booted=2026-09-03 15:15:49
+
+=== [1] M5b log tail — how far did the canceled script get? ===
+=== GATE: uas/usb-storage built into kernel? ===
+modules.builtin matches: 2; loaded-as-module now: 0
+CONFIRMED: uas + usb-storage are built-in -> kernel mounts USB root without initramfs help
+
+=== final readback ===
+cmdline: console=serial0,115200 console=tty1 root=PARTUUID=ffbc70da-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE
+fstab:
+pokxug-Hefjug-kufhu1
+ABORT: fstab mismatch
+=== repair fstab ===
+--- fstab now ---
+proc            /proc           proc    defaults          0       0
+PARTUUID=ffbc70da-01  /boot/firmware  vfat    defaults          0       2
+PARTUUID=ffbc70da-02  /               ext4    defaults,noatime  0       1
+
+=== re-verify (all gates) ===
+cmdline OK
+fstab OK
+rootwait OK
+cmdline: console=serial0,115200 console=tty1 root=PARTUUID=ffbc70da-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE
+
+=== unmount + sync + REBOOT ===
+sda    
+├─sda1 
+└─sda2 
+sda1   
+sda2   
+SD rescue untouched: /
+REBOOTING NOW (bootloader: USB SSD first -> SD fallback)
+
+=== [2] previous SD session: did 'reboot' execute? clean shutdown? ===
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Stopped systemd-zram-setup@zram0.service - Create swap on /dev/zram0.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Removed slice system-systemd\x2dzram\x2dsetup.slice - Slice /system/systemd-zram-setup.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Stopping rpi-setup-loop@var-swap.service - rpi-setup-loop - set up file on loop device...
+Sep 03 15:07:46 net-master-0x01 systemd[1]: rpi-setup-loop@var-swap.service: Deactivated successfully.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Stopped rpi-setup-loop@var-swap.service - rpi-setup-loop - set up file on loop device.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Removed slice system-rpi\x2dsetup\x2dloop.slice - Slice /system/rpi-setup-loop.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: systemd-remount-fs.service: Deactivated successfully.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Stopped systemd-remount-fs.service - Remount Root and Kernel File Systems.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Reached target shutdown.target - System Shutdown.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Reached target final.target - Late Shutdown Services.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: systemd-reboot.service: Deactivated successfully.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Finished systemd-reboot.service - System Reboot.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Reached target reboot.target - System Reboot.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Shutting down.
+Sep 03 15:07:46 net-master-0x01 systemd[1]: Watchdog running with a hardware timeout of 2min.
+Sep 03 15:07:46 net-master-0x01 kernel: watchdog: watchdog0: watchdog left running
+Sep 03 15:07:46 net-master-0x01 systemd-shutdown[1]: Using hardware watchdog 'Broadcom BCM2835 Watchdog timer', version 0, device /dev/watchdog0
+Sep 03 15:07:46 net-master-0x01 systemd-shutdown[1]: Watchdog running with a hardware timeout of 2min.
+Sep 03 15:07:46 net-master-0x01 systemd-shutdown[1]: Syncing filesystems and block devices.
+Sep 03 15:07:47 net-master-0x01 systemd-shutdown[1]: Sending SIGTERM to remaining processes...
+Sep 03 15:07:47 net-master-0x01 systemd-journald[284]: Received SIGTERM from PID 1 (systemd-shutdow).
+Sep 03 15:07:47 net-master-0x01 systemd-journald[284]: Journal stopped
+
+=== [3] pstore / ramoops (kernel panic evidence from USB-boot attempt) ===
+total 0
+drwxr-x---  2 root root 0 Sep  3 15:07 .
+drwxr-xr-x 10 root root 0 Jan  1  1970 ..
+[    0.000000] OF: reserved mem: 0x000000000b000000..0x000000000b00ffff (64 KiB) map non-reusable ramoops@b000000
+[    0.025974] ramoops: found existing invalid buffer, size 18446744071562067968, start 0
+[    0.026022] pstore: Using crash dump compression: deflate
+[    0.026030] pstore: Registered ramoops as persistent store backend
+[    0.026037] ramoops: using 0x10000@0xb000000, ecc: 0
+
+=== [4] SSD attached? ===
+/dev/sda1: LABEL_FATBOOT="bootfs" LABEL="bootfs" UUID="FCB3-8097" BLOCK_SIZE="512" TYPE="vfat" PARTUUID="ffbc70da-01"
+/dev/sda2: LABEL="rootfs" UUID="281bee03-7d7b-441d-a7c8-7604261bcf2a" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="ffbc70da-02"
+=== [5] mount SSD read-only ===
+root mounted ro
+boot mounted ro
+
+--- [6] SSD fstab (the M5b fix — did it land?) ---
+proc            /proc           proc    defaults          0       0
+PARTUUID=ffbc70da-01  /boot/firmware  vfat    defaults          0       2
+PARTUUID=ffbc70da-02  /               ext4    defaults,noatime  0       1
+--- [6b] SSD cmdline.txt ---
+console=serial0,115200 console=tty1 root=PARTUUID=ffbc70da-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE--- [6c] boot dir complete listing (cloud-init seed present?) ---
+bcm2710-rpi-2-b.dtb
+bcm2710-rpi-3-b.dtb
+bcm2710-rpi-3-b-plus.dtb
+bcm2710-rpi-cm0.dtb
+bcm2710-rpi-cm3.dtb
+bcm2710-rpi-zero-2.dtb
+bcm2710-rpi-zero-2-w.dtb
+bcm2711-rpi-400.dtb
+bcm2711-rpi-4-b.dtb
+bcm2711-rpi-cm4.dtb
+bcm2711-rpi-cm4-io.dtb
+bcm2711-rpi-cm4s.dtb
+bcm2712d0-rpi-5-b.dtb
+bcm2712-d-rpi-5-b.dtb
+bcm2712-rpi-500.dtb
+bcm2712-rpi-5-b.dtb
+bcm2712-rpi-cm5-cm4io.dtb
+bcm2712-rpi-cm5-cm5io.dtb
+bcm2712-rpi-cm5l-cm4io.dtb
+bcm2712-rpi-cm5l-cm5io.dtb
+bootcode.bin
+cmdline.txt
+cmdline.txt.sd-bak
+config.txt
+fixup4cd.dat
+fixup4.dat
+fixup4db.dat
+fixup4x.dat
+fixup_cd.dat
+fixup.dat
+fixup_db.dat
+fixup_x.dat
+initramfs_2712
+initramfs8
+issue.txt
+kernel_2712.img
+kernel8.img
+LICENCE.broadcom
+meta-data
+network-config
+overlays
+start4cd.elf
+start4db.elf
+start4.elf
+start4x.elf
+start_cd.elf
+start_db.elf
+start.elf
+start_x.elf
+user-data
+
+=== [7] THE GOLD: SSD's own journal — new boot entry from USB attempt? ===
+SIGBUS handling failed: Value too large for defined data type
+main: line 6:  1149 Done                    echo "$PW"
+      1150 Aborted                 | sudo -S -p '' "$@"
+last boot index in SSD journal: ''
+
+=== [8] sshd wiring on SSD ===
+!!! no ssh.service symlink in multi-user.target.wants
+
+=== [9] live system network identity (for comparison) ===
+netplan-eth0:eth0:802-3-ethernet:activated
+lo:lo:loopback:activated
+mtk-test::802-11-wireless:
+eth0             UP             192.168.178.74/24 2a0a:a545:e6f1:0:dea6:32ff:fe4f:d9d0/64 fd5c:ef25:7ea5:0:dea6:32ff:fe4f:d9d0/64 fe80::dea6:32ff:fe4f:d9d0/64 
+
+D1_DONE

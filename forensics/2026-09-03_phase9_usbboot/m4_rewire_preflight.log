@@ -1,0 +1,83 @@
+new PARTUUIDs: boot=ffbc70da-01 root=ffbc70da-02
+=== [1] rewrite cmdline.txt on NEW boot only ===
+old: console=serial0,115200 console=tty1 root=PARTUUID=21dfc53e-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE
+new: console=serial0,115200 console=tty1 root=PARTUUID=ffbc70da-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE
+3c3
+< root=PARTUUID=21dfc53e-02
+---
+> root=PARTUUID=ffbc70da-02
+(diff must show ONLY the root= line)
+rootwait present OK
+
+=== [2] rewrite fstab on NEW root only ===
+pokxug-Hefjug-kufhu1
+
+=== [3] boot partition contents ===
+total 75164
+drwxr-xr-x 5 root root     8192 Jan  1  1970 .
+drwxr-xr-x 4 root root     4096 Sep  3 14:59 ..
+-rwxr-xr-x 1 root root    32539 Jun  9 15:55 bcm2710-rpi-2-b.dtb
+-rwxr-xr-x 1 root root    34731 Jun  9 15:55 bcm2710-rpi-3-b.dtb
+-rwxr-xr-x 1 root root    35252 Jun  9 15:55 bcm2710-rpi-3-b-plus.dtb
+-rwxr-xr-x 1 root root    33720 Jun  9 15:55 bcm2710-rpi-cm0.dtb
+-rwxr-xr-x 1 root root    32302 Jun  9 15:55 bcm2710-rpi-cm3.dtb
+-rwxr-xr-x 1 root root    33708 Jun  9 15:55 bcm2710-rpi-zero-2.dtb
+-rwxr-xr-x 1 root root    33708 Jun  9 15:55 bcm2710-rpi-zero-2-w.dtb
+-rwxr-xr-x 1 root root    56411 Jun  9 15:55 bcm2711-rpi-400.dtb
+-rwxr-xr-x 1 root root    56407 Jun  9 15:55 bcm2711-rpi-4-b.dtb
+-rwxr-xr-x 1 root root    56928 Jun  9 15:55 bcm2711-rpi-cm4.dtb
+-rwxr-xr-x 1 root root    39913 Jun  9 15:55 bcm2711-rpi-cm4-io.dtb
+-rwxr-xr-x 1 root root    53824 Jun  9 15:55 bcm2711-rpi-cm4s.dtb
+-rwxr-xr-x 1 root root    78679 Jun  9 15:55 bcm2712d0-rpi-5-b.dtb
+-rwxr-xr-x 1 root root    78675 Jun  9 15:55 bcm2712-d-rpi-5-b.dtb
+-rwxr-xr-x 1 root root    78631 Jun  9 15:55 bcm2712-rpi-500.dtb
+-rwxr-xr-x 1 root root    78675 Jun  9 15:55 bcm2712-rpi-5-b.dtb
+-rwxr-xr-x 1 root root    79620 Jun  9 15:55 bcm2712-rpi-cm5-cm4io.dtb
+OK  start4.elf
+OK  start_cd.elf
+OK  fixup4.dat
+OK  kernel8.img
+OK  initramfs8
+OK  config.txt
+OK  issue.txt
+OK  bcm2711-rpi-4-b.dtb
+OK  overlays
+
+=== [4] CRITICAL: does initramfs8 carry USB storage drivers? ===
+# Automatically load initramfs files, if found
+auto_initramfs=1
+850 /tmp/initr_list.txt
+usr/lib/modules/6.18.34+rpt-rpi-v8/kernel/drivers/usb/host/xhci-pci-renesas.ko.xz
+
+=== [5] patched driver stack present on target (updates/)? ===
+mt76-connac-lib.ko
+mt76.ko
+mt76-usb.ko
+mt7921-common.ko
+mt7921u.ko
+mt792x-lib.ko
+mt792x-usb.ko
+OK  mt7921u.ko (EFE770C012237CBF52842D2)
+OK  mt7921-common.ko (1CA0BEA6D2B300E0756FE57)
+OK  mt792x-usb.ko (E056239C65050376D961731)
+OK  mt792x-lib.ko (7CC1BA1134276D5E12C34C3)
+OK  mt76-usb.ko (80E56A6693B320D494D4EBD)
+OK  mt76-connac-lib.ko (02B25D736A5D2A58C4A9C34)
+OK  mt76.ko (FFC119F684AC675B6D8AC7A)
+running now: mt7921u=EFE770C012237CBF52842D2
+
+=== [6] chroot sanity ===
+chroot /bin/true OK
+chroot bash OK
+
+=== [7] identity preserved ===
+machine-id: eae35a63e72d446fb695890ec9d45202
+hostname: net-master-0x01
+/mnt/newroot/etc/ssh/ssh_host_ecdsa_key
+/mnt/newroot/etc/ssh/ssh_host_ed25519_key
+/mnt/newroot/etc/ssh/ssh_host_rsa_key
+mtk-test.nmconnection
+repo: fca135a
+
+=== [8] sync + prepare for reboot (NO unmount yet — verify first) ===
+M4_DONE — review output, then M5 reboot

@@ -1,0 +1,29 @@
+=== GATE: uas/usb-storage built into kernel? ===
+modules.builtin matches: 2; loaded-as-module now: 0
+CONFIRMED: uas + usb-storage are built-in -> kernel mounts USB root without initramfs help
+
+=== final readback ===
+cmdline: console=serial0,115200 console=tty1 root=PARTUUID=ffbc70da-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE
+fstab:
+pokxug-Hefjug-kufhu1
+ABORT: fstab mismatch
+=== repair fstab ===
+--- fstab now ---
+proc            /proc           proc    defaults          0       0
+PARTUUID=ffbc70da-01  /boot/firmware  vfat    defaults          0       2
+PARTUUID=ffbc70da-02  /               ext4    defaults,noatime  0       1
+
+=== re-verify (all gates) ===
+cmdline OK
+fstab OK
+rootwait OK
+cmdline: console=serial0,115200 console=tty1 root=PARTUUID=ffbc70da-02 rootfstype=ext4 fsck.repair=yes rootwait ds=nocloud;i=rpi-imager-1788423870688 cfg80211.ieee80211_regdom=DE
+
+=== unmount + sync + REBOOT ===
+sda    
+├─sda1 
+└─sda2 
+sda1   
+sda2   
+SD rescue untouched: /
+REBOOTING NOW (bootloader: USB SSD first -> SD fallback)
