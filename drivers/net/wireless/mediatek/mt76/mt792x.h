@@ -53,6 +53,12 @@
 /* Failed wedge-recovery cycles before escalating to a full USB port
  * reset. Mirrors MT7921_USB_RESCUE_THRESHOLD in mt7921/mcu.c. */
 #define MT792x_USB_RESCUE_THRESHOLD 3
+/* Rescue-ladder decay (BUG-13): escalation counters survive isolated
+ * MCU successes - a flapping wedge (firmware re-download succeeds while
+ * UNI commands keep timing out) must not clear them, or the port-reset
+ * threshold is never reached. Counters reset only when failures go
+ * stale: this long after the last timeout / escalation. */
+#define MT792x_RESCUE_DECAY_JIFFIES (60 * HZ)
 
 #define MT792x_DRV_OWN_RETRY_COUNT      10
 #define MT792x_MCU_INIT_RETRY_COUNT     10
@@ -374,6 +380,13 @@ struct mt792x_dev {
 
         /* Consecutive MCU recovery cycles (usb_rescue escalation, mcu.c) */
         atomic_t usb_rescue_count;
+        /* jiffies of the last escalation (usb_rescue_count bump) and of
+         * the last MCU timeout. Escalation counters decay only through
+         * staleness against these, never through isolated successes.
+         * Unsynchronized access is deliberate: the worst race costs
+         * one extra recovery cycle (see MT792x_RESCUE_DECAY_JIFFIES). */
+        unsigned long usb_rescue_last;
+        unsigned long mcu_fail_last;
         bool regd_change:1;
         wait_queue_head_t wait;
 

@@ -45,7 +45,21 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                 cmd, seq, skb);
 
         if (!skb) {
-                int count = atomic_inc_return(&dev->mcu_timeout_count);
+                int count;
+
+                /* BUG-13 fix: failures only accumulate while they are
+                 * fresh. Counters are NEVER reset by successes: a
+                 * flapping wedge (firmware re-download succeeds while
+                 * UNI commands keep timing out) must not clear the
+                 * escalation state, or the USB port-reset threshold
+                 * is never reached. */
+                if (!dev->mcu_fail_last ||
+                    time_after(jiffies, dev->mcu_fail_last +
+                               MT792x_RESCUE_DECAY_JIFFIES))
+                        atomic_set(&dev->mcu_timeout_count, 0);
+                dev->mcu_fail_last = jiffies;
+
+                count = atomic_inc_return(&dev->mcu_timeout_count);
                 dev_warn(mdev->dev,
                          "Message %08x (seq %d) timeout (%d/%d)\n",
                          cmd, seq, count,
@@ -54,13 +68,22 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                 if (count >= mt7921_mcu_timeout_retries) {
                         atomic_set(&dev->mcu_timeout_count, 0);
 
+                        /* Fresh rescue ladder if the last escalation
+                         * has gone stale (device was healthy for a
+                         * while before this new storm). */
+                        if (!dev->usb_rescue_last ||
+                            time_after(jiffies, dev->usb_rescue_last +
+                                       MT792x_RESCUE_DECAY_JIFFIES))
+                                atomic_set(&dev->usb_rescue_count, 0);
+                        dev->usb_rescue_last = jiffies;
+
                         if (mt76_is_usb(mdev) && dev->hw_init_done &&
                             !dev->pm.suspended &&
                             atomic_inc_return(&dev->usb_rescue_count) >=
                             MT7921_USB_RESCUE_THRESHOLD) {
                                 dev_err(mdev->dev,
                                         "MCU still wedged after %d recovery cycles, escalating to USB device reset\n",
-                                        atomic_read(&dev->usb_rescue_count));
+                                        MT7921_USB_RESCUE_THRESHOLD);
                                 atomic_set(&dev->usb_rescue_count, 0);
                                 usb_queue_reset_device(to_usb_interface(mdev->dev));
                         } else {
@@ -74,9 +97,11 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                 return -ETIMEDOUT;
         }
 
-        /* Successful response — reset timeout counter */
-        atomic_set(&dev->mcu_timeout_count, 0);
-        atomic_set(&dev->usb_rescue_count, 0);
+        /* Successful response. BUG-13: deliberately does NOT reset the
+         * timeout/rescue counters - isolated successes during a flapping
+         * wedge (fw re-download OK, UNI commands time out) historically
+         * kept the recovery ladder at zero forever. The counters decay
+         * through staleness instead (see the timeout path above). */
 
         rxd = (struct mt76_connac2_mcu_rxd *)skb->data;
         if (seq != rxd->seq)

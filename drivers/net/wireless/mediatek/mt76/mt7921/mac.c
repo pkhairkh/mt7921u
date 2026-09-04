@@ -4,6 +4,7 @@
 #include <linux/devcoredump.h>
 #include <linux/etherdevice.h>
 #include <linux/timekeeping.h>
+#include <linux/usb.h>
 #include "mt7921.h"
 #include "../dma.h"
 #include "../mt76_connac2_mac.h"
@@ -762,8 +763,24 @@ void mt7921_mac_reset_work(struct work_struct *work)
                 return;
         }
 
-        if (i == 10)
+        if (i == 10) {
                 dev_err(dev->mt76.dev, "chip reset failed\n");
+
+                /* BUG-13 fix: ten consecutive failed full resets on USB
+                 * mean the device is hard-wedged beyond in-driver recovery.
+                 * Escalate straight to a USB port reset instead of giving
+                 * up - historically "giving up" left the interface dead,
+                 * the mac_work watchdogs disarmed and userspace wedged. */
+                if (mt76_is_usb(&dev->mt76)) {
+                        dev_err(dev->mt76.dev,
+                                "escalating to USB device reset after %d failed chip resets\n",
+                                i);
+                        dev->usb_rescue_last = jiffies;
+                        atomic_set(&dev->usb_rescue_count, 0);
+                        usb_queue_reset_device(
+                                to_usb_interface(dev->mt76.dev));
+                }
+        }
 
         if (test_and_clear_bit(MT76_HW_SCANNING, &dev->mphy.state)) {
                 struct cfg80211_scan_info info = {
@@ -780,6 +797,17 @@ void mt7921_mac_reset_work(struct work_struct *work)
         ieee80211_iterate_active_interfaces(hw,
                                             IEEE80211_IFACE_ITER_RESUME_ALL,
                                             mt7921_vif_connect_iter, NULL);
+
+        /* BUG-13 fix: re-arm the mac_work watchdog chain. Nothing else
+         * reliably restarts it after a reset: a STA only re-arms it via
+         * wpa_supplicant's retry -> set_channel, and an idle AP never
+         * does. Without this, one chip reset permanently disarms the
+         * RX-URB watchdog and the control-wedge escalation (patches
+         * 0012/0013) exactly when the device needs them most. */
+        if (test_bit(MT76_STATE_RUNNING, &dev->mphy.state))
+                ieee80211_queue_delayed_work(hw, &dev->mphy.mac_work,
+                                             MT792x_WATCHDOG_TIME);
+
         mt76_connac_power_save_sched(&dev->mt76.phy, pm);
 }
 

@@ -68,12 +68,12 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
                         atomic_set(&dev->usb.ctl_err_streak, 0);
                         dev->usb.ctl_fastfail = false;
                 } else if (ret == -ETIMEDOUT || ret == -EPIPE ||
-                           ret == -ESHUTDOWN) {
+                           ret == -ESHUTDOWN || ret == -EILSEQ) {
                         /* Count every hard control error, not just
                          * -ETIMEDOUT: a wedged MT7921U behind a hub
-                         * can present as endpoint STALL (-EPIPE) or
-                         * host-side shutdown storms just as well as
-                         * timeouts. */
+                         * can present as endpoint STALL (-EPIPE), host
+                         * shutdown storms (-ESHUTDOWN) or CRC errors
+                         * (-EILSEQ) just as well as timeouts. */
                         if (!dev->usb.ctl_fastfail &&
                             atomic_inc_return(&dev->usb.ctl_timeouts) >=
                             MT76U_CTL_WEDGE_THRESHOLD) {

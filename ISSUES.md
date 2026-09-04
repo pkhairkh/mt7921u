@@ -949,3 +949,44 @@ This explains why the box still froze 4× on 2026-09-04 22:47-23:59 despite the 
 - Build 0013 on-target (6.18.34+rpt-rpi-v8 headers), install to updates/, depmod, canonical module swap per docs/MODPROBE-PROCEDURE.md.
 - Reproduce the historical trigger (wpa auth to FRITZ!Box 7530 IZ, DFS ch 132): expect "control path wedged, resetting chip (1/3)" within ~2 s of wedge onset, then port reset + re-enum + fw reload, host stays alive and SSH responsive throughout.
 - Confirm zero D-states in `mt76_get_survey` path during the wedge window (`/proc/*/stack` poller).
+
+---
+
+## Part VII (2026-09-05): BUG-13 — Escalation engine incomplete: flapping wedges loop forever and resets disarm their own watchdogs
+
+| Field | Value |
+|-------|-------|
+| **Severity** | Critical (freeze loop: recovery cycles never terminate, watchdogs die after first reset) |
+| **Evidence** | PROVEN (source-level, on-target audit of the 0012+0013 tree on the Pi, 2026-09-05) |
+| **Status** | Patched (patches/0014, built on-target) |
+| **Found by** | Full-tree solo audit ("quirks out" session, 2026-09-05) |
+
+### Findings
+
+1. **Rescue-counter success-clear hole (mcu.c).** `mt7921_mcu_parse_response()` reset `usb_rescue_count` and `mcu_timeout_count` on *any* successful MCU response. In the proven flapping-wedge class (BUG-11 gap 2: firmware re-download succeeds while UNI commands keep timing out), the download's own successes zeroed the escalation ladder between timeouts, so `usb_queue_reset_device()` was never reached — the driver reset-churned forever.
+2. **reset_work gave up silently (mt7921/mac.c).** After 10 consecutive failed `mt792x_dev_reset()` cycles it logged `chip reset failed` and returned, leaving the interface dead and all recovery disarmed (a hard-wedged MCU has exactly one remaining software remedy: the USB port reset).
+3. **Watchdog disarm-after-reset.** `mt7921_mac_reset_work()` cancels `mac_work` but nothing reliably re-arms it: a STA only re-queues it via wpa_supplicant retry → `set_channel`, an idle AP never does. One chip reset permanently silenced the RX-URB watchdog (0012) and the control-wedge escalation (0013) — precisely when they are needed.
+4. **Fast-fail error set incomplete (usb.c).** Only `-ETIMEDOUT/-EPIPE/-ESHUTDOWN` counted toward wedge detection; `-EILSEQ` (CRC-error storms, a classic signature of a dying MT7921U behind a hub) never engaged fast-fail and kept burning 10 × 300 ms per register read.
+
+### Fix (patches/0014)
+
+- Escalation counters are now reset **only by staleness** (`MT792x_RESCUE_DECAY_JIFFIES`, 60 s after the last timeout/escalation), never by isolated successes — termination of every wedge class is now guaranteed: control-only wedge → mac_work ladder; MCU flapping → mcu ladder; 10 failed full resets → immediate `usb_queue_reset_device()`.
+- `reset_work` escalates to a USB port reset directly when all 10 chip-reset cycles fail.
+- `reset_work` re-arms `mac_work` (guarded by `MT76_STATE_RUNNING`) so the watchdog chain survives recovery.
+- `-EILSEQ` joins the fast-fail hard-error set.
+
+### Wedge-class coverage matrix (post-0014)
+
+| Wedge class | Detector | Escalation | Terminates |
+|---|---|---|---|
+| control dead, pre-assoc (auth-phase) | 0013 ctl streak + mac_work | chip reset ×3 → port reset | yes |
+| control dead, associated | 0012 RX watchdog + 0013 | same ladder | yes |
+| MCU bulk dead / UNI flapping | mcu timeout ladder (this fix) | chip reset ×3 → port reset | yes |
+| all 10 full resets fail | reset_work (this fix) | port reset direct | yes |
+
+### Boot-quirk audit (same session, "the quirks are out")
+
+| Quirk | Verdict | Action |
+|---|---|---|
+| `usbcore.quirks=0e8d:7961:n` (DELAY_CTRL_MSG on the MT7921U) | Harmful throttle: 200 ms `msleep` after **every** `usb_control_msg` — firmware download alone is thousands of control chunks; regressed driver load to minutes; deployed outside the repo without documentation or measured benefit; the driver itself already sets `disable_hub_initiated_lpm` and now owns wedge recovery end-to-end | **REMOVED** from the Pi cmdline |
+| `usb-storage.quirks=152d:0583:u` (JMS583 UAS→BOT) | Boot-critical, different subsystem: PHASE 10 proved 2/2 xHCI host death under UAS and the system root is on this SSD; no mt76-tree fix can substitute | **KEPT** (documented; revert = SSD loss under I/O) |

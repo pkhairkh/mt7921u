@@ -44,6 +44,17 @@ void mt792x_mac_work(struct work_struct *work)
                 if (++mphy->ctl_wedge_ticks >=
                     MT792x_CTL_WEDGE_ESCALATE_TICKS) {
                         mphy->ctl_wedge_ticks = 0;
+
+                        /* Fresh rescue ladder if the last escalation
+                         * has gone stale. BUG-13: the ladder must not
+                         * be clearable by isolated successes (flapping
+                         * wedge); it decays through staleness only. */
+                        if (!mdev792x->usb_rescue_last ||
+                            time_after(jiffies, mdev792x->usb_rescue_last +
+                                       MT792x_RESCUE_DECAY_JIFFIES))
+                                atomic_set(&mdev792x->usb_rescue_count, 0);
+                        mdev792x->usb_rescue_last = jiffies;
+
                         if (atomic_inc_return(&mdev792x->usb_rescue_count) >=
                             MT792x_USB_RESCUE_THRESHOLD) {
                                 atomic_set(&mdev792x->usb_rescue_count, 0);
