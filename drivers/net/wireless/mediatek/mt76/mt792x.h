@@ -45,6 +45,14 @@
 /* 120 ticks * 250ms = 30s without a single RX URB completion while
  * associated => bulk data path is wedged (mt792x_mac_work) */
 #define MT792x_RX_STALE_TICKS   120
+/* 8 ticks * 250ms = 2s of continuously wedged USB control path while
+ * RUNNING before mac_work escalates (reset, then USB port reset). This
+ * covers the pre-association phase (e.g. STA authentication) where the
+ * RX-URB watchdog is not yet armed. */
+#define MT792x_CTL_WEDGE_ESCALATE_TICKS 8
+/* Failed wedge-recovery cycles before escalating to a full USB port
+ * reset. Mirrors MT7921_USB_RESCUE_THRESHOLD in mt7921/mcu.c. */
+#define MT792x_USB_RESCUE_THRESHOLD 3
 
 #define MT792x_DRV_OWN_RETRY_COUNT      10
 #define MT792x_MCU_INIT_RETRY_COUNT     10

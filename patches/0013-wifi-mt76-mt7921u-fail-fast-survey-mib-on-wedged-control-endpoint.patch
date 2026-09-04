@@ -1,0 +1,204 @@
+diff --git a/drivers/net/wireless/mediatek/mt76/mt76.h b/drivers/net/wireless/mediatek/mt76/mt76.h
+index 3461afc..0f457ab 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt76.h
++++ b/drivers/net/wireless/mediatek/mt76/mt76.h
+@@ -759,6 +759,8 @@ struct mt76_usb {
+          * vendor requests and the fast-fail probe mode they trigger. */
+         atomic_t ctl_timeouts;
+         bool ctl_fastfail;
++        /* Consecutive fully-failed vendor requests (see usb.c) */
++        atomic_t ctl_err_streak;
+         /* Total successful RX URB completions, for the data-path
+          * watchdog in mt792x_mac_work(). */
+         atomic_t rx_urb_completions;
+@@ -996,6 +998,9 @@ struct mt76_phy {
+         int last_rx_urb_count;
+         u8 rx_stale_ticks;
+ 
++        /* USB control-path wedge escalation state (see mt792x_mac_work) */
++        u8 ctl_wedge_ticks;
++
+         struct {
+                 struct sk_buff *head;
+                 struct sk_buff **tail;
+@@ -1953,6 +1958,7 @@ void mt76_ethtool_worker(struct mt76_ethtool_worker_info *wi,
+ int mt76_skb_adjust_pad(struct sk_buff *skb, int pad);
+ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
+                            u16 val, u16 offset, void *buf, size_t len);
++bool mt76u_ctl_wedged(struct mt76_dev *dev);
+ int mt76u_vendor_request(struct mt76_dev *dev, u8 req,
+                          u8 req_type, u16 val, u16 offset,
+                          void *buf, size_t len);
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x.h b/drivers/net/wireless/mediatek/mt76/mt792x.h
+index 4d256ac..dd58f1b 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x.h
++++ b/drivers/net/wireless/mediatek/mt76/mt792x.h
+@@ -45,6 +45,14 @@
+ /* 120 ticks * 250ms = 30s without a single RX URB completion while
+  * associated => bulk data path is wedged (mt792x_mac_work) */
+ #define MT792x_RX_STALE_TICKS   120
++/* 8 ticks * 250ms = 2s of continuously wedged USB control path while
++ * RUNNING before mac_work escalates (reset, then USB port reset). This
++ * covers the pre-association phase (e.g. STA authentication) where the
++ * RX-URB watchdog is not yet armed. */
++#define MT792x_CTL_WEDGE_ESCALATE_TICKS 8
++/* Failed wedge-recovery cycles before escalating to a full USB port
++ * reset. Mirrors MT7921_USB_RESCUE_THRESHOLD in mt7921/mcu.c. */
++#define MT792x_USB_RESCUE_THRESHOLD 3
+ 
+ #define MT792x_DRV_OWN_RETRY_COUNT      10
+ #define MT792x_MCU_INIT_RETRY_COUNT     10
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x_mac.c b/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
+index 5c82cf4..e8facc5 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
+@@ -2,6 +2,7 @@
+ /* Copyright (C) 2023 MediaTek Inc. */
+ 
+ #include <linux/module.h>
++#include <linux/usb.h>
+ 
+ #include "mt792x.h"
+ #include "mt792x_regs.h"
+@@ -26,6 +27,43 @@ void mt792x_mac_work(struct work_struct *work)
+ 
+         mt792x_mutex_release(phy->dev);
+ 
++        /* USB: control-path wedge escalation. When the control endpoint
++         * stops answering while the interface is RUNNING (e.g. during STA
++         * authentication, BEFORE MT76_STATE_ASSOC arms the RX-URB
++         * watchdog), survey/MIB register sweeps are skipped (see
++         * mt792x_update_channel / mt792x_mac_update_mib_stats) and this
++         * counter escalates: first to an in-driver chip reset, then,
++         * after MT792x_USB_RESCUE_THRESHOLD failed cycles, to a USB port
++         * reset - the only software recovery for a hard-wedged MCU. */
++        if (mt76_is_usb(mphy->dev) &&
++            test_bit(MT76_STATE_RUNNING, &mphy->state) &&
++            mt76u_ctl_wedged(mphy->dev)) {
++                struct mt792x_dev *mdev792x =
++                        container_of(mphy->dev, struct mt792x_dev, mt76);
++
++                if (++mphy->ctl_wedge_ticks >=
++                    MT792x_CTL_WEDGE_ESCALATE_TICKS) {
++                        mphy->ctl_wedge_ticks = 0;
++                        if (atomic_inc_return(&mdev792x->usb_rescue_count) >=
++                            MT792x_USB_RESCUE_THRESHOLD) {
++                                atomic_set(&mdev792x->usb_rescue_count, 0);
++                                dev_warn(mphy->dev->dev,
++                                         "control path wedged through %d recovery cycles, escalating to USB device reset\n",
++                                         MT792x_USB_RESCUE_THRESHOLD);
++                                usb_queue_reset_device(
++                                        to_usb_interface(mphy->dev->dev));
++                        } else {
++                                dev_warn(mphy->dev->dev,
++                                         "control path wedged, resetting chip (%d/%d)\n",
++                                         atomic_read(&mdev792x->usb_rescue_count),
++                                         MT792x_USB_RESCUE_THRESHOLD);
++                                mt792x_reset(mphy->dev);
++                        }
++                }
++        } else {
++                mphy->ctl_wedge_ticks = 0;
++        }
++
+         /* USB: silent data-path death detection. A wedged chip stops
+          * completing bulk RX URBs while the control path may still
+          * answer, which historically left STA interfaces dead with no
+@@ -107,6 +145,12 @@ void mt792x_mac_update_mib_stats(struct mt792x_phy *phy)
+         int i, aggr0 = 0, aggr1;
+         u32 val;
+ 
++        /* USB: skip the ~30-register MIB sweep while the control
++         * endpoint is wedged; every failed vendor request burns
++         * 0.5-3 s under dev->mt76.mutex (see mt76u_ctl_wedged). */
++        if (mt76_is_usb(&dev->mt76) && mt76u_ctl_wedged(&dev->mt76))
++                return;
++
+         mib->fcs_err_cnt += mt76_get_field(dev, MT_MIB_SDR3(0),
+                                            MT_MIB_SDR3_FCS_ERR_MASK);
+         mib->ack_fail_cnt += mt76_get_field(dev, MT_MIB_MB_BSDR3(0),
+@@ -313,6 +357,13 @@ void mt792x_update_channel(struct mt76_phy *mphy)
+ {
+         struct mt792x_dev *dev = container_of(mphy->dev, struct mt792x_dev, mt76);
+ 
++        /* USB: survey registers are read over USB control transfers
++         * (~27 per round). While the endpoint is wedged each read burns
++         * 0.5-3 s under dev->mt76.mutex and starves all nl80211 callers;
++         * skip the round entirely and let mt792x_mac_work escalate. */
++        if (mt76_is_usb(mphy->dev) && mt76u_ctl_wedged(mphy->dev))
++                return;
++
+         if (mt76_connac_pm_wake(mphy, &dev->pm))
+                 return;
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/usb.c b/drivers/net/wireless/mediatek/mt76/usb.c
+index ecf9033..c58d536 100755
+--- a/drivers/net/wireless/mediatek/mt76/usb.c
++++ b/drivers/net/wireless/mediatek/mt76/usb.c
+@@ -12,8 +12,12 @@
+ #define MT_VEND_REQ_TOUT_MS     300
+ /* Fast-fail probe timeout while the control path is wedged */
+ #define MT_VEND_REQ_FAST_TOUT_MS 50
+-/* Consecutive control ETIMEDOUTs before engaging fast-fail mode */
++/* Consecutive control errors before engaging fast-fail mode */
+ #define MT76U_CTL_WEDGE_THRESHOLD 10
++/* Consecutive fully-failed vendor REQUESTS (each already retried 10x)
++ * before the control endpoint is considered wedged and periodic work
++ * (survey, MIB stats) skips register access entirely. */
++#define MT76U_CTL_REQ_FAIL_THRESHOLD 2
+ 
+ static bool disable_usb_sg;
+ module_param_named(disable_usb_sg, disable_usb_sg, bool, 0644);
+@@ -61,14 +65,21 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
+                                       offset, buf, len, tout_ms);
+                 if (ret >= 0) {
+                         atomic_set(&dev->usb.ctl_timeouts, 0);
++                        atomic_set(&dev->usb.ctl_err_streak, 0);
+                         dev->usb.ctl_fastfail = false;
+-                } else if (ret == -ETIMEDOUT) {
++                } else if (ret == -ETIMEDOUT || ret == -EPIPE ||
++                           ret == -ESHUTDOWN) {
++                        /* Count every hard control error, not just
++                         * -ETIMEDOUT: a wedged MT7921U behind a hub
++                         * can present as endpoint STALL (-EPIPE) or
++                         * host-side shutdown storms just as well as
++                         * timeouts. */
+                         if (!dev->usb.ctl_fastfail &&
+                             atomic_inc_return(&dev->usb.ctl_timeouts) >=
+                             MT76U_CTL_WEDGE_THRESHOLD) {
+                                 dev->usb.ctl_fastfail = true;
+                                 dev_err(dev->dev,
+-                                        "USB control path wedged (%d consecutive timeouts), entering fast-fail mode\n",
++                                        "USB control path wedged (%d consecutive errors), entering fast-fail mode\n",
+                                         MT76U_CTL_WEDGE_THRESHOLD);
+                         }
+                 }
+@@ -79,12 +90,28 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
+                 usleep_range(5000, 10000);
+         }
+ 
++        /* Whole request failed (all retries exhausted). Track
++         * consecutive failed requests so periodic work can skip
++         * register access instead of re-hammering a dead endpoint. */
++        atomic_inc(&dev->usb.ctl_err_streak);
++
+         dev_err(dev->dev, "vendor request req:%02x off:%04x failed:%d\n",
+                 req, offset, ret);
+         return ret;
+ }
+ EXPORT_SYMBOL_GPL(__mt76u_vendor_request);
+ 
++/* True when the USB control endpoint has stopped answering (2+ fully
++ * failed vendor requests in a row, ~20 failed attempts). Survey and MIB
++ * work uses this to skip their register sweeps instead of monopolizing
++ * dev->mt76.mutex for 15-80 s per round on a dead chip. */
++bool mt76u_ctl_wedged(struct mt76_dev *dev)
++{
++        return atomic_read(&dev->usb.ctl_err_streak) >=
++               MT76U_CTL_REQ_FAIL_THRESHOLD;
++}
++EXPORT_SYMBOL_GPL(mt76u_ctl_wedged);
++
+ int mt76u_vendor_request(struct mt76_dev *dev, u8 req,
+                          u8 req_type, u16 val, u16 offset,
+                          void *buf, size_t len)

@@ -759,6 +759,8 @@ struct mt76_usb {
          * vendor requests and the fast-fail probe mode they trigger. */
         atomic_t ctl_timeouts;
         bool ctl_fastfail;
+        /* Consecutive fully-failed vendor requests (see usb.c) */
+        atomic_t ctl_err_streak;
         /* Total successful RX URB completions, for the data-path
          * watchdog in mt792x_mac_work(). */
         atomic_t rx_urb_completions;
@@ -995,6 +997,9 @@ struct mt76_phy {
         /* USB data-path watchdog state (see mt792x_mac_work) */
         int last_rx_urb_count;
         u8 rx_stale_ticks;
+
+        /* USB control-path wedge escalation state (see mt792x_mac_work) */
+        u8 ctl_wedge_ticks;
 
         struct {
                 struct sk_buff *head;
@@ -1953,6 +1958,7 @@ void mt76_ethtool_worker(struct mt76_ethtool_worker_info *wi,
 int mt76_skb_adjust_pad(struct sk_buff *skb, int pad);
 int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
                            u16 val, u16 offset, void *buf, size_t len);
+bool mt76u_ctl_wedged(struct mt76_dev *dev);
 int mt76u_vendor_request(struct mt76_dev *dev, u8 req,
                          u8 req_type, u16 val, u16 offset,
                          void *buf, size_t len);

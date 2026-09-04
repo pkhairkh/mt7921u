@@ -12,8 +12,12 @@
 #define MT_VEND_REQ_TOUT_MS     300
 /* Fast-fail probe timeout while the control path is wedged */
 #define MT_VEND_REQ_FAST_TOUT_MS 50
-/* Consecutive control ETIMEDOUTs before engaging fast-fail mode */
+/* Consecutive control errors before engaging fast-fail mode */
 #define MT76U_CTL_WEDGE_THRESHOLD 10
+/* Consecutive fully-failed vendor REQUESTS (each already retried 10x)
+ * before the control endpoint is considered wedged and periodic work
+ * (survey, MIB stats) skips register access entirely. */
+#define MT76U_CTL_REQ_FAIL_THRESHOLD 2
 
 static bool disable_usb_sg;
 module_param_named(disable_usb_sg, disable_usb_sg, bool, 0644);
@@ -61,14 +65,21 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
                                       offset, buf, len, tout_ms);
                 if (ret >= 0) {
                         atomic_set(&dev->usb.ctl_timeouts, 0);
+                        atomic_set(&dev->usb.ctl_err_streak, 0);
                         dev->usb.ctl_fastfail = false;
-                } else if (ret == -ETIMEDOUT) {
+                } else if (ret == -ETIMEDOUT || ret == -EPIPE ||
+                           ret == -ESHUTDOWN) {
+                        /* Count every hard control error, not just
+                         * -ETIMEDOUT: a wedged MT7921U behind a hub
+                         * can present as endpoint STALL (-EPIPE) or
+                         * host-side shutdown storms just as well as
+                         * timeouts. */
                         if (!dev->usb.ctl_fastfail &&
                             atomic_inc_return(&dev->usb.ctl_timeouts) >=
                             MT76U_CTL_WEDGE_THRESHOLD) {
                                 dev->usb.ctl_fastfail = true;
                                 dev_err(dev->dev,
-                                        "USB control path wedged (%d consecutive timeouts), entering fast-fail mode\n",
+                                        "USB control path wedged (%d consecutive errors), entering fast-fail mode\n",
                                         MT76U_CTL_WEDGE_THRESHOLD);
                         }
                 }
@@ -79,11 +90,27 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
                 usleep_range(5000, 10000);
         }
 
+        /* Whole request failed (all retries exhausted). Track
+         * consecutive failed requests so periodic work can skip
+         * register access instead of re-hammering a dead endpoint. */
+        atomic_inc(&dev->usb.ctl_err_streak);
+
         dev_err(dev->dev, "vendor request req:%02x off:%04x failed:%d\n",
                 req, offset, ret);
         return ret;
 }
 EXPORT_SYMBOL_GPL(__mt76u_vendor_request);
+
+/* True when the USB control endpoint has stopped answering (2+ fully
+ * failed vendor requests in a row, ~20 failed attempts). Survey and MIB
+ * work uses this to skip their register sweeps instead of monopolizing
+ * dev->mt76.mutex for 15-80 s per round on a dead chip. */
+bool mt76u_ctl_wedged(struct mt76_dev *dev)
+{
+        return atomic_read(&dev->usb.ctl_err_streak) >=
+               MT76U_CTL_REQ_FAIL_THRESHOLD;
+}
+EXPORT_SYMBOL_GPL(mt76u_ctl_wedged);
 
 int mt76u_vendor_request(struct mt76_dev *dev, u8 req,
                          u8 req_type, u16 val, u16 offset,

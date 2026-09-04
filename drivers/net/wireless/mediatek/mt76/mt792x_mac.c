@@ -2,6 +2,7 @@
 /* Copyright (C) 2023 MediaTek Inc. */
 
 #include <linux/module.h>
+#include <linux/usb.h>
 
 #include "mt792x.h"
 #include "mt792x_regs.h"
@@ -25,6 +26,43 @@ void mt792x_mac_work(struct work_struct *work)
         }
 
         mt792x_mutex_release(phy->dev);
+
+        /* USB: control-path wedge escalation. When the control endpoint
+         * stops answering while the interface is RUNNING (e.g. during STA
+         * authentication, BEFORE MT76_STATE_ASSOC arms the RX-URB
+         * watchdog), survey/MIB register sweeps are skipped (see
+         * mt792x_update_channel / mt792x_mac_update_mib_stats) and this
+         * counter escalates: first to an in-driver chip reset, then,
+         * after MT792x_USB_RESCUE_THRESHOLD failed cycles, to a USB port
+         * reset - the only software recovery for a hard-wedged MCU. */
+        if (mt76_is_usb(mphy->dev) &&
+            test_bit(MT76_STATE_RUNNING, &mphy->state) &&
+            mt76u_ctl_wedged(mphy->dev)) {
+                struct mt792x_dev *mdev792x =
+                        container_of(mphy->dev, struct mt792x_dev, mt76);
+
+                if (++mphy->ctl_wedge_ticks >=
+                    MT792x_CTL_WEDGE_ESCALATE_TICKS) {
+                        mphy->ctl_wedge_ticks = 0;
+                        if (atomic_inc_return(&mdev792x->usb_rescue_count) >=
+                            MT792x_USB_RESCUE_THRESHOLD) {
+                                atomic_set(&mdev792x->usb_rescue_count, 0);
+                                dev_warn(mphy->dev->dev,
+                                         "control path wedged through %d recovery cycles, escalating to USB device reset\n",
+                                         MT792x_USB_RESCUE_THRESHOLD);
+                                usb_queue_reset_device(
+                                        to_usb_interface(mphy->dev->dev));
+                        } else {
+                                dev_warn(mphy->dev->dev,
+                                         "control path wedged, resetting chip (%d/%d)\n",
+                                         atomic_read(&mdev792x->usb_rescue_count),
+                                         MT792x_USB_RESCUE_THRESHOLD);
+                                mt792x_reset(mphy->dev);
+                        }
+                }
+        } else {
+                mphy->ctl_wedge_ticks = 0;
+        }
 
         /* USB: silent data-path death detection. A wedged chip stops
          * completing bulk RX URBs while the control path may still
@@ -106,6 +144,12 @@ void mt792x_mac_update_mib_stats(struct mt792x_phy *phy)
         struct mt792x_dev *dev = phy->dev;
         int i, aggr0 = 0, aggr1;
         u32 val;
+
+        /* USB: skip the ~30-register MIB sweep while the control
+         * endpoint is wedged; every failed vendor request burns
+         * 0.5-3 s under dev->mt76.mutex (see mt76u_ctl_wedged). */
+        if (mt76_is_usb(&dev->mt76) && mt76u_ctl_wedged(&dev->mt76))
+                return;
 
         mib->fcs_err_cnt += mt76_get_field(dev, MT_MIB_SDR3(0),
                                            MT_MIB_SDR3_FCS_ERR_MASK);
@@ -312,6 +356,13 @@ mt792x_phy_update_channel(struct mt76_phy *mphy, int idx)
 void mt792x_update_channel(struct mt76_phy *mphy)
 {
         struct mt792x_dev *dev = container_of(mphy->dev, struct mt792x_dev, mt76);
+
+        /* USB: survey registers are read over USB control transfers
+         * (~27 per round). While the endpoint is wedged each read burns
+         * 0.5-3 s under dev->mt76.mutex and starves all nl80211 callers;
+         * skip the round entirely and let mt792x_mac_work escalate. */
+        if (mt76_is_usb(mphy->dev) && mt76u_ctl_wedged(mphy->dev))
+                return;
 
         if (mt76_connac_pm_wake(mphy, &dev->pm))
                 return;

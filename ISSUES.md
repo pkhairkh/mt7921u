@@ -906,3 +906,46 @@ commands still time out; (3) silent STA data-path death (bulk RX URBs stop
 completing, zero kernel signature) was never detected. Fix: fast-fail mode
 after 10 consecutive control ETIMEDOUTs, USB port-reset escalation after 3
 failed recovery cycles, RX-URB watchdog while associated.
+
+---
+
+## Part VI (offline audit, 2026-09-04): BUG-12 — Survey/MIB error-propagation gap: the remaining freeze machine
+
+| Field | Value |
+|-------|-------|
+| **Severity** | Critical (userspace D-storm → systemd stall → freeze, even with patches/0012 active) |
+| **Evidence** | PROVEN (source-level call-graph math + runtime D-stack correlation from live sessions 2026-09-04 19:00-23:59) |
+| **Status** | Patched (patches/0013, offline draft — needs on-target build + runtime verification) |
+| **Found by** | Offline audit session 4 (device unreachable, analysis against this repo + session worklog) |
+
+### Mechanism (proven)
+
+`mt792x_update_channel()` (the `.update_survey` op for USB) reads ~27 registers per round via USB control transfers: 4 MIB fields + `mt792x_phy_get_nf()` = 11 IRPI histogram bins × chains (2) + 1 write. On USB **every** register read is a `usb_control_msg()` round trip. When the control endpoint is wedged:
+
+- Upstream: 10 retries × 300 ms per request → **~3 s per request → ~82 s per survey round, all under `dev->mt76.mutex`**.
+- With patches/0012 fast-fail: 10 × 50 ms → ~0.5 s per request → **~15 s per round** — 30× the 500 ms mac_work period, so the mutex is still monopolized and all nl80211 callers (wpa_supplicant, hostapd) still D-block.
+
+Three independent lock-holders feed the storm: (1) `mt792x_mac_work` every 500 ms (survey) + every 1 s (`mt792x_mac_update_mib_stats`, ~30 more register reads); (2) userspace `nl80211_dump_survey` → `mt76_get_survey()` which calls `update_survey` **while holding `dev->mutex`** (the wpa_supplicant D-stack captured live on 2026-09-04); (3) `mt7921_scan_work()` → `mt7921_survey_fill_defaults()` (the BUG-10 fix) runs one more full survey round under the mutex at every scan completion — immediately before wpa_supplicant's auth attempt.
+
+### Root cause
+
+`__mt76u_vendor_request()` failures are **not propagated**: `mt76_rr()`/`mt76_get_field()` return garbage (~0) on failure and the survey/MIB loops unconditionally issue the next request. Nothing ever aborts a register sweep on a dead endpoint. Additionally:
+
+1. fast-fail counts only `-ETIMEDOUT`; `-EPIPE`/`-ESHUTDOWN` error storms never engage it (10 × 300 ms each, forever);
+2. a single successful request resets the wedge counter — a flapping wedge ("fw re-download succeeds but UNI commands still time out", BUG-11 gap 2) never triggers fast-fail at all;
+3. the RX-URB watchdog arms only under `MT76_STATE_ASSOC` — the observed wedge class strikes during STA **authentication** (before assoc), so no watchdog coverage exists exactly where every captured freeze started;
+4. MCU-side escalation (`usb_rescue_count`) is likewise reset by any successful MCU response, so a flapping MCU never reaches the `usb_queue_reset_device()` threshold.
+
+This explains why the box still froze 4× on 2026-09-04 22:47-23:59 despite the 14:50 UTC 0012 hardening being installed and active.
+
+### Fix (patches/0013)
+
+1. `usb.c`: count all hard control errors (`-ETIMEDOUT`, `-EPIPE`, `-ESHUTDOWN`) toward fast-fail; track consecutive fully-failed *requests* (`ctl_err_streak`); export `mt76u_ctl_wedged()`.
+2. `mt792x_mac.c`: skip the survey register sweep (`mt792x_update_channel()`) and the MIB sweep (`mt792x_mac_update_mib_stats()`) while wedged.
+3. `mt792x_mac.c`: new control-path wedge escalation in `mt792x_mac_work()` — armed by `MT76_STATE_RUNNING` (not ASSOC), 2 s of continuously wedged control path → chip reset; after 3 failed cycles → `usb_queue_reset_device()` (same escalation ladder as the MCU path in `mt7921/mcu.c`).
+
+### Verification plan (on next reachability)
+
+- Build 0013 on-target (6.18.34+rpt-rpi-v8 headers), install to updates/, depmod, canonical module swap per docs/MODPROBE-PROCEDURE.md.
+- Reproduce the historical trigger (wpa auth to FRITZ!Box 7530 IZ, DFS ch 132): expect "control path wedged, resetting chip (1/3)" within ~2 s of wedge onset, then port reset + re-enum + fw reload, host stays alive and SSH responsive throughout.
+- Confirm zero D-states in `mt76_get_survey` path during the wedge window (`/proc/*/stack` poller).
