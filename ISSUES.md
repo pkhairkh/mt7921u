@@ -886,3 +886,23 @@ Asymmetry explains the "connect works, disconnect kills" symptom: `mt7921_mac_st
 - Post-fix: two full connect/disconnect cycles rc=0, zero dmesg noise, zero hung tasks, no reset. Full logs: `forensics/2026-09-03_phase6_final/`.
 
 This bug reproduces the three historical machine freezes attributed to "NM connect/disconnect on the dongle" — the trigger was the disconnect STA-removal path, not NetworkManager itself.
+
+---
+
+## Part V (runtime): BUG-11 — USB wedge recovery gaps (production evidence, 2026-09-04)
+
+| Field | Value |
+|-------|-------|
+| **Severity** | Critical (interface death, 120s+ userspace stalls) |
+| **Evidence** | PROVEN (runtime kernel traces, Pi 4B dual-dongle deployment) |
+| **Status** | Patched (patches/0012) |
+
+Three recovery gaps observed in production with two MT7921U dongles under
+AP+STA load: (1) control-path livelock — survey work held mt76.mutex while
+each vendor request burned ~3 s against a dead MCU, stalling
+mt7921_mac_reset_work in cancel_delayed_work_sync() and D-blocking hostapd;
+(2) in-driver MCU reset churns forever when fw re-download succeeds but UNI
+commands still time out; (3) silent STA data-path death (bulk RX URBs stop
+completing, zero kernel signature) was never detected. Fix: fast-fail mode
+after 10 consecutive control ETIMEDOUTs, USB port-reset escalation after 3
+failed recovery cycles, RX-URB watchdog while associated.

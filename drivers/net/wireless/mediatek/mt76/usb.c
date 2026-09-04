@@ -10,6 +10,10 @@
 
 #define MT_VEND_REQ_MAX_RETRY   10
 #define MT_VEND_REQ_TOUT_MS     300
+/* Fast-fail probe timeout while the control path is wedged */
+#define MT_VEND_REQ_FAST_TOUT_MS 50
+/* Consecutive control ETIMEDOUTs before engaging fast-fail mode */
+#define MT76U_CTL_WEDGE_THRESHOLD 10
 
 static bool disable_usb_sg;
 module_param_named(disable_usb_sg, disable_usb_sg, bool, 0644);
@@ -32,6 +36,7 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
         struct usb_interface *uintf = to_usb_interface(dev->dev);
         struct usb_device *udev = interface_to_usbdev(uintf);
         unsigned int pipe;
+        unsigned int tout_ms;
         int i, ret;
 
         lockdep_assert_held(&dev->usb.usb_ctrl_mtx);
@@ -42,8 +47,31 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
                 if (test_bit(MT76_REMOVED, &dev->phy.state))
                         return -EIO;
 
+                /* While the control path is wedged (10+ consecutive
+                 * ETIMEDOUTs) probe with a short timeout so callers fail
+                 * fast instead of stalling ~3 s per request. This keeps
+                 * periodic work (survey, MIB stats) from holding
+                 * dev->mt76.mutex for minutes on a dead chip and blocking
+                 * both the reset work and userspace. Any successful
+                 * transfer clears the mode again. */
+                tout_ms = dev->usb.ctl_fastfail ? MT_VEND_REQ_FAST_TOUT_MS
+                                                : MT_VEND_REQ_TOUT_MS;
+
                 ret = usb_control_msg(udev, pipe, req, req_type, val,
-                                      offset, buf, len, MT_VEND_REQ_TOUT_MS);
+                                      offset, buf, len, tout_ms);
+                if (ret >= 0) {
+                        atomic_set(&dev->usb.ctl_timeouts, 0);
+                        dev->usb.ctl_fastfail = false;
+                } else if (ret == -ETIMEDOUT) {
+                        if (!dev->usb.ctl_fastfail &&
+                            atomic_inc_return(&dev->usb.ctl_timeouts) >=
+                            MT76U_CTL_WEDGE_THRESHOLD) {
+                                dev->usb.ctl_fastfail = true;
+                                dev_err(dev->dev,
+                                        "USB control path wedged (%d consecutive timeouts), entering fast-fail mode\n",
+                                        MT76U_CTL_WEDGE_THRESHOLD);
+                        }
+                }
                 if (ret == -ENODEV || ret == -EPROTO)
                         set_bit(MT76_REMOVED, &dev->phy.state);
                 if (ret >= 0 || ret == -ENODEV || ret == -EPROTO)
@@ -582,6 +610,9 @@ static void mt76u_complete_rx(struct urb *urb)
         unsigned long flags;
 
         trace_rx_urb(dev, urb);
+
+        /* Count data arrivals for the mac_work data-path watchdog */
+        atomic_inc(&dev->usb.rx_urb_completions);
 
         switch (urb->status) {
         case -ECONNRESET:

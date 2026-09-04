@@ -597,6 +597,7 @@ enum {
         MT76_STATE_ROC,
         MT76_STATE_PM,
         MT76_STATE_WED_RESET,
+        MT76_STATE_ASSOC,
 };
 
 enum mt76_sta_event {
@@ -753,6 +754,14 @@ struct mt76_usb {
         u8 in_ep[__MT_EP_IN_MAX];
         u8 num_out_eps;
         bool sg_en;
+
+        /* USB control-path wedge detection: consecutive ETIMEDOUTs on
+         * vendor requests and the fast-fail probe mode they trigger. */
+        atomic_t ctl_timeouts;
+        bool ctl_fastfail;
+        /* Total successful RX URB completions, for the data-path
+         * watchdog in mt792x_mac_work(). */
+        atomic_t rx_urb_completions;
 
         struct mt76u_mcu {
                 u8 *data;
@@ -982,6 +991,10 @@ struct mt76_phy {
 
         struct delayed_work mac_work;
         u8 mac_work_count;
+
+        /* USB data-path watchdog state (see mt792x_mac_work) */
+        int last_rx_urb_count;
+        u8 rx_stale_ticks;
 
         struct {
                 struct sk_buff *head;

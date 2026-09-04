@@ -42,6 +42,9 @@
 #define MT792x_BASIC_RATES_TBL  11
 
 #define MT792x_WATCHDOG_TIME    (HZ / 4)
+/* 120 ticks * 250ms = 30s without a single RX URB completion while
+ * associated => bulk data path is wedged (mt792x_mac_work) */
+#define MT792x_RX_STALE_TICKS   120
 
 #define MT792x_DRV_OWN_RETRY_COUNT      10
 #define MT792x_MCU_INIT_RETRY_COUNT     10
@@ -360,6 +363,9 @@ struct mt792x_dev {
         bool aspm_supported:1;
         bool hif_idle:1;
         bool hif_resumed:1;
+
+        /* Consecutive MCU recovery cycles (usb_rescue escalation, mcu.c) */
+        atomic_t usb_rescue_count;
         bool regd_change:1;
         wait_queue_head_t wait;
 

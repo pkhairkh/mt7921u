@@ -26,6 +26,32 @@ void mt792x_mac_work(struct work_struct *work)
 
         mt792x_mutex_release(phy->dev);
 
+        /* USB: silent data-path death detection. A wedged chip stops
+         * completing bulk RX URBs while the control path may still
+         * answer, which historically left STA interfaces dead with no
+         * kernel signature at all. Armed only while a station interface
+         * is associated, where received beacons guarantee continuous RX
+         * URB completions, so an idle AP never false-positives. */
+        if (mt76_is_usb(mphy->dev) &&
+            test_bit(MT76_STATE_RUNNING, &mphy->state) &&
+            test_bit(MT76_STATE_ASSOC, &mphy->state)) {
+                struct mt76_dev *mdev = mphy->dev;
+                int cur = atomic_read(&mdev->usb.rx_urb_completions);
+
+                if (cur == mphy->last_rx_urb_count) {
+                        if (++mphy->rx_stale_ticks >= MT792x_RX_STALE_TICKS) {
+                                dev_warn(mdev->dev,
+                                         "no RX URB completions for %d s, data path wedged, resetting\n",
+                                         (MT792x_RX_STALE_TICKS * MT792x_WATCHDOG_TIME) / HZ);
+                                mphy->rx_stale_ticks = 0;
+                                mt792x_reset(mdev);
+                        }
+                } else {
+                        mphy->last_rx_urb_count = cur;
+                        mphy->rx_stale_ticks = 0;
+                }
+        }
+
         mt76_tx_status_check(mphy->dev, false);
         ieee80211_queue_delayed_work(phy->mt76->hw, &mphy->mac_work,
                                      MT792x_WATCHDOG_TIME);

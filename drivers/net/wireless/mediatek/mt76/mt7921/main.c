@@ -799,6 +799,13 @@ static void mt7921_bss_info_changed(struct ieee80211_hw *hw,
                 mt7921_mcu_sta_update(dev, NULL, vif, true,
                                       MT76_STA_INFO_STATE_ASSOC);
                 mt7921_mcu_set_beacon_filter(dev, vif, vif->cfg.assoc);
+
+                /* Track association for the USB data-path watchdog in
+                 * mt792x_mac_work() */
+                if (vif->cfg.assoc)
+                        set_bit(MT76_STATE_ASSOC, &dev->mphy.state);
+                else
+                        clear_bit(MT76_STATE_ASSOC, &dev->mphy.state);
         }
 
         if (changed & BSS_CHANGED_ARP_FILTER) {

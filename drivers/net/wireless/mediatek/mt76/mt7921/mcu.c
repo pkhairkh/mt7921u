@@ -3,6 +3,7 @@
 
 #include <linux/fs.h>
 #include <linux/firmware.h>
+#include <linux/usb.h>
 #include "mt7921.h"
 #include "mcu.h"
 #include "../mt76_connac2_mac.h"
@@ -21,6 +22,11 @@ module_param_named(clc_force_usb, clc_force_usb, bool, 0644);
 MODULE_PARM_DESC(clc_force_usb, "force CLC SET command on USB even if previously failed");
 
 #define MT7921_MCU_TIMEOUT_MAX  3
+/* After this many full MCU recovery cycles that failed to stop the
+ * timeouts, escalate to a full USB port reset (usb_queue_reset_device).
+ * This is the only software recovery that revives a hard-wedged
+ * MT7921U MCU short of a power cycle. */
+#define MT7921_USB_RESCUE_THRESHOLD 3
 
 static int mt7921_mcu_timeout_retries = MT7921_MCU_TIMEOUT_MAX;
 module_param_named(mcu_timeout_retries, mt7921_mcu_timeout_retries, int, 0644);
@@ -46,11 +52,23 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
                          mt7921_mcu_timeout_retries);
 
                 if (count >= mt7921_mcu_timeout_retries) {
-                        dev_err(mdev->dev,
-                                "MCU timeout threshold reached (%d), resetting\n",
-                                count);
                         atomic_set(&dev->mcu_timeout_count, 0);
-                        mt792x_reset(mdev);
+
+                        if (mt76_is_usb(mdev) && dev->hw_init_done &&
+                            !dev->pm.suspended &&
+                            atomic_inc_return(&dev->usb_rescue_count) >=
+                            MT7921_USB_RESCUE_THRESHOLD) {
+                                dev_err(mdev->dev,
+                                        "MCU still wedged after %d recovery cycles, escalating to USB device reset\n",
+                                        atomic_read(&dev->usb_rescue_count));
+                                atomic_set(&dev->usb_rescue_count, 0);
+                                usb_queue_reset_device(to_usb_interface(mdev->dev));
+                        } else {
+                                dev_err(mdev->dev,
+                                        "MCU timeout threshold reached (%d), resetting\n",
+                                        count);
+                                mt792x_reset(mdev);
+                        }
                 }
 
                 return -ETIMEDOUT;
@@ -58,6 +76,7 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
 
         /* Successful response — reset timeout counter */
         atomic_set(&dev->mcu_timeout_count, 0);
+        atomic_set(&dev->usb_rescue_count, 0);
 
         rxd = (struct mt76_connac2_mcu_rxd *)skb->data;
         if (seq != rxd->seq)
