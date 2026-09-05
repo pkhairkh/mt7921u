@@ -92,6 +92,16 @@ static int mt7921u_mac_reset(struct mt792x_dev *dev)
 {
         int err;
 
+        /* Upstream 915672c5ae3: probe the control endpoint BEFORE any
+         * reset surgery. If the bus is (or has just gone) hung, queue
+         * the USB device reset and bail out immediately - grinding the
+         * full re-init sequence (wfsys reset, fw download, register
+         * init - thousands of register accesses) over a dead endpoint
+         * is what froze the whole system for minutes in production. */
+        mt792xu_reset_on_bus_error(dev);
+        if (atomic_read(&dev->mt76.bus_hung))
+                return 0;
+
         mt76_txq_schedule_all(&dev->mphy);
         mt76_worker_disable(&dev->mt76.tx_worker);
 
@@ -231,6 +241,8 @@ static int mt7921u_probe(struct usb_interface *usb_intf,
         dev = container_of(mdev, struct mt792x_dev, mt76);
         dev->fw_features = features;
         dev->hif_ops = &hif_ops;
+        atomic_set(&dev->mt76.bus_hung, false);
+        mt792xu_reset_work_init(dev);
 
         udev = usb_get_dev(udev);
         usb_reset_device(udev);

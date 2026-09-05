@@ -10,14 +10,6 @@
 
 #define MT_VEND_REQ_MAX_RETRY   10
 #define MT_VEND_REQ_TOUT_MS     300
-/* Fast-fail probe timeout while the control path is wedged */
-#define MT_VEND_REQ_FAST_TOUT_MS 50
-/* Consecutive control errors before engaging fast-fail mode */
-#define MT76U_CTL_WEDGE_THRESHOLD 10
-/* Consecutive fully-failed vendor REQUESTS (each already retried 10x)
- * before the control endpoint is considered wedged and periodic work
- * (survey, MIB stats) skips register access entirely. */
-#define MT76U_CTL_REQ_FAIL_THRESHOLD 2
 
 static bool disable_usb_sg;
 module_param_named(disable_usb_sg, disable_usb_sg, bool, 0644);
@@ -40,7 +32,6 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
         struct usb_interface *uintf = to_usb_interface(dev->dev);
         struct usb_device *udev = interface_to_usbdev(uintf);
         unsigned int pipe;
-        unsigned int tout_ms;
         int i, ret;
 
         lockdep_assert_held(&dev->usb.usb_ctrl_mtx);
@@ -50,39 +41,19 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
         for (i = 0; i < MT_VEND_REQ_MAX_RETRY; i++) {
                 if (test_bit(MT76_REMOVED, &dev->phy.state))
                         return -EIO;
-
-                /* While the control path is wedged (10+ consecutive
-                 * ETIMEDOUTs) probe with a short timeout so callers fail
-                 * fast instead of stalling ~3 s per request. This keeps
-                 * periodic work (survey, MIB stats) from holding
-                 * dev->mt76.mutex for minutes on a dead chip and blocking
-                 * both the reset work and userspace. Any successful
-                 * transfer clears the mode again. */
-                tout_ms = dev->usb.ctl_fastfail ? MT_VEND_REQ_FAST_TOUT_MS
-                                                : MT_VEND_REQ_TOUT_MS;
+                /* Bus-hung fail-fast (upstream 915672c5ae3): once the
+                 * control path is declared hung, every vendor request
+                 * returns instantly instead of burning a full retry
+                 * cycle (~3 s, formerly ~0.5 s in the 0012 fast-fail
+                 * mode, still REAL usb_control_msg traffic) on a dead
+                 * endpoint. bus_hung is cleared only from probe() after
+                 * the queued USB device reset has re-enumerated the
+                 * dongle. */
+                if (dev->usb.ctrl_timeout && atomic_read(&dev->bus_hung))
+                        return -EIO;
 
                 ret = usb_control_msg(udev, pipe, req, req_type, val,
-                                      offset, buf, len, tout_ms);
-                if (ret >= 0) {
-                        atomic_set(&dev->usb.ctl_timeouts, 0);
-                        atomic_set(&dev->usb.ctl_err_streak, 0);
-                        dev->usb.ctl_fastfail = false;
-                } else if (ret == -ETIMEDOUT || ret == -EPIPE ||
-                           ret == -ESHUTDOWN || ret == -EILSEQ) {
-                        /* Count every hard control error, not just
-                         * -ETIMEDOUT: a wedged MT7921U behind a hub
-                         * can present as endpoint STALL (-EPIPE), host
-                         * shutdown storms (-ESHUTDOWN) or CRC errors
-                         * (-EILSEQ) just as well as timeouts. */
-                        if (!dev->usb.ctl_fastfail &&
-                            atomic_inc_return(&dev->usb.ctl_timeouts) >=
-                            MT76U_CTL_WEDGE_THRESHOLD) {
-                                dev->usb.ctl_fastfail = true;
-                                dev_err(dev->dev,
-                                        "USB control path wedged (%d consecutive errors), entering fast-fail mode\n",
-                                        MT76U_CTL_WEDGE_THRESHOLD);
-                        }
-                }
+                                      offset, buf, len, MT_VEND_REQ_TOUT_MS);
                 if (ret == -ENODEV || ret == -EPROTO)
                         set_bit(MT76_REMOVED, &dev->phy.state);
                 if (ret >= 0 || ret == -ENODEV || ret == -EPROTO)
@@ -90,25 +61,29 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
                 usleep_range(5000, 10000);
         }
 
-        /* Whole request failed (all retries exhausted). Track
-         * consecutive failed requests so periodic work can skip
-         * register access instead of re-hammering a dead endpoint. */
-        atomic_inc(&dev->usb.ctl_err_streak);
-
         dev_err(dev->dev, "vendor request req:%02x off:%04x failed:%d\n",
                 req, offset, ret);
+
+        if (dev->usb.ctrl_timeout) {
+                atomic_set(&dev->bus_hung, true);
+                dev_err(dev->dev,
+                        "vendor request req:%02x off:%04x timed out, marking bus hung\n",
+                        req, offset);
+                dev->usb.ctrl_timeout(dev, ret);
+        }
+
         return ret;
 }
 EXPORT_SYMBOL_GPL(__mt76u_vendor_request);
 
-/* True when the USB control endpoint has stopped answering (2+ fully
- * failed vendor requests in a row, ~20 failed attempts). Survey and MIB
- * work uses this to skip their register sweeps instead of monopolizing
- * dev->mt76.mutex for 15-80 s per round on a dead chip. */
+/* True while the USB control endpoint is hung (upstream 915672c5ae3
+ * architecture). Survey, MIB and RX-watchdog work uses this to skip
+ * register sweeps instead of monopolizing dev->mt76.mutex on a dead
+ * chip. Cleared only by probe() after the queued USB device reset
+ * re-enumerates the dongle - no more flapping on isolated successes. */
 bool mt76u_ctl_wedged(struct mt76_dev *dev)
 {
-        return atomic_read(&dev->usb.ctl_err_streak) >=
-               MT76U_CTL_REQ_FAIL_THRESHOLD;
+        return atomic_read(&dev->bus_hung);
 }
 EXPORT_SYMBOL_GPL(mt76u_ctl_wedged);
 

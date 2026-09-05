@@ -1061,3 +1061,87 @@ offchannel_notify, MT7902) + 6.12 compat layer + project features.
   future upstream diffs meaningful. Mechanical, large, zero-semantic.
 - R2: restore ISC SPDX on non-MediaTek-authored files (upstream-submittable).
 - R3: rebase onto v6.18.y once R1 done, re-applying the feature set.
+
+## Part IX — Session 7: production freeze root cause; upstream wedge
+## architecture ported (0015)
+
+### IX.1 Evidence (crash boots -3/-2/-1, Sep 5 01:32/01:39/01:49 CEST)
+Production log (journald, persistent) shows, in EVERY boot with dongles
+attached, ~2 min after mt7921u probe:
+1. `Message 00020003 (seq 10) timeout (1/3)` — MCU message timeout during
+   hostapd bring-up (GTK set `wlan2: failed to set key ... (-110)`).
+2. `USB control path wedged (10 consecutive errors), entering fast-fail
+   mode` — the 0012 engine fired.
+3. Vendor-request storm (`req:63/66 off:d02c/d054/d058/53b8/53c4/
+   6000-6028 failed:-110`) continuing for 80+ SECONDS at ~0.5 s per
+   request AFTER fast-fail engaged — the storm IS the reset path
+   (mt7921u_init_hw: wfsys reset + fw re-download + register init)
+   re-reading over the dead endpoint, with real usb_control_msg traffic
+   (10 x 50 ms fast-fail retries per request).
+4. Hung-task cascade: hostapd, wg, curl and kworkers all D-blocked on a
+   mutex chain anchored at dev->mt76.mutex; NO `usb reset` event ever
+   fires; no clean shutdown records in crash boots -3/-2 (-1 hard freeze
+   mid-storm); systemd hardware watchdog (1 min) reboots the box.
+=> The 0013/0014 escalation was unreachable in practice: port reset was
+   scheduled only after TEN full failed chip resets, but ONE full chip
+   reset over a dead endpoint takes minutes-to-hours of register I/O.
+
+### IX.2 Root cause
+The fork's wedge engine (0012-0014) shortened timeouts but never stopped
+performing REAL register I/O through a dead control endpoint, and the
+recovery (chip reset) path itself is the heaviest register consumer.
+Upstream solved this class in torvalds commit 915672c5ae3 ("mt7921: Add
+PCIe AER handler support", which also restructured USB bus error
+handling): bus_hung fail-fast + no-op bus ops + queued usb device reset.
+
+### IX.3 Ported architecture (this patch, 0015)
+- mt76/usb.c `__mt76u_vendor_request`: returns -EIO instantly once
+  bus_hung is set; on full retry exhaustion marks bus_hung and invokes
+  the new `usb.ctrl_timeout` callback. 50 ms fast-fail timeout and
+  0012-0014 counter/threshold machinery REMOVED (superseded).
+- mt792x_usb.c: no-op `mt792xu_bus_hung_ops` swapped in via
+  `mt792xu_set_bus_hung()`; `mt792xu_queue_usb_reset()` (deduplicated by
+  usb_reset_pending) schedules `usb_queue_reset_device()`; since the
+  mt7921u driver has no pre_reset/post_reset handlers, the USB core
+  UNBINDS and RE-PROBES the driver => full fresh init, bus_hung cleared
+  in probe(). `mt792xu_check_bus()` (single MT_HW_CHIPID read) +
+  `mt792xu_reset_on_bus_error()` exported for the reset path.
+- mt7921/usb.c: probe arms the machinery (bus_hung=false +
+  mt792xu_reset_work_init) BEFORE the probe-time usb_reset_device;
+  mt7921u_mac_reset() now probes the bus FIRST and returns immediately
+  when hung - the multi-thousand-register re-init loop over a dead
+  endpoint can no longer happen.
+- mt7921/mac.c mt7921_reset_work: bails out of the 10x reset loop when
+  bus_hung (device is being re-probed; queues intentionally left
+  stopped, matching upstream).
+- mt76u_ctl_wedged() kept as API (survey/MIB/mac_work skip sites in
+  mt792x_mac.c) but now reads bus_hung - wedge state can no longer flap
+  on isolated successes; only probe() clears it.
+- Kept: 0014's mac_work re-arm + RX-URB watchdog (complementary), the
+  i==10 escalation in reset_work (now a secondary path for non-USB-bus
+  reset failures), MCU retry knobs.
+- net effect: wedge -> device reset -> fresh probe in seconds, zero
+  mutex monopoly, no D-storm, no watchdog reboot loop.
+
+### IX.4 Device spec (from crash-boot journal; dongles were unplugged
+at triage time)
+- AP dongle: bus 2-1.4.3 (behind RTS5411 "USB3.2 Hub" at 2-1.4), MediaTe
+k 0e8d:7961, bcdDevice 1.00, iSerial "000000000", "Wireless_Device",
+  SuperSpeed. STA dongle: 2-1.1 / 1-1.1.4 (HS companion) same IDs.
+- FW: HW/SW 0x8a108a10, Build Time 20241106151007a; WM FW 20241106151045
+  (matches upstream Nov 2024 blobs).
+- Physical wedge trigger remains unidentified (suspects: VL805+RTS5411
+  + mt7921u SuperSpeed interaction, U1/U2 LPM; hub-initiated L1 already
+  disabled by driver). The ported architecture makes the trigger
+  non-fatal: recovery is a USB port reset + re-probe. Ops-level
+  mitigation available: `echo N > /sys/bus/usb/devices/2-1/power/usb3_lpm_permit`
+  per-port if wedges recur frequently.
+
+### IX.5 Unrelated-but-found: internet SSH death with dongles in
+sl_fw_host.sh line 8 `ip route replace default via 10.99.0.2 dev
+veth-host` hijacks the HOST default route into the secureline netns
+whenever the lanes come up. Port-forwarded SSH replies then route into
+wg-ch and exit in CH with the wrong source IP: LAN SSH works (on-link
+192.168.178.0/24), internet SSH times out, dongles out => sl-fw fails
+=> DHCP default restored => internet SSH works. Fix tracked in system
+layer (connmark reply-symmetry + ExecStop restore), not in this repo.

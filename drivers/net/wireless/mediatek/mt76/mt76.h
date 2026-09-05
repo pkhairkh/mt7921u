@@ -755,12 +755,10 @@ struct mt76_usb {
         u8 num_out_eps;
         bool sg_en;
 
-        /* USB control-path wedge detection: consecutive ETIMEDOUTs on
-         * vendor requests and the fast-fail probe mode they trigger. */
-        atomic_t ctl_timeouts;
-        bool ctl_fastfail;
-        /* Consecutive fully-failed vendor requests (see usb.c) */
-        atomic_t ctl_err_streak;
+        /* Upstream wedge architecture (torvalds 915672c5ae3): callback
+         * invoked when a vendor request exhausts all retries; the USB
+         * glue marks the bus hung and queues a device reset. */
+        void (*ctrl_timeout)(struct mt76_dev *dev, int err);
         /* Total successful RX URB completions, for the data-path
          * watchdog in mt792x_mac_work(). */
         atomic_t rx_urb_completions;

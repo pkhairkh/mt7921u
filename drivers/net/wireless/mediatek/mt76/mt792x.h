@@ -392,6 +392,14 @@ struct mt792x_dev {
 
         struct work_struct init_work;
 
+        /* Upstream 915672c5ae3: USB device-reset escalation for a hung
+         * control path. usb_reset_work queues usb_queue_reset_device()
+         * (the mt7921u driver has no pre_reset/post_reset handlers, so
+         * the USB core unbinds and re-probes us); usb_reset_pending
+         * deduplicates the queueing. */
+        struct work_struct usb_reset_work;
+        atomic_t usb_reset_pending;
+
         u8 fw_debug;
         u8 fw_features;
 
@@ -687,6 +695,10 @@ int mt792xu_dma_init(struct mt792x_dev *dev, bool resume);
 int mt792xu_mcu_power_on(struct mt792x_dev *dev);
 int mt792xu_wfsys_reset(struct mt792x_dev *dev);
 int mt792xu_init_reset(struct mt792x_dev *dev);
+int mt792xu_check_bus(struct mt792x_dev *dev);
+int mt792xu_reset_on_bus_error(struct mt792x_dev *dev);
+void mt792xu_reset_work_init(struct mt792x_dev *dev);
+void mt792xu_reset_work_cleanup(struct mt792x_dev *dev);
 u32 mt792xu_rr(struct mt76_dev *dev, u32 addr);
 void mt792xu_wr(struct mt76_dev *dev, u32 addr, u32 val);
 u32 mt792xu_rmw(struct mt76_dev *dev, u32 addr, u32 mask, u32 val);

@@ -749,6 +749,13 @@ void mt7921_mac_reset_work(struct work_struct *work)
         dev->phy.dfs_state.radar_detected = false;
 
         for (i = 0; i < 10; i++) {
+                /* Upstream 915672c5ae3: bail out immediately when the
+                 * control path is hung - the queued USB device reset
+                 * will unbind/re-probe this driver; a chip reset over
+                 * dropped register I/O is both useless and harmful. */
+                if (atomic_read(&dev->mt76.bus_hung))
+                        return;
+
                 mutex_lock(&dev->mt76.mutex);
                 ret = mt792x_dev_reset(dev);
                 mutex_unlock(&dev->mt76.mutex);
@@ -756,7 +763,16 @@ void mt7921_mac_reset_work(struct work_struct *work)
                 if (!ret)
                         break;
         }
-        if (mt76_is_sdio(&dev->mt76) && atomic_read(&dev->mt76.bus_hung)) {
+        if ((mt76_is_sdio(&dev->mt76) || mt76_is_usb(&dev->mt76)) &&
+            atomic_read(&dev->mt76.bus_hung)) {
+                if (mt76_is_usb(&dev->mt76)) {
+                        /* Upstream 915672c5ae3: the driver is about to be
+                         * torn down by the queued USB device reset (the
+                         * mt7921u driver has no pre_reset/post_reset
+                         * handlers, so the USB core unbinds and re-probes
+                         * us). Leave queues stopped and RESET set. */
+                        return;
+                }
                 dev->hw_full_reset = false;
                 clear_bit(MT76_RESET, &dev->mphy.state);
                 ieee80211_wake_queues(hw);
