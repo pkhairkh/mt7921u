@@ -503,13 +503,30 @@ void mt792xu_disconnect(struct usb_interface *usb_intf)
 {
         struct mt792x_dev *dev = usb_get_intfdata(usb_intf);
 
+        /* 0016: upstream-master-style teardown hardening. The state
+         * bits stop mac_work/RX-watchdog rescheduling and make in-flight
+         * waits bail; purging res_q wakes MCU waiters; cancelling
+         * reset_work + disabling tx_worker closes the window where a
+         * wedge-triggered unbind races a running chip-reset (the exact
+         * 0015 recovery scenario). */
+        set_bit(MT76_RESET, &dev->mphy.state);
+        set_bit(MT76_MCU_RESET, &dev->mphy.state);
+        clear_bit(MT76_STATE_RUNNING, &dev->mphy.state);
+        wake_up(&dev->mt76.mcu.wait);
+        skb_queue_purge(&dev->mt76.mcu.res_q);
+
         cancel_work_sync(&dev->init_work);
+        cancel_work_sync(&dev->reset_work);
+        mt76_worker_disable(&dev->mt76.tx_worker);
         mt792xu_reset_work_cleanup(dev);
-        if (!test_bit(MT76_STATE_INITIALIZED, &dev->mphy.state))
+        if (!test_bit(MT76_STATE_INITIALIZED, &dev->mphy.state)) {
+                set_bit(MT76_REMOVED, &dev->mphy.state);
                 return;
+        }
 
         mt76_unregister_device(&dev->mt76);
         mt792xu_cleanup(dev);
+        set_bit(MT76_REMOVED, &dev->mphy.state);
 
         usb_set_intfdata(usb_intf, NULL);
         usb_put_dev(interface_to_usbdev(usb_intf));

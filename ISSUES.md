@@ -1145,3 +1145,67 @@ wg-ch and exit in CH with the wrong source IP: LAN SSH works (on-link
 192.168.178.0/24), internet SSH times out, dongles out => sl-fw fails
 => DHCP default restored => internet SSH works. Fix tracked in system
 layer (connmark reply-symmetry + ExecStop restore), not in this repo.
+
+## Part X — Session 8: whole-setup audit (driver + system), verified fixes
+
+### X.1 Driver (0016, this patch)
+1. PROBE-ERROR UAF window: on probe failure the USB core never calls
+   .disconnect (drivers/usb/core/driver.c err: path), and the fork's
+   error label did not cancel usb_reset_work — but 0015 arms
+   ctrl_timeout() BEFORE fw download, so a failed download could leave
+   the work scheduled against a freed dev. FIX: mt792xu_reset_work_cleanup()
+   added to the error label (upstream master does the same).
+2. DISCONNECT hardening: fork's mt792xu_disconnect lacked the
+   upstream-master teardown sequence (state bits + wake_up + res_q purge +
+   reset_work cancel + tx_worker disable + early MT76_REMOVED). In the
+   0015 recovery scenario (unbind while chip-reset/mac_work active) this
+   closes every teardown race. Ported; fork's usb_get_dev/usb_put_dev
+   pair preserved.
+
+### X.2 System issues found (verified on-Pi, fixed in session 8)
+1. CLOCK (deep): no RTC; every boot starts at ~"Sep 3 17:33" (identical
+   across crash boots - journald list-boots proves it). sl-clkfix v2 is
+   well-written (forward-only, WG replay-guard aware) but its UNIT is
+   structurally broken: After/Wants=sl-wg1.service + NetworkNamespacePath
+   netns => when dongles are out, sl-wg1 never settles and clkfix's start
+   job stays queued forever (observed: Job 129 queued, 0 journal entries,
+   clock 32.3h off all session). FIX: v3 unit runs in HOST ns (direct
+   eth0 egress), deps on network-online only, + sl-clkfix.timer every
+   10 min (boot clock resets + drift), script NTP-first without the
+   stale wlan1-IP bind.
+2. gwwatch STA_USB=2-1.4.1 STALE: current topology is STA=2-1.1 /
+   AP=2-1.4.3 (journal, both 0e8d:7961); step3 USB re-auth matched NO
+   device = silent no-op. Comment's "AP dongle 2-1.4.4" equally stale.
+   FIX: v3.3 derives the port dynamically from
+   /sys/class/net/wlan1/device (works inside the netns), fallback 2-1.1.
+3. sl-fw "Cannot find device wlan2" at boot: no wait-for-wlan2 and (with
+   dongle-less boots) guaranteed fail; retries only piggybacked on
+   apwatch's sl-ap restarts. FIX: v1.3 waits 90s for wlan2; unit gains
+   Restart=on-failure RestartSec=10 StartLimitIntervalSec=0.
+4. wg key material leaked to /tmp: sl_wg1_up/sl_lane2_up rm the setconfs
+   only on success; every failed handshake (57+ this boot) leaves
+   /tmp/.wg-*.setconf root:600 on disk. FIX: trap cleanup + remove
+   current leftovers.
+5. Route-layer hygiene: sl_fw_down left a duplicate metric-0 default
+   (identical next-hop - benign until the LAN changes); live duplicate
+   removed via precise `proto boot` match; down script v1.1 now removes
+   the veth-host default precisely and adds an eth0 default only when
+   none exists (never touches the DHCP-owned route).
+6. sl_watchdog hardcoded 192.168.178.147; sl-ap unit description stale
+   ("hidden SSID SecureLine" vs actual broadcast SSID, ch6 2.4GHz - also
+   rules OUT DFS as wedge trigger). Both fixed (dynamic IP check /
+   corrected description).
+
+### X.3 Noted, not changed (design or judgment calls)
+- sl-wpa/sl-dhcp/sl-wg1 eternal 3-10s restart loops with dongles out:
+  fail-closed by design, but journal-heavy (58 wg1 restarts this boot).
+- /proc/net/nf_conntrack absent (kernel built without conntrack procfs);
+  connmark path verified via rule counters instead.
+- Internet-facing sshd allows password auth (accepted logins from the
+  audit sandbox observed); rotate hostapd passphrase + ProtonVPN keys +
+  GitHub PAT (all previously exposed in chat/logs).
+- pstore empty = no oops records; freezes are hangs (consistent with the
+  mutex-monopoly root cause, not crashes).
+- fw files verified: fresh upstream builds active, .bak-20241106 kept,
+   not shadowing; cmdline quirk 0e8d:7961:n confirmed GONE from the
+   running kernel; udev 90-mt7921-nosuspend rule in place.

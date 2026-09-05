@@ -291,6 +291,12 @@ static int mt7921u_probe(struct usb_interface *usb_intf,
 
 error:
         mt76u_queues_deinit(&dev->mt76);
+        /* 0016: on probe failure the USB core never calls .disconnect,
+         * so cancel the wedge-escalation work HERE - it may have been
+         * scheduled by ctrl_timeout() during a failed fw download
+         * (upstream master does the same; without this, a pending
+         * usb_reset_work would touch dev after mt76_free_device). */
+        mt792xu_reset_work_cleanup(dev);
 
         usb_set_intfdata(usb_intf, NULL);
         usb_put_dev(interface_to_usbdev(usb_intf));
