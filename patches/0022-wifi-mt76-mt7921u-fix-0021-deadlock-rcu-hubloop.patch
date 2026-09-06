@@ -1,0 +1,108 @@
+--- mt792x_mac.c.pre-0022	2026-09-05 18:06:03.298458678 +0200
++++ mt792x_mac.c	2026-09-05 18:06:03.299368437 +0200
+@@ -16,7 +16,14 @@
+  * so every recovery reset re-arms U1 on the dongle links (observed with
+  * 0020 live: u1=enabled on 2-1.1/2-1.4.3 in every soak snapshot). This
+  * runs from mac_work every 250 ms; the healthy-path cost is a few
+- * struct reads. */
++ * struct reads.
++ *
++ * 0022: invoked BEFORE mt792x_mutex_acquire() - it only touches
++ * usb_device state (no mt76 lock needed) and usb_disable_lpm() may
++ * sleep on a control transfer. The 0021 version was called between
++ * a duplicated pair of mt792x_mutex_acquire() calls, self-deadlocking
++ * mac_work on dev->mt76.mutex and freezing the whole networking
++ * stack (wiphy -> rtnl chain) with it. */
+ static void mt792x_usb_lpm_enforce(struct mt76_dev *dev)
+ {
+         struct usb_interface *intf;
+@@ -57,8 +64,6 @@
+                                                mac_work.work);
+         phy = mphy->priv;
+ 
+-        mt792x_mutex_acquire(phy->dev);
+-
+         mt792x_usb_lpm_enforce(mphy->dev);
+ 
+         mt792x_mutex_acquire(phy->dev);
+--- mt7921/usb.c.pre-0022	2026-09-05 18:06:03.299997529 +0200
++++ mt7921/usb.c	2026-09-05 18:06:03.300203807 +0200
+@@ -138,7 +138,6 @@
+                 ret = usb_disable_lpm(hub);
+                 dev_info(dev->mt76.dev, "sl0020: LPM kill hub %s ret=%d\n",
+                          dev_name(&hub->dev), ret);
+-                hub = hub->parent;
+                 hub->lpm_capable = 0;
+                 hub = hub->parent;
+         }
+--- agg-rx.c.pre-0022	2026-09-05 18:06:03.300734140 +0200
++++ agg-rx.c	2026-09-05 18:06:03.300913326 +0200
+@@ -302,38 +302,53 @@
+ }
+ EXPORT_SYMBOL_GPL(mt76_rx_aggr_stop);
+ 
+-/* 0021: chip-reset path - flush every RX-aggr reorder session.
++/* 0021/0022: chip-reset path - flush every RX-aggr reorder session.
+  * Reorder buffers park skbs whose frags own page_pool pages; if a
+  * chip reset (fw re-download / full re-init) leaves the old sessions
+  * stranded, those pages stay inflight forever (observed: pool id 24
+  * stuck at 147 inflight >25 min after the 2026-09-05 16:38 wedge).
+- * Called after the rx worker is stopped, so there is no concurrent
+- * reorder activity. */
++ *
++ * 0022 fix: the 0021 version wrapped the whole drain in rcu_read_lock()
++ * and called mt76_rx_aggr_shutdown() -> cancel_delayed_work_sync()
++ * inside it - a sleeping call in an RCU read-side critical section
++ * (illegal on PREEMPT_RCU kernels). Snapshot the sessions under the
++ * RCU lock (writer-side NULL swap; both call sites guarantee the
++ * RX/reorder workers are stopped and no concurrent writer - mac_reset
++ * holds dev->mt76.mutex, cleanup runs post-unregister) and drain them
++ * outside it. */
+ void mt76_rx_aggr_flush(struct mt76_dev *dev)
+ {
++        struct mt76_rx_tid *tids[IEEE80211_NUM_TIDS];
+         struct mt76_wcid *wcid;
+-        struct mt76_rx_tid *tid;
+-        int i, tidno;
++        int i, tidno, n;
+ 
+-        rcu_read_lock();
+         for (i = 0; i < MT76_N_WCIDS; i++) {
++                rcu_read_lock();
+                 wcid = rcu_dereference(dev->wcid[i]);
+-                if (!wcid || !wcid->sta)
++                if (!wcid || !wcid->sta) {
++                        rcu_read_unlock();
+                         continue;
++                }
+ 
++                n = 0;
+                 for (tidno = 0; tidno < IEEE80211_NUM_TIDS; tidno++) {
+-                        struct mt76_rx_tid *old;
++                        struct mt76_rx_tid *tid =
++                                rcu_dereference(wcid->aggr[tidno]);
+ 
+-                        tid = rcu_dereference(wcid->aggr[tidno]);
+                         if (!tid)
+                                 continue;
+-                        old = rcu_replace_pointer(wcid->aggr[tidno], NULL, 1);
+-                        if (old == tid) {
+-                                mt76_rx_aggr_shutdown(dev, tid);
+-                                kfree_rcu(tid, rcu_head);
+-                        }
++
++                        rcu_assign_pointer(wcid->aggr[tidno], NULL);
++                        tids[n++] = tid;
++                }
++                rcu_read_unlock();
++
++                /* sleeping drain - strictly OUTSIDE the RCU critical
++                 * section (0022) */
++                for (tidno = 0; tidno < n; tidno++) {
++                        mt76_rx_aggr_shutdown(dev, tids[tidno]);
++                        kfree_rcu(tids[tidno], rcu_head);
+                 }
+         }
+-        rcu_read_unlock();
+ }
+ EXPORT_SYMBOL_GPL(mt76_rx_aggr_flush);

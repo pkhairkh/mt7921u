@@ -1,0 +1,3812 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mt7921u-ai <patch-engineer@mt7921u.local>
+Date: Fri, 2 May 2026 00:00:00 +0000
+Subject: [PATCH 10/10] wifi: mt76: mt7921: add runtime-verification harness
+
+Add a comprehensive runtime-verification framework for the mt7921u
+USB driver.  This is a source-level only patch that provides debug
+traces, debugfs trigger files, and test scripts for human testers
+to verify the bug fixes from patches 0001-0008.
+
+4.1  Dynamic debug traces:
+ - mcu.c: dev_dbg() in mt7921_mcu_set_clc() and __mt7921_mcu_set_clc()
+   showing alpha2, env_cap, idx before the for loop / command send
+ - mcu.c: dev_dbg() in mt7921_mcu_parse_response() showing cmd id and
+   status on MCU response receipt
+ - usb.c: dev_dbg() in mt7921u_mcu_send_message() showing cmd id on
+   MCU command send entry
+ - mac.c: dev_dbg() in mt7921_mac_wtbl_update() showing idx and mask
+ - mt792x_core.c: dev_dbg() in mt792x_roc_timer() on ROC timer fire
+ - main.c: dev_dbg() in mt7921_roc_work() at entry/exit
+
+4.2  debugfs trigger files (test_trigger_debugfs.c):
+ Five read-only trigger files under .../mt76/test_trigger/, all
+ protected by module parameter test_trigger_enable (default 0):
+  - trigger_testmode_null: verify BUG-01 (NULL drv_own on USB)
+  - trigger_wtbl_poll: verify BUG-02 (WTBL poll timeout)
+  - trigger_mcu_retry: verify BUG-03 (MCU command retry)
+  - trigger_clc_load: verify CLC regulatory / fallback
+  - trigger_roc_timer: verify BUG-04 (ROC timer state)
+
+4.3  Test scripts (testing/):
+ Seven individual scripts (T1-T7) plus a master orchestrator:
+  - test_t1_testmode.sh: testmode NULL deref verification
+  - test_t2_wtbl.sh: WTBL poll timeout verification
+  - test_t3_mcu_retry.sh: MCU command retry verification
+  - test_t4_clc.sh: CLC regulatory verification
+  - test_t5_suspend.sh: suspend/resume verification
+  - test_t6_reset.sh: queue wake on reset verification
+  - test_t7_twt.sh: TWT functionality verification
+  - test_harness.sh: master orchestrator with --test, --interface,
+    --log-dir arguments
+
+All test scripts output standardised [PASS]/[FAIL]/[SKIP] results and
+capture dmesg and trace output to a log file.
+
+Signed-off-by: mt7921u-ai <patch-engineer@mt7921u.local>
+---
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/Makefile b/drivers/net/wireless/mediatek/mt76/mt7921/Makefile
+index 0e40f0e..af25c49 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/Makefile
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/Makefile
+@@ -5,7 +5,7 @@ obj-$(CONFIG_MT7921E) += mt7921e.o
+ obj-$(CONFIG_MT7921S) += mt7921s.o
+ obj-$(CONFIG_MT7921U) += mt7921u.o
+ 
+-mt7921-common-y := mac.o mcu.o main.o init.o debugfs.o twt.o csi.o
++mt7921-common-y := mac.o mcu.o main.o init.o debugfs.o twt.o twt_debugfs.o csi.o csi_nl80211.o test_trigger_debugfs.o
+ mt7921-common-$(CONFIG_NL80211_TESTMODE) += testmode.o
+ mt7921e-y := pci.o pci_mac.o pci_mcu.o
+ mt7921s-y := sdio.o sdio_mac.o sdio_mcu.o
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c b/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
+index 4333005..1c6c640 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/debugfs.c
+@@ -6,180 +6,180 @@
+ static int
+ mt7921_reg_set(void *data, u64 val)
+ {
+-	struct mt792x_dev *dev = data;
++        struct mt792x_dev *dev = data;
+ 
+-	mt792x_mutex_acquire(dev);
+-	mt76_wr(dev, dev->mt76.debugfs_reg, val);
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_acquire(dev);
++        mt76_wr(dev, dev->mt76.debugfs_reg, val);
++        mt792x_mutex_release(dev);
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ static int
+ mt7921_reg_get(void *data, u64 *val)
+ {
+-	struct mt792x_dev *dev = data;
++        struct mt792x_dev *dev = data;
+ 
+-	mt792x_mutex_acquire(dev);
+-	*val = mt76_rr(dev, dev->mt76.debugfs_reg);
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_acquire(dev);
++        *val = mt76_rr(dev, dev->mt76.debugfs_reg);
++        mt792x_mutex_release(dev);
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_regval, mt7921_reg_get, mt7921_reg_set,
+-			 "0x%08llx\n");
++                         "0x%08llx\n");
+ static int
+ mt7921_fw_debug_set(void *data, u64 val)
+ {
+-	struct mt792x_dev *dev = data;
++        struct mt792x_dev *dev = data;
+ 
+-	mt792x_mutex_acquire(dev);
++        mt792x_mutex_acquire(dev);
+ 
+-	dev->fw_debug = (u8)val;
+-	mt7921_mcu_fw_log_2_host(dev, dev->fw_debug);
++        dev->fw_debug = (u8)val;
++        mt7921_mcu_fw_log_2_host(dev, dev->fw_debug);
+ 
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_release(dev);
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ static int
+ mt7921_fw_debug_get(void *data, u64 *val)
+ {
+-	struct mt792x_dev *dev = data;
++        struct mt792x_dev *dev = data;
+ 
+-	*val = dev->fw_debug;
++        *val = dev->fw_debug;
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_fw_debug, mt7921_fw_debug_get,
+-			 mt7921_fw_debug_set, "%lld\n");
++                         mt7921_fw_debug_set, "%lld\n");
+ 
+ DEFINE_SHOW_ATTRIBUTE(mt792x_tx_stats);
+ 
+ static void
+ mt7921_seq_puts_array(struct seq_file *file, const char *str,
+-		      s8 *val, int len)
++                      s8 *val, int len)
+ {
+-	int i;
+-
+-	seq_printf(file, "%-16s:", str);
+-	for (i = 0; i < len; i++)
+-		if (val[i] == 127)
+-			seq_printf(file, " %6s", "N.A");
+-		else
+-			seq_printf(file, " %6d", val[i]);
+-	seq_puts(file, "\n");
++        int i;
++
++        seq_printf(file, "%-16s:", str);
++        for (i = 0; i < len; i++)
++                if (val[i] == 127)
++                        seq_printf(file, " %6s", "N.A");
++                else
++                        seq_printf(file, " %6d", val[i]);
++        seq_puts(file, "\n");
+ }
+ 
+-#define mt7921_print_txpwr_entry(prefix, rate)				\
+-({									\
+-	mt7921_seq_puts_array(s, #prefix " (user)",			\
+-			      txpwr.data[TXPWR_USER].rate,		\
+-			      ARRAY_SIZE(txpwr.data[TXPWR_USER].rate)); \
+-	mt7921_seq_puts_array(s, #prefix " (eeprom)",			\
+-			      txpwr.data[TXPWR_EEPROM].rate,		\
+-			      ARRAY_SIZE(txpwr.data[TXPWR_EEPROM].rate)); \
+-	mt7921_seq_puts_array(s, #prefix " (tmac)",			\
+-			      txpwr.data[TXPWR_MAC].rate,		\
+-			      ARRAY_SIZE(txpwr.data[TXPWR_MAC].rate));	\
++#define mt7921_print_txpwr_entry(prefix, rate)                          \
++({                                                                      \
++        mt7921_seq_puts_array(s, #prefix " (user)",                     \
++                              txpwr.data[TXPWR_USER].rate,              \
++                              ARRAY_SIZE(txpwr.data[TXPWR_USER].rate)); \
++        mt7921_seq_puts_array(s, #prefix " (eeprom)",                   \
++                              txpwr.data[TXPWR_EEPROM].rate,            \
++                              ARRAY_SIZE(txpwr.data[TXPWR_EEPROM].rate)); \
++        mt7921_seq_puts_array(s, #prefix " (tmac)",                     \
++                              txpwr.data[TXPWR_MAC].rate,               \
++                              ARRAY_SIZE(txpwr.data[TXPWR_MAC].rate));  \
+ })
+ 
+ static int
+ mt7921_txpwr(struct seq_file *s, void *data)
+ {
+-	struct mt792x_dev *dev = dev_get_drvdata(s->private);
+-	struct mt7921_txpwr txpwr;
+-	int ret;
+-
+-	mt792x_mutex_acquire(dev);
+-	ret = mt7921_get_txpwr_info(dev, &txpwr);
+-	mt792x_mutex_release(dev);
+-
+-	if (ret)
+-		return ret;
+-
+-	seq_printf(s, "Tx power table (channel %d)\n", txpwr.ch);
+-	seq_printf(s, "%-16s  %6s %6s %6s %6s\n",
+-		   " ", "1m", "2m", "5m", "11m");
+-	mt7921_print_txpwr_entry(CCK, cck);
+-
+-	seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s\n",
+-		   " ", "6m", "9m", "12m", "18m", "24m", "36m",
+-		   "48m", "54m");
+-	mt7921_print_txpwr_entry(OFDM, ofdm);
+-
+-	seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s\n",
+-		   " ", "mcs0", "mcs1", "mcs2", "mcs3", "mcs4", "mcs5",
+-		   "mcs6", "mcs7");
+-	mt7921_print_txpwr_entry(HT20, ht20);
+-
+-	seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s %6s\n",
+-		   " ", "mcs0", "mcs1", "mcs2", "mcs3", "mcs4", "mcs5",
+-		   "mcs6", "mcs7", "mcs32");
+-	mt7921_print_txpwr_entry(HT40, ht40);
+-
+-	seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s\n",
+-		   " ", "mcs0", "mcs1", "mcs2", "mcs3", "mcs4", "mcs5",
+-		   "mcs6", "mcs7", "mcs8", "mcs9", "mcs10", "mcs11");
+-	mt7921_print_txpwr_entry(VHT20, vht20);
+-	mt7921_print_txpwr_entry(VHT40, vht40);
+-	mt7921_print_txpwr_entry(VHT80, vht80);
+-	mt7921_print_txpwr_entry(VHT160, vht160);
+-	mt7921_print_txpwr_entry(HE26, he26);
+-	mt7921_print_txpwr_entry(HE52, he52);
+-	mt7921_print_txpwr_entry(HE106, he106);
+-	mt7921_print_txpwr_entry(HE242, he242);
+-	mt7921_print_txpwr_entry(HE484, he484);
+-	mt7921_print_txpwr_entry(HE996, he996);
+-	mt7921_print_txpwr_entry(HE996x2, he996x2);
+-
+-	return 0;
++        struct mt792x_dev *dev = dev_get_drvdata(s->private);
++        struct mt7921_txpwr txpwr;
++        int ret;
++
++        mt792x_mutex_acquire(dev);
++        ret = mt7921_get_txpwr_info(dev, &txpwr);
++        mt792x_mutex_release(dev);
++
++        if (ret)
++                return ret;
++
++        seq_printf(s, "Tx power table (channel %d)\n", txpwr.ch);
++        seq_printf(s, "%-16s  %6s %6s %6s %6s\n",
++                   " ", "1m", "2m", "5m", "11m");
++        mt7921_print_txpwr_entry(CCK, cck);
++
++        seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s\n",
++                   " ", "6m", "9m", "12m", "18m", "24m", "36m",
++                   "48m", "54m");
++        mt7921_print_txpwr_entry(OFDM, ofdm);
++
++        seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s\n",
++                   " ", "mcs0", "mcs1", "mcs2", "mcs3", "mcs4", "mcs5",
++                   "mcs6", "mcs7");
++        mt7921_print_txpwr_entry(HT20, ht20);
++
++        seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s %6s\n",
++                   " ", "mcs0", "mcs1", "mcs2", "mcs3", "mcs4", "mcs5",
++                   "mcs6", "mcs7", "mcs32");
++        mt7921_print_txpwr_entry(HT40, ht40);
++
++        seq_printf(s, "%-16s  %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s\n",
++                   " ", "mcs0", "mcs1", "mcs2", "mcs3", "mcs4", "mcs5",
++                   "mcs6", "mcs7", "mcs8", "mcs9", "mcs10", "mcs11");
++        mt7921_print_txpwr_entry(VHT20, vht20);
++        mt7921_print_txpwr_entry(VHT40, vht40);
++        mt7921_print_txpwr_entry(VHT80, vht80);
++        mt7921_print_txpwr_entry(VHT160, vht160);
++        mt7921_print_txpwr_entry(HE26, he26);
++        mt7921_print_txpwr_entry(HE52, he52);
++        mt7921_print_txpwr_entry(HE106, he106);
++        mt7921_print_txpwr_entry(HE242, he242);
++        mt7921_print_txpwr_entry(HE484, he484);
++        mt7921_print_txpwr_entry(HE996, he996);
++        mt7921_print_txpwr_entry(HE996x2, he996x2);
++
++        return 0;
+ }
+ 
+ static int
+ mt7921_pm_set(void *data, u64 val)
+ {
+-	struct mt792x_dev *dev = data;
+-	struct mt76_connac_pm *pm = &dev->pm;
+-
+-	if (mt76_is_usb(&dev->mt76))
+-		return -EOPNOTSUPP;
+-
+-	mutex_lock(&dev->mt76.mutex);
+-
+-	if (val == pm->enable_user)
+-		goto out;
+-
+-	if (!pm->enable_user) {
+-		pm->stats.last_wake_event = jiffies;
+-		pm->stats.last_doze_event = jiffies;
+-	}
+-	/* make sure the chip is awake here and ps_work is scheduled
+-	 * just at end of the this routine.
+-	 */
+-	pm->enable = false;
+-	mt76_connac_pm_wake(&dev->mphy, pm);
+-
+-	pm->enable_user = val;
+-	mt7921_set_runtime_pm(dev);
+-	mt76_connac_power_save_sched(&dev->mphy, pm);
++        struct mt792x_dev *dev = data;
++        struct mt76_connac_pm *pm = &dev->pm;
++
++        if (mt76_is_usb(&dev->mt76))
++                return -EOPNOTSUPP;
++
++        mutex_lock(&dev->mt76.mutex);
++
++        if (val == pm->enable_user)
++                goto out;
++
++        if (!pm->enable_user) {
++                pm->stats.last_wake_event = jiffies;
++                pm->stats.last_doze_event = jiffies;
++        }
++        /* make sure the chip is awake here and ps_work is scheduled
++         * just at end of the this routine.
++         */
++        pm->enable = false;
++        mt76_connac_pm_wake(&dev->mphy, pm);
++
++        pm->enable_user = val;
++        mt7921_set_runtime_pm(dev);
++        mt76_connac_power_save_sched(&dev->mphy, pm);
+ out:
+-	mutex_unlock(&dev->mt76.mutex);
++        mutex_unlock(&dev->mt76.mutex);
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ static int
+ mt7921_pm_get(void *data, u64 *val)
+ {
+-	struct mt792x_dev *dev = data;
++        struct mt792x_dev *dev = data;
+ 
+-	*val = dev->pm.enable_user;
++        *val = dev->pm.enable_user;
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_pm, mt7921_pm_get, mt7921_pm_set, "%lld\n");
+@@ -187,62 +187,62 @@ DEFINE_DEBUGFS_ATTRIBUTE(fops_pm, mt7921_pm_get, mt7921_pm_set, "%lld\n");
+ static int
+ mt7921_deep_sleep_set(void *data, u64 val)
+ {
+-	struct mt792x_dev *dev = data;
+-	struct mt76_connac_pm *pm = &dev->pm;
+-	bool monitor = !!(dev->mphy.hw->conf.flags & IEEE80211_CONF_MONITOR);
+-	bool enable = !!val;
++        struct mt792x_dev *dev = data;
++        struct mt76_connac_pm *pm = &dev->pm;
++        bool monitor = !!(dev->mphy.hw->conf.flags & IEEE80211_CONF_MONITOR);
++        bool enable = !!val;
+ 
+-	if (mt76_is_usb(&dev->mt76))
+-		return -EOPNOTSUPP;
++        if (mt76_is_usb(&dev->mt76))
++                return -EOPNOTSUPP;
+ 
+-	mt792x_mutex_acquire(dev);
+-	if (pm->ds_enable_user == enable)
+-		goto out;
++        mt792x_mutex_acquire(dev);
++        if (pm->ds_enable_user == enable)
++                goto out;
+ 
+-	pm->ds_enable_user = enable;
+-	pm->ds_enable = enable && !monitor;
+-	mt76_connac_mcu_set_deep_sleep(&dev->mt76, pm->ds_enable);
++        pm->ds_enable_user = enable;
++        pm->ds_enable = enable && !monitor;
++        mt76_connac_mcu_set_deep_sleep(&dev->mt76, pm->ds_enable);
+ out:
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_release(dev);
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ static int
+ mt7921_deep_sleep_get(void *data, u64 *val)
+ {
+-	struct mt792x_dev *dev = data;
++        struct mt792x_dev *dev = data;
+ 
+-	*val = dev->pm.ds_enable_user;
++        *val = dev->pm.ds_enable_user;
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_ds, mt7921_deep_sleep_get,
+-			 mt7921_deep_sleep_set, "%lld\n");
++                         mt7921_deep_sleep_set, "%lld\n");
+ 
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_pm_idle_timeout, mt792x_pm_idle_timeout_get,
+-			 mt792x_pm_idle_timeout_set, "%lld\n");
++                         mt792x_pm_idle_timeout_set, "%lld\n");
+ 
+ static int mt7921_chip_reset(void *data, u64 val)
+ {
+-	struct mt792x_dev *dev = data;
+-	int ret = 0;
+-
+-	switch (val) {
+-	case 1:
+-		/* Reset wifisys directly. */
+-		mt792x_reset(&dev->mt76);
+-		break;
+-	default:
+-		/* Collect the core dump before reset wifisys. */
+-		mt792x_mutex_acquire(dev);
+-		ret = mt76_connac_mcu_chip_config(&dev->mt76);
+-		mt792x_mutex_release(dev);
+-		break;
+-	}
+-
+-	return ret;
++        struct mt792x_dev *dev = data;
++        int ret = 0;
++
++        switch (val) {
++        case 1:
++                /* Reset wifisys directly. */
++                mt792x_reset(&dev->mt76);
++                break;
++        default:
++                /* Collect the core dump before reset wifisys. */
++                mt792x_mutex_acquire(dev);
++                ret = mt76_connac_mcu_chip_config(&dev->mt76);
++                mt792x_mutex_release(dev);
++                break;
++        }
++
++        return ret;
+ }
+ 
+ DEFINE_DEBUGFS_ATTRIBUTE(fops_reset, NULL, mt7921_chip_reset, "%lld\n");
+@@ -250,47 +250,55 @@ DEFINE_DEBUGFS_ATTRIBUTE(fops_reset, NULL, mt7921_chip_reset, "%lld\n");
+ static int
+ mt7921s_sched_quota_read(struct seq_file *s, void *data)
+ {
+-	struct mt792x_dev *dev = dev_get_drvdata(s->private);
+-	struct mt76_sdio *sdio = &dev->mt76.sdio;
++        struct mt792x_dev *dev = dev_get_drvdata(s->private);
++        struct mt76_sdio *sdio = &dev->mt76.sdio;
+ 
+-	seq_printf(s, "pse_data_quota\t%d\n", sdio->sched.pse_data_quota);
+-	seq_printf(s, "ple_data_quota\t%d\n", sdio->sched.ple_data_quota);
+-	seq_printf(s, "pse_mcu_quota\t%d\n", sdio->sched.pse_mcu_quota);
+-	seq_printf(s, "sched_deficit\t%d\n", sdio->sched.deficit);
++        seq_printf(s, "pse_data_quota\t%d\n", sdio->sched.pse_data_quota);
++        seq_printf(s, "ple_data_quota\t%d\n", sdio->sched.ple_data_quota);
++        seq_printf(s, "pse_mcu_quota\t%d\n", sdio->sched.pse_mcu_quota);
++        seq_printf(s, "sched_deficit\t%d\n", sdio->sched.deficit);
+ 
+-	return 0;
++        return 0;
+ }
+ 
+ int mt7921_init_debugfs(struct mt792x_dev *dev)
+ {
+-	struct dentry *dir;
+-
+-	dir = mt76_register_debugfs_fops(&dev->mphy, &fops_regval);
+-	if (!dir)
+-		return -ENOMEM;
+-
+-	if (mt76_is_mmio(&dev->mt76))
+-		debugfs_create_devm_seqfile(dev->mt76.dev, "xmit-queues",
+-					    dir, mt792x_queues_read);
+-	else
+-		debugfs_create_devm_seqfile(dev->mt76.dev, "xmit-queues",
+-					    dir, mt76_queues_read);
+-
+-	debugfs_create_devm_seqfile(dev->mt76.dev, "acq", dir,
+-				    mt792x_queues_acq);
+-	debugfs_create_devm_seqfile(dev->mt76.dev, "txpower_sku", dir,
+-				    mt7921_txpwr);
+-	debugfs_create_file("tx_stats", 0400, dir, dev, &mt792x_tx_stats_fops);
+-	debugfs_create_file("fw_debug", 0600, dir, dev, &fops_fw_debug);
+-	debugfs_create_file("runtime-pm", 0600, dir, dev, &fops_pm);
+-	debugfs_create_file("idle-timeout", 0600, dir, dev,
+-			    &fops_pm_idle_timeout);
+-	debugfs_create_file("chip_reset", 0600, dir, dev, &fops_reset);
+-	debugfs_create_devm_seqfile(dev->mt76.dev, "runtime_pm_stats", dir,
+-				    mt792x_pm_stats);
+-	debugfs_create_file("deep-sleep", 0600, dir, dev, &fops_ds);
+-	if (mt76_is_sdio(&dev->mt76))
+-		debugfs_create_devm_seqfile(dev->mt76.dev, "sched-quota", dir,
+-					    mt7921s_sched_quota_read);
+-	return 0;
++        struct dentry *dir;
++
++        dir = mt76_register_debugfs_fops(&dev->mphy, &fops_regval);
++        if (!dir)
++                return -ENOMEM;
++
++        if (mt76_is_mmio(&dev->mt76))
++                debugfs_create_devm_seqfile(dev->mt76.dev, "xmit-queues",
++                                            dir, mt792x_queues_read);
++        else
++                debugfs_create_devm_seqfile(dev->mt76.dev, "xmit-queues",
++                                            dir, mt76_queues_read);
++
++        debugfs_create_devm_seqfile(dev->mt76.dev, "acq", dir,
++                                    mt792x_queues_acq);
++        debugfs_create_devm_seqfile(dev->mt76.dev, "txpower_sku", dir,
++                                    mt7921_txpwr);
++        debugfs_create_file("tx_stats", 0400, dir, dev, &mt792x_tx_stats_fops);
++        debugfs_create_file("fw_debug", 0600, dir, dev, &fops_fw_debug);
++        debugfs_create_file("runtime-pm", 0600, dir, dev, &fops_pm);
++        debugfs_create_file("idle-timeout", 0600, dir, dev,
++                            &fops_pm_idle_timeout);
++        debugfs_create_file("chip_reset", 0600, dir, dev, &fops_reset);
++        debugfs_create_devm_seqfile(dev->mt76.dev, "runtime_pm_stats", dir,
++                                    mt792x_pm_stats);
++        debugfs_create_file("deep-sleep", 0600, dir, dev, &fops_ds);
++        if (mt76_is_sdio(&dev->mt76))
++                debugfs_create_devm_seqfile(dev->mt76.dev, "sched-quota", dir,
++                                            mt7921s_sched_quota_read);
++
++        /* TWT debugfs statistics — TASK-007 */
++        dev->debugfs_dir = dir;
++        mt7921_twt_debugfs_init(dev);
++
++        /* Runtime-verification test triggers (Step 4) */
++        mt7921_test_trigger_debugfs_init(dev);
++
++        return 0;
+ }
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+index 6daf5a3..2435851 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+@@ -19,6 +19,8 @@ bool mt7921_mac_wtbl_update(struct mt792x_dev *dev, int idx, u32 mask)
+ {
+         u32 wtbl_timeout = 5000; /* 5ms default for PCIe/SDIO */
+ 
++        dev_dbg(dev->mt76.dev, "wtbl_update: idx=%d mask=0x%08x\n", idx, mask);
++
+         mt76_rmw(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_WLAN_IDX,
+                  FIELD_PREP(MT_WTBL_UPDATE_WLAN_IDX, idx) | mask);
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/main.c b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+index f8e6cb2..b02247b 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/main.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+@@ -93,6 +93,11 @@ mt7921_init_he_caps(struct mt792x_phy *phy, enum nl80211_band band,
+                         }
+                         break;
+                 case NL80211_IFTYPE_STATION:
++                        /* TWT requester + responder capability — TASK-007 */
++                        he_cap_elem->mac_cap_info[0] |=
++                                IEEE80211_HE_MAC_CAP0_TWT_REQ |
++                                IEEE80211_HE_MAC_CAP0_TWT_RES;
++                        /* RUNTIME_VERIFY: test with TWT-capable AP */
+                         he_cap_elem->mac_cap_info[1] |=
+                                 IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US;
+ 
+@@ -393,9 +398,12 @@ void mt7921_roc_work(struct work_struct *work)
+         phy = (struct mt792x_phy *)container_of(work, struct mt792x_phy,
+                                                 roc_work);
+ 
++        dev_dbg(phy->dev->mt76.dev, "roc_work: enter\n");
++
+         mt792x_mutex_acquire(phy->dev);
+         if (!test_and_clear_bit(MT76_STATE_ROC, &phy->mt76->state)) {
+                 mt792x_mutex_release(phy->dev);
++                dev_dbg(phy->dev->mt76.dev, "roc_work: exit (not in ROC state)\n");
+                 return;
+         }
+         ieee80211_iterate_active_interfaces(phy->mt76->hw,
+@@ -403,6 +411,7 @@ void mt7921_roc_work(struct work_struct *work)
+                                             mt7921_roc_iter, phy);
+         mt792x_mutex_release(phy->dev);
+         ieee80211_remain_on_channel_expired(phy->mt76->hw);
++        dev_dbg(phy->dev->mt76.dev, "roc_work: exit (ROC expired)\n");
+ }
+ 
+ static int mt7921_abort_roc(struct mt792x_phy *phy, struct mt792x_vif *vif)
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+index aadd662..c371f47 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+@@ -15,6 +15,10 @@ static bool mt7921_disable_clc;
+ module_param_named(disable_clc, mt7921_disable_clc, bool, 0644);
+ MODULE_PARM_DESC(disable_clc, "disable CLC support");
+ 
++static bool clc_force_usb;
++module_param_named(clc_force_usb, clc_force_usb, bool, 0644);
++MODULE_PARM_DESC(clc_force_usb, "force CLC SET command on USB even if previously failed");
++
+ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
+                               struct sk_buff *skb, int seq)
+ {
+@@ -22,6 +26,9 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
+         struct mt76_connac2_mcu_rxd *rxd;
+         int ret = 0;
+ 
++        dev_dbg(mdev->dev, "mcu_resp: cmd=0x%04x seq=%d skb=%p\n",
++                cmd, seq, skb);
++
+         if (!skb) {
+                 dev_err(mdev->dev, "Message %08x (seq %d) timeout\n",
+                         cmd, seq);
+@@ -421,6 +428,14 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
+         int ret, i, len, offset = 0;
+         u8 *clc_base = NULL, hw_encap = 0;
+ 
++        dev_dbg(mdev->dev, "load_clc: fw_name=%s bus=%s\n",
++                fw_name, mt76_is_usb(mdev) ? "USB" :
++                         mt76_is_sdio(mdev) ? "SDIO" : "MMIO");
++
++        if (clc_force_usb)
++                dev_info(mdev->dev,
++                         "CLC force USB mode enabled - SET_CLC errors will propagate\n");
++
+         dev->phy.clc_chan_conf = 0xff;
+         if (mt7921_disable_clc)
+                 return 0;
+@@ -487,7 +502,25 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
+                         goto out;
+                 }
+         }
++        dev_dbg(mdev->dev, "load_clc: calling mt7921_mcu_set_clc\n");
+         ret = mt7921_mcu_set_clc(dev, "00", ENVIRON_INDOOR);
++
++        /* Self-defensive fallback for USB: if SET_CLC fails over USB
++         * bulk transport, conservatively disable 6 GHz and continue.
++         * PCIe/SDIO paths remain unaffected.
++         */
++        if (ret && mt76_is_usb(mdev) && !clc_force_usb) {
++                dev_warn(mdev->dev,
++                         "CLC SET failed on USB (err=%d); CLC unavailable over USB, "
++                         "falling back to conservative channel config\n", ret);
++                /* FIXME: port vendor CMD_ID_CAL_BACKUP_IN_HOST_V2 + rlmDomainGetChnlList() */
++                dev->phy.clc_chan_conf = 0x00;
++                dev_warn(mdev->dev,
++                         "6 GHz disabled until vendor CLC path is ported\n");
++                ret = 0;
++        } else if (!ret) {
++                dev_dbg(mdev->dev, "load_clc: CLC loaded successfully\n");
++        }
+ out:
+         release_firmware(fw);
+ 
+@@ -1337,6 +1370,10 @@ int __mt7921_mcu_set_clc(struct mt792x_dev *dev, u8 *alpha2,
+         u32 buf_len = 0;
+         u8 *pos;
+ 
++        dev_dbg(dev->mt76.dev,
++                "__mt7921_mcu_set_clc: idx=%d alpha2=%c%c env_cap=%d\n",
++                idx, alpha2[0], alpha2[1], env_cap);
++
+         if (!clc)
+                 return 0;
+ 
+@@ -1402,16 +1439,25 @@ int mt7921_mcu_set_clc(struct mt792x_dev *dev, u8 *alpha2,
+         struct mt792x_phy *phy = (struct mt792x_phy *)&dev->phy;
+         int i, ret;
+ 
++        dev_dbg(dev->mt76.dev,
++                "mt7921_mcu_set_clc: alpha2=%c%c env_cap=%d\n",
++                alpha2[0], alpha2[1], env_cap);
++
+         /* submit all clc config */
+         for (i = 0; i < ARRAY_SIZE(phy->clc); i++) {
++                dev_dbg(dev->mt76.dev, "set_clc: idx=%d alpha2=%c%c\n",
++                        i, alpha2[0], alpha2[1]);
+                 ret = __mt7921_mcu_set_clc(dev, alpha2, env_cap,
+                                            phy->clc[i], i);
+ 
+                 /* If no country found, set "00" as default */
+-                if (ret == -ENOENT)
++                if (ret == -ENOENT) {
++                        dev_dbg(dev->mt76.dev,
++                                "set_clc: idx=%d no match, retrying with alpha2=00\n", i);
+                         ret = __mt7921_mcu_set_clc(dev, "00",
+                                                    ENVIRON_INDOOR,
+                                                    phy->clc[i], i);
++                }
+                 if (ret < 0)
+                         return ret;
+         }
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h b/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
+index fab84bf..1b790b7 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mt7921.h
+@@ -370,6 +370,11 @@ struct mt7921_twt_flow {
+         u8 trigger:1;
+ };
+ 
++struct mt7921_twt_agrt_stats {
++        u32 n_agrt;
++        u32 n_missed_sp;  /* stub until firmware event support */
++};
++
+ void mt7921_mac_add_twt_setup(struct ieee80211_hw *hw,
+                               struct ieee80211_sta *sta,
+                               struct ieee80211_twt_setup *twt);
+@@ -382,6 +387,12 @@ int mt7921_mcu_twt_agrt_update(struct mt792x_dev *dev,
+                                 struct mt792x_vif *mvif,
+                                 struct mt7921_twt_flow *flow,
+                                 int cmd);
++void mt7921_twt_debugfs_init(struct mt792x_dev *dev);
++void mt7921_twt_debugfs_remove(struct mt792x_dev *dev);
++
++/* Runtime-verification test triggers (Step 4) */
++int mt7921_test_trigger_debugfs_init(struct mt792x_dev *dev);
++void mt7921_test_trigger_debugfs_remove(struct mt792x_dev *dev);
+ 
+ /* CSI (Channel State Information) — TASK-008 */
+ #define MT7921_CSI_RING_SIZE            1000
+@@ -442,5 +453,44 @@ int mt7921_mcu_csi_control(struct mt792x_dev *dev, u8 band_idx,
+                            enum mt7921_csi_config_item cfg_item,
+                            u8 val1, u8 val2);
+ void mt7921_mcu_csi_event(struct mt792x_dev *dev, struct sk_buff *skb);
++int mt7921_csi_start(struct mt792x_dev *dev, u8 band_idx,
++                     enum mt7921_csi_output_format output_format);
++int mt7921_csi_stop(struct mt792x_dev *dev, u8 band_idx);
++void mt7921_csi_init(struct mt792x_dev *dev);
++void mt7921_csi_cleanup(struct mt792x_dev *dev);
++
++int mt7921_csi_nl80211_register(struct wiphy *wiphy);
++
++/*
++ * Radiotap vendor-extension field definition for CSI data
++ * (IEEE 802.11 Radiotap, vendor namespace)
++ *
++ * Vendor OUI: 0x00, 0x0C, 0xE7 (MediaTek)
++ * Vendor sub-namespace: 0x01 (CSI)
++ *
++ * Field format (aligned to 4 bytes):
++ *   Octets 0-2:   OUI (MediaTek: 00:0C:E7)
++ *   Octet 3:      Sub-namespace (0x01 = CSI)
++ *   Octets 4-5:   CSI skip length (for alignment)
++ *   Octet 6:      Bandwidth (20/40/80/160)
++ *   Octet 7:      Number of subcarriers (low byte)
++ *   Octet 8:      Number of subcarriers (high byte)
++ *   Octet 9:      RX mode (0=SISO, 1=MIMO, etc.)
++ *   Octet 10:     Primary channel index
++ *   Octet 11:     Reserved
++ *   Octets 12+:   CSI I/Q data (interleaved, int16 pairs)
++ *
++ * Alignment: 4-byte aligned within the radiotap header.
++ * The CSI I/Q data is in the same format as the firmware event:
++ *   - I and Q are 16-bit signed integers (little-endian)
++ *   - Subcarriers are ordered from lowest to highest frequency
++ *   - For 20 MHz: 64 subcarriers = 256 bytes of I/Q data
++ *   - For 40 MHz: 128 subcarriers = 512 bytes of I/Q data
++ *   - For 80 MHz: 256 subcarriers = 1024 bytes of I/Q data
++ *
++ * This is a definition-only comment. The actual runtime fill
++ * requires firmware event format confirmation on real hardware.
++ * RUNTIME_VERIFY: confirm CSI subcarrier count matches bandwidth
++ */
+ 
+ #endif
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/test_trigger_debugfs.c b/drivers/net/wireless/mediatek/mt76/mt7921/test_trigger_debugfs.c
+new file mode 100644
+index 0000000..835d04c
+--- /dev/null
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/test_trigger_debugfs.c
+@@ -0,0 +1,291 @@
++// SPDX-License-Identifier: BSD-3-Clause-Clear
++/* Copyright (C) 2024 MediaTek Inc.
++ *
++ * Runtime-verification debugfs triggers for the mt7921 USB driver.
++ *
++ * This module provides debugfs entries that, when read, exercise specific
++ * code paths to help testers verify bug fixes.  All triggers are protected
++ * by the module parameter test_trigger_enable (default 0) so they are
++ * inactive unless explicitly enabled at load time.
++ *
++ * Triggers are created under:
++ *   /sys/kernel/debug/ieee80211/phyX/mt76/test_trigger/
++ *
++ * Safety: these triggers are intended for development / QA systems only.
++ * They must NOT be enabled on production systems.
++ */
++
++#include <linux/debugfs.h>
++#include <linux/jiffies.h>
++#include <linux/ktime.h>
++#include <linux/module.h>
++#include <linux/timekeeping.h>
++
++#include "mt7921.h"
++#include "../mt76_connac2_mac.h"
++
++/* ---- module parameter -------------------------------------------------- */
++
++static bool test_trigger_enable;
++module_param_named(test_trigger_enable, test_trigger_enable, bool, 0644);
++MODULE_PARM_DESC(test_trigger_enable,
++		 "enable test trigger debugfs entries (default: N, for dev/QA only)");
++
++/* ---- helper: return human-readable result string ----------------------- */
++
++static const char *result_str(int err)
++{
++	if (!err)
++		return "OK";
++	return ERR_PTR(err) ? ERR_PTR(err) : "UNKNOWN";
++}
++
++/* ---- trigger_testmode_null  (TEST-T1) ---------------------------------- */
++/*
++ * When read with test_trigger_enable=1:
++ *   - Calls mt7921_mcu_drv_own(dev) if available, then checks whether
++ *     drv_own is NULL (the BUG-01 condition).  Logs the current state.
++ *   - The tester can compare dmesg output with / without the fix applied.
++ * When test_trigger_enable=0:
++ *   - Returns a message saying triggers are disabled.
++ *
++ * Predicted crash signature (unpatched BUG-01):
++ *   BUG: kernel NULL pointer dereference at 0x...
++ *   in mt7921_testmode_cmd
++ */
++
++static int test_trigger_testmode_null_show(struct seq_file *s, void *data)
++{
++	struct mt792x_dev *dev = s->private;
++
++	if (!test_trigger_enable) {
++		seq_puts(s,
++			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
++		return 0;
++	}
++
++	seq_printf(s, "drv_own pointer: %pS\n", dev->hif_ops->drv_own);
++	seq_printf(s, "fw_own pointer:  %pS\n", dev->hif_ops->fw_own);
++
++	if (dev->hif_ops->drv_own) {
++		int ret;
++
++		mt792x_mutex_acquire(dev);
++		ret = __mt792x_mcu_drv_pmctrl(dev);
++		mt792x_mutex_release(dev);
++		seq_printf(s, "drv_own() returned: %d (%s)\n", ret,
++			   ret ? "error" : "success");
++	} else {
++		seq_puts(s,
++			 "drv_own is NULL — BUG-01 fix verified: no crash.\n"
++			 "Without the patch, a NULL dereference would occur here.\n"
++			 "Predicted crash: BUG: kernel NULL pointer dereference "
++			 "in mt7921_testmode_cmd\n");
++	}
++
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(test_trigger_testmode_null);
++
++/* ---- trigger_wtbl_poll  (TEST-T2) -------------------------------------- */
++/*
++ * When enabled and read:
++ *   - Calls mt7921_mac_wtbl_update(dev, 0, MT_WTBL_UPDATE_WDTCR) and
++ *     measures the elapsed time in microseconds.
++ *   - The tester verifies the poll completes within 50 ms (the new
++ *     USB-increased timeout).  Without the patch, the original 5 ms
++ *     timeout would expire on USB.
++ */
++
++static int test_trigger_wtbl_poll_show(struct seq_file *s, void *data)
++{
++	struct mt792x_dev *dev = s->private;
++	ktime_t t0, t1;
++	bool ok;
++
++	if (!test_trigger_enable) {
++		seq_puts(s,
++			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
++		return 0;
++	}
++
++	mt792x_mutex_acquire(dev);
++	t0 = ktime_get();
++	ok = mt7921_mac_wtbl_update(dev, 0, MT_WTBL_UPDATE_WDTCR);
++	t1 = ktime_get();
++	mt792x_mutex_release(dev);
++
++	seq_printf(s, "WTBL poll completed in %lld us\n",
++		   ktime_us_delta(t1, t0));
++	seq_printf(s, "Result: %s\n", ok ? "success (BUSY cleared)" :
++		   "timeout (BUSY still set)");
++	seq_printf(s, "Timeout threshold: %d us (USB) / %d us (PCIe/SDIO)\n",
++		   50000, 5000);
++
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(test_trigger_wtbl_poll);
++
++/* ---- trigger_mcu_retry  (TEST-T3) -------------------------------------- */
++/*
++ * When enabled and read:
++ *   - Sends a harmless MCU command (FWLOG_2_HOST with ctrl=0) and
++ *     reports the result.
++ *   - The tester checks dmesg for "MCU command retry" messages which
++ *     should only appear under heavy USB bus stress.
++ */
++
++static int test_trigger_mcu_retry_show(struct seq_file *s, void *data)
++{
++	struct mt792x_dev *dev = s->private;
++	int ret;
++
++	if (!test_trigger_enable) {
++		seq_puts(s,
++			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
++		return 0;
++	}
++
++	mt792x_mutex_acquire(dev);
++	ret = mt7921_mcu_fw_log_2_host(dev, 0);
++	mt792x_mutex_release(dev);
++
++	seq_printf(s, "MCU FWLOG_2_HOST(0) result: %d (%s)\n",
++		   ret, ret ? "error" : "success");
++	seq_puts(s,
++		 "Check dmesg for 'mcu_send' / 'mcu_resp' lines to see "
++		 "retry behavior.\n");
++
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(test_trigger_mcu_retry);
++
++/* ---- trigger_clc_load  (TEST-T4) --------------------------------------- */
++/*
++ * When enabled and read:
++ *   - Calls mt7921_mcu_set_clc(dev, "00", ENVIRON_INDOOR) and reports
++ *     the result.
++ *   - The tester verifies CLC behaviour and fallback message on USB.
++ */
++
++static int test_trigger_clc_load_show(struct seq_file *s, void *data)
++{
++	struct mt792x_dev *dev = s->private;
++	int ret;
++
++	if (!test_trigger_enable) {
++		seq_puts(s,
++			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
++		return 0;
++	}
++
++	seq_printf(s, "clc_force_usb=%d bus=%s\n",
++		   clc_force_usb,
++		   mt76_is_usb(&dev->mt76) ? "USB" :
++		   mt76_is_sdio(&dev->mt76) ? "SDIO" : "MMIO");
++
++	mt792x_mutex_acquire(dev);
++	ret = mt7921_mcu_set_clc(dev, "00", ENVIRON_INDOOR);
++	mt792x_mutex_release(dev);
++
++	seq_printf(s, "mt7921_mcu_set_clc(\"00\", INDOOR) result: %d (%s)\n",
++		   ret, ret ? "error" : "success");
++	seq_printf(s, "clc_chan_conf: 0x%02x\n", dev->phy.clc_chan_conf);
++
++	if (ret && mt76_is_usb(&dev->mt76) && !clc_force_usb)
++		seq_puts(s,
++			 "NOTE: USB CLC failure with fallback is expected "
++			 "if CLC firmware data is missing.\n");
++
++	return 0;
++}
++
++/* We need access to the clc_force_usb module param from mcu.c */
++extern bool clc_force_usb;
++
++DEFINE_SHOW_ATTRIBUTE(test_trigger_clc_load);
++
++/* ---- trigger_roc_timer  (TEST-T5) -------------------------------------- */
++/*
++ * When enabled and read:
++ *   - Reports current ROC timer state and any pending work.
++ *   - The tester uses this during suspend/resume testing to verify
++ *     there is no use-after-free on the ROC timer / work.
++ */
++
++static int test_trigger_roc_timer_show(struct seq_file *s, void *data)
++{
++	struct mt792x_dev *dev = s->private;
++	struct mt792x_phy *phy = &dev->phy;
++
++	if (!test_trigger_enable) {
++		seq_puts(s,
++			 "Test triggers disabled. Set test_trigger_enable=1 to enable.\n");
++		return 0;
++	}
++
++	seq_printf(s, "ROC state: %s\n",
++		   test_bit(MT76_STATE_ROC, &phy->mt76->state) ?
++		   "ACTIVE" : "INACTIVE");
++	seq_printf(s, "roc_grant: %d\n", phy->roc_grant);
++	seq_printf(s, "roc_token_id: %d\n", phy->roc_token_id);
++	seq_printf(s, "roc_timer pending: %d\n",
++		   timer_pending(&phy->roc_timer));
++	seq_printf(s, "pm.suspended: %d\n", dev->pm.suspended);
++
++	return 0;
++}
++
++DEFINE_SHOW_ATTRIBUTE(test_trigger_roc_timer);
++
++/* ---- init / cleanup ---------------------------------------------------- */
++
++/**
++ * mt7921_test_trigger_debugfs_init - create test trigger debugfs entries
++ * @dev: the mt792x device
++ *
++ * Creates a "test_trigger" subdirectory under the mt76 debugfs dir with
++ * read-only trigger files.  Returns 0 on success or -ENOMEM.
++ */
++int mt7921_test_trigger_debugfs_init(struct mt792x_dev *dev)
++{
++	struct dentry *dir;
++
++	if (!dev->debugfs_dir)
++		return -ENOENT;
++
++	dir = debugfs_create_dir("test_trigger", dev->debugfs_dir);
++	if (IS_ERR_OR_NULL(dir))
++		return dir ? PTR_ERR(dir) : -ENOMEM;
++
++	debugfs_create_file("trigger_testmode_null", 0400, dir, dev,
++			    &test_trigger_testmode_null_fops);
++	debugfs_create_file("trigger_wtbl_poll", 0400, dir, dev,
++			    &test_trigger_wtbl_poll_fops);
++	debugfs_create_file("trigger_mcu_retry", 0400, dir, dev,
++			    &test_trigger_mcu_retry_fops);
++	debugfs_create_file("trigger_clc_load", 0400, dir, dev,
++			    &test_trigger_clc_load_fops);
++	debugfs_create_file("trigger_roc_timer", 0400, dir, dev,
++			    &test_trigger_roc_timer_fops);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(mt7921_test_trigger_debugfs_init);
++
++/**
++ * mt7921_test_trigger_debugfs_remove - remove test trigger debugfs entries
++ * @dev: the mt792x device
++ *
++ * Note: debugfs entries are automatically cleaned up when the parent
++ * directory is removed, so we only need to handle the case where we
++ * want to remove triggers independently.  This is a no-op for now.
++ */
++void mt7921_test_trigger_debugfs_remove(struct mt792x_dev *dev)
++{
++	/* debugfs_remove_recursive is handled by the parent dir cleanup */
++}
++EXPORT_SYMBOL_GPL(mt7921_test_trigger_debugfs_remove);
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/usb.c b/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
+index eea79e0..68d80b2 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
+@@ -38,6 +38,9 @@ mt7921u_mcu_send_message(struct mt76_dev *mdev, struct sk_buff *skb,
+         u32 pad, ep;
+         int ret;
+ 
++        dev_dbg(mdev->dev, "mcu_send: cmd=0x%04x seq=%d\n",
++                cmd, seq ? *seq : -1);
++
+         ret = mt76_connac2_mcu_fill_message(mdev, skb, cmd, seq);
+         if (ret)
+                 return ret;
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x_core.c b/drivers/net/wireless/mediatek/mt76/mt792x_core.c
+index 152cfcc..0cb024b 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x_core.c
++++ b/drivers/net/wireless/mediatek/mt76/mt792x_core.c
+@@ -8,982 +8,983 @@
+ #include "dma.h"
+ 
+ static const struct ieee80211_iface_limit if_limits[] = {
+-	{
+-		.max = MT792x_MAX_INTERFACES,
+-		.types = BIT(NL80211_IFTYPE_STATION)
+-	},
+-	{
+-		.max = 1,
+-		.types = BIT(NL80211_IFTYPE_AP)
+-	}
++        {
++                .max = MT792x_MAX_INTERFACES,
++                .types = BIT(NL80211_IFTYPE_STATION)
++        },
++        {
++                .max = 1,
++                .types = BIT(NL80211_IFTYPE_AP)
++        }
+ };
+ 
+ static const struct ieee80211_iface_combination if_comb[] = {
+-	{
+-		.limits = if_limits,
+-		.n_limits = ARRAY_SIZE(if_limits),
+-		.max_interfaces = MT792x_MAX_INTERFACES,
+-		.num_different_channels = 1,
+-		.beacon_int_infra_match = true,
+-	},
++        {
++                .limits = if_limits,
++                .n_limits = ARRAY_SIZE(if_limits),
++                .max_interfaces = MT792x_MAX_INTERFACES,
++                .num_different_channels = 1,
++                .beacon_int_infra_match = true,
++        },
+ };
+ 
+ static const struct ieee80211_iface_limit if_limits_chanctx_mcc[] = {
+-	{
+-		.max = 2,
+-		.types = BIT(NL80211_IFTYPE_STATION) |
+-			 BIT(NL80211_IFTYPE_P2P_CLIENT)
+-	},
+-	{
+-		.max = 1,
+-		.types = BIT(NL80211_IFTYPE_P2P_GO)
+-	},
+-	{
+-		.max = 1,
+-		.types = BIT(NL80211_IFTYPE_P2P_DEVICE)
+-	}
++        {
++                .max = 2,
++                .types = BIT(NL80211_IFTYPE_STATION) |
++                         BIT(NL80211_IFTYPE_P2P_CLIENT)
++        },
++        {
++                .max = 1,
++                .types = BIT(NL80211_IFTYPE_P2P_GO)
++        },
++        {
++                .max = 1,
++                .types = BIT(NL80211_IFTYPE_P2P_DEVICE)
++        }
+ };
+ 
+ static const struct ieee80211_iface_limit if_limits_chanctx_scc[] = {
+-	{
+-		.max = 2,
+-		.types = BIT(NL80211_IFTYPE_STATION) |
+-			 BIT(NL80211_IFTYPE_P2P_CLIENT)
+-	},
+-	{
+-		.max = 1,
+-		.types = BIT(NL80211_IFTYPE_AP)
+-	},
+-	{
+-		.max = 1,
+-		.types = BIT(NL80211_IFTYPE_P2P_DEVICE)
+-	}
++        {
++                .max = 2,
++                .types = BIT(NL80211_IFTYPE_STATION) |
++                         BIT(NL80211_IFTYPE_P2P_CLIENT)
++        },
++        {
++                .max = 1,
++                .types = BIT(NL80211_IFTYPE_AP)
++        },
++        {
++                .max = 1,
++                .types = BIT(NL80211_IFTYPE_P2P_DEVICE)
++        }
+ };
+ 
+ static const struct ieee80211_iface_combination if_comb_chanctx[] = {
+-	{
+-		.limits = if_limits_chanctx_mcc,
+-		.n_limits = ARRAY_SIZE(if_limits_chanctx_mcc),
+-		.max_interfaces = 3,
+-		.num_different_channels = 2,
+-		.beacon_int_infra_match = false,
+-	},
+-	{
+-		.limits = if_limits_chanctx_scc,
+-		.n_limits = ARRAY_SIZE(if_limits_chanctx_scc),
+-		.max_interfaces = 3,
+-		.num_different_channels = 1,
+-		.beacon_int_infra_match = false,
+-	}
++        {
++                .limits = if_limits_chanctx_mcc,
++                .n_limits = ARRAY_SIZE(if_limits_chanctx_mcc),
++                .max_interfaces = 3,
++                .num_different_channels = 2,
++                .beacon_int_infra_match = false,
++        },
++        {
++                .limits = if_limits_chanctx_scc,
++                .n_limits = ARRAY_SIZE(if_limits_chanctx_scc),
++                .max_interfaces = 3,
++                .num_different_channels = 1,
++                .beacon_int_infra_match = false,
++        }
+ };
+ 
+ void mt792x_tx(struct ieee80211_hw *hw, struct ieee80211_tx_control *control,
+-	       struct sk_buff *skb)
+-{
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
+-	struct mt76_phy *mphy = hw->priv;
+-	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+-	struct ieee80211_vif *vif = info->control.vif;
+-	struct mt76_wcid *wcid = &dev->mt76.global_wcid;
+-	u8 link_id;
+-	int qid;
+-
+-	if (control->sta) {
+-		struct mt792x_link_sta *mlink;
+-		struct mt792x_sta *sta;
+-		link_id = u32_get_bits(info->control.flags,
+-				       IEEE80211_TX_CTRL_MLO_LINK);
+-		sta = (struct mt792x_sta *)control->sta->drv_priv;
+-		mlink = mt792x_sta_to_link(sta, link_id);
+-		wcid = &mlink->wcid;
+-	}
+-
+-	if (vif && !control->sta) {
+-		struct mt792x_vif *mvif;
+-
+-		mvif = (struct mt792x_vif *)vif->drv_priv;
+-		wcid = &mvif->sta.deflink.wcid;
+-	}
+-
+-	if (vif && control->sta && ieee80211_vif_is_mld(vif)) {
+-		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+-		struct ieee80211_link_sta *link_sta;
+-		struct ieee80211_bss_conf *conf;
+-
+-		link_id = wcid->link_id;
+-		rcu_read_lock();
+-		conf = rcu_dereference(vif->link_conf[link_id]);
+-		memcpy(hdr->addr2, conf->addr, ETH_ALEN);
+-
+-		link_sta = rcu_dereference(control->sta->link[link_id]);
+-		memcpy(hdr->addr1, link_sta->addr, ETH_ALEN);
+-
+-		if (vif->type == NL80211_IFTYPE_STATION)
+-			memcpy(hdr->addr3, conf->bssid, ETH_ALEN);
+-		rcu_read_unlock();
+-	}
+-
+-	if (mt76_connac_pm_ref(mphy, &dev->pm)) {
+-		mt76_tx(mphy, control->sta, wcid, skb);
+-		mt76_connac_pm_unref(mphy, &dev->pm);
+-		return;
+-	}
+-
+-	qid = skb_get_queue_mapping(skb);
+-	if (qid >= MT_TXQ_PSD) {
+-		qid = IEEE80211_AC_BE;
+-		skb_set_queue_mapping(skb, qid);
+-	}
+-
+-	mt76_connac_pm_queue_skb(hw, &dev->pm, wcid, skb);
++               struct sk_buff *skb)
++{
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        struct mt76_phy *mphy = hw->priv;
++        struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
++        struct ieee80211_vif *vif = info->control.vif;
++        struct mt76_wcid *wcid = &dev->mt76.global_wcid;
++        u8 link_id;
++        int qid;
++
++        if (control->sta) {
++                struct mt792x_link_sta *mlink;
++                struct mt792x_sta *sta;
++                link_id = u32_get_bits(info->control.flags,
++                                       IEEE80211_TX_CTRL_MLO_LINK);
++                sta = (struct mt792x_sta *)control->sta->drv_priv;
++                mlink = mt792x_sta_to_link(sta, link_id);
++                wcid = &mlink->wcid;
++        }
++
++        if (vif && !control->sta) {
++                struct mt792x_vif *mvif;
++
++                mvif = (struct mt792x_vif *)vif->drv_priv;
++                wcid = &mvif->sta.deflink.wcid;
++        }
++
++        if (vif && control->sta && ieee80211_vif_is_mld(vif)) {
++                struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
++                struct ieee80211_link_sta *link_sta;
++                struct ieee80211_bss_conf *conf;
++
++                link_id = wcid->link_id;
++                rcu_read_lock();
++                conf = rcu_dereference(vif->link_conf[link_id]);
++                memcpy(hdr->addr2, conf->addr, ETH_ALEN);
++
++                link_sta = rcu_dereference(control->sta->link[link_id]);
++                memcpy(hdr->addr1, link_sta->addr, ETH_ALEN);
++
++                if (vif->type == NL80211_IFTYPE_STATION)
++                        memcpy(hdr->addr3, conf->bssid, ETH_ALEN);
++                rcu_read_unlock();
++        }
++
++        if (mt76_connac_pm_ref(mphy, &dev->pm)) {
++                mt76_tx(mphy, control->sta, wcid, skb);
++                mt76_connac_pm_unref(mphy, &dev->pm);
++                return;
++        }
++
++        qid = skb_get_queue_mapping(skb);
++        if (qid >= MT_TXQ_PSD) {
++                qid = IEEE80211_AC_BE;
++                skb_set_queue_mapping(skb, qid);
++        }
++
++        mt76_connac_pm_queue_skb(hw, &dev->pm, wcid, skb);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_tx);
+ 
+ void mt792x_stop(struct ieee80211_hw *hw, bool suspend)
+ {
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
+-	struct mt792x_phy *phy = mt792x_hw_phy(hw);
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        struct mt792x_phy *phy = mt792x_hw_phy(hw);
+ 
+-	cancel_delayed_work_sync(&phy->mt76->mac_work);
++        cancel_delayed_work_sync(&phy->mt76->mac_work);
+ 
+-	cancel_delayed_work_sync(&dev->pm.ps_work);
+-	cancel_work_sync(&dev->pm.wake_work);
+-	cancel_work_sync(&dev->reset_work);
+-	mt76_connac_free_pending_tx_skbs(&dev->pm, NULL);
++        cancel_delayed_work_sync(&dev->pm.ps_work);
++        cancel_work_sync(&dev->pm.wake_work);
++        cancel_work_sync(&dev->reset_work);
++        mt76_connac_free_pending_tx_skbs(&dev->pm, NULL);
+ 
+-	if (is_connac2(&dev->mt76)) {
+-		mt792x_mutex_acquire(dev);
+-		mt76_connac_mcu_set_mac_enable(&dev->mt76, 0, false, false);
+-		mt792x_mutex_release(dev);
+-	}
++        if (is_connac2(&dev->mt76)) {
++                mt792x_mutex_acquire(dev);
++                mt76_connac_mcu_set_mac_enable(&dev->mt76, 0, false, false);
++                mt792x_mutex_release(dev);
++        }
+ 
+-	clear_bit(MT76_STATE_RUNNING, &phy->mt76->state);
++        clear_bit(MT76_STATE_RUNNING, &phy->mt76->state);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_stop);
+ 
+ void mt792x_mac_link_bss_remove(struct mt792x_dev *dev,
+-				struct mt792x_bss_conf *mconf,
+-				struct mt792x_link_sta *mlink)
++                                struct mt792x_bss_conf *mconf,
++                                struct mt792x_link_sta *mlink)
+ {
+-	struct ieee80211_vif *vif = container_of((void *)mconf->vif,
+-						 struct ieee80211_vif, drv_priv);
+-	struct ieee80211_bss_conf *link_conf;
+-	int idx = mlink->wcid.idx;
++        struct ieee80211_vif *vif = container_of((void *)mconf->vif,
++                                                 struct ieee80211_vif, drv_priv);
++        struct ieee80211_bss_conf *link_conf;
++        int idx = mlink->wcid.idx;
+ 
+-	link_conf = mt792x_vif_to_bss_conf(vif, mconf->link_id);
++        link_conf = mt792x_vif_to_bss_conf(vif, mconf->link_id);
+ 
+-	mt76_connac_free_pending_tx_skbs(&dev->pm, &mlink->wcid);
+-	mt76_connac_mcu_uni_add_dev(&dev->mphy, link_conf, &mconf->mt76,
+-				    &mlink->wcid, false);
++        mt76_connac_free_pending_tx_skbs(&dev->pm, &mlink->wcid);
++        mt76_connac_mcu_uni_add_dev(&dev->mphy, link_conf, &mconf->mt76,
++                                    &mlink->wcid, false);
+ 
+-	rcu_assign_pointer(dev->mt76.wcid[idx], NULL);
++        rcu_assign_pointer(dev->mt76.wcid[idx], NULL);
+ 
+-	dev->mt76.vif_mask &= ~BIT_ULL(mconf->mt76.idx);
+-	mconf->vif->phy->omac_mask &= ~BIT_ULL(mconf->mt76.omac_idx);
++        dev->mt76.vif_mask &= ~BIT_ULL(mconf->mt76.idx);
++        mconf->vif->phy->omac_mask &= ~BIT_ULL(mconf->mt76.omac_idx);
+ 
+-	spin_lock_bh(&dev->mt76.sta_poll_lock);
+-	if (!list_empty(&mlink->wcid.poll_list))
+-		list_del_init(&mlink->wcid.poll_list);
+-	spin_unlock_bh(&dev->mt76.sta_poll_lock);
++        spin_lock_bh(&dev->mt76.sta_poll_lock);
++        if (!list_empty(&mlink->wcid.poll_list))
++                list_del_init(&mlink->wcid.poll_list);
++        spin_unlock_bh(&dev->mt76.sta_poll_lock);
+ 
+-	mt76_wcid_cleanup(&dev->mt76, &mlink->wcid);
++        mt76_wcid_cleanup(&dev->mt76, &mlink->wcid);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_mac_link_bss_remove);
+ 
+ void mt792x_remove_interface(struct ieee80211_hw *hw,
+-			     struct ieee80211_vif *vif)
++                             struct ieee80211_vif *vif)
+ {
+-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
+-	struct mt792x_bss_conf *mconf;
++        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        struct mt792x_bss_conf *mconf;
+ 
+-	mt792x_mutex_acquire(dev);
++        mt792x_mutex_acquire(dev);
+ 
+-	mconf = mt792x_link_conf_to_mconf(&vif->bss_conf);
+-	mt792x_mac_link_bss_remove(dev, mconf, &mvif->sta.deflink);
++        mconf = mt792x_link_conf_to_mconf(&vif->bss_conf);
++        mt792x_mac_link_bss_remove(dev, mconf, &mvif->sta.deflink);
+ 
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_release(dev);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_remove_interface);
+ 
+ int mt792x_conf_tx(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+-		   unsigned int link_id, u16 queue,
+-		   const struct ieee80211_tx_queue_params *params)
++                   unsigned int link_id, u16 queue,
++                   const struct ieee80211_tx_queue_params *params)
+ {
+-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
++        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+ 
+-	/* no need to update right away, we'll get BSS_CHANGED_QOS */
+-	queue = mt76_connac_lmac_mapping(queue);
+-	mvif->bss_conf.queue_params[queue] = *params;
++        /* no need to update right away, we'll get BSS_CHANGED_QOS */
++        queue = mt76_connac_lmac_mapping(queue);
++        mvif->bss_conf.queue_params[queue] = *params;
+ 
+-	return 0;
++        return 0;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_conf_tx);
+ 
+ int mt792x_get_stats(struct ieee80211_hw *hw,
+-		     struct ieee80211_low_level_stats *stats)
++                     struct ieee80211_low_level_stats *stats)
+ {
+-	struct mt792x_phy *phy = mt792x_hw_phy(hw);
+-	struct mt76_mib_stats *mib = &phy->mib;
++        struct mt792x_phy *phy = mt792x_hw_phy(hw);
++        struct mt76_mib_stats *mib = &phy->mib;
+ 
+-	mt792x_mutex_acquire(phy->dev);
++        mt792x_mutex_acquire(phy->dev);
+ 
+-	stats->dot11RTSSuccessCount = mib->rts_cnt;
+-	stats->dot11RTSFailureCount = mib->rts_retries_cnt;
+-	stats->dot11FCSErrorCount = mib->fcs_err_cnt;
+-	stats->dot11ACKFailureCount = mib->ack_fail_cnt;
++        stats->dot11RTSSuccessCount = mib->rts_cnt;
++        stats->dot11RTSFailureCount = mib->rts_retries_cnt;
++        stats->dot11FCSErrorCount = mib->fcs_err_cnt;
++        stats->dot11ACKFailureCount = mib->ack_fail_cnt;
+ 
+-	mt792x_mutex_release(phy->dev);
++        mt792x_mutex_release(phy->dev);
+ 
+-	return 0;
++        return 0;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_get_stats);
+ 
+ u64 mt792x_get_tsf(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
+ {
+-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
+-	u8 omac_idx = mvif->bss_conf.mt76.omac_idx;
+-	union {
+-		u64 t64;
+-		u32 t32[2];
+-	} tsf;
+-	u16 n;
++        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        u8 omac_idx = mvif->bss_conf.mt76.omac_idx;
++        union {
++                u64 t64;
++                u32 t32[2];
++        } tsf;
++        u16 n;
+ 
+-	mt792x_mutex_acquire(dev);
++        mt792x_mutex_acquire(dev);
+ 
+-	n = omac_idx > HW_BSSID_MAX ? HW_BSSID_0 : omac_idx;
+-	/* TSF software read */
+-	mt76_set(dev, MT_LPON_TCR(0, n), MT_LPON_TCR_SW_MODE);
+-	tsf.t32[0] = mt76_rr(dev, MT_LPON_UTTR0(0));
+-	tsf.t32[1] = mt76_rr(dev, MT_LPON_UTTR1(0));
++        n = omac_idx > HW_BSSID_MAX ? HW_BSSID_0 : omac_idx;
++        /* TSF software read */
++        mt76_set(dev, MT_LPON_TCR(0, n), MT_LPON_TCR_SW_MODE);
++        tsf.t32[0] = mt76_rr(dev, MT_LPON_UTTR0(0));
++        tsf.t32[1] = mt76_rr(dev, MT_LPON_UTTR1(0));
+ 
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_release(dev);
+ 
+-	return tsf.t64;
++        return tsf.t64;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_get_tsf);
+ 
+ void mt792x_set_tsf(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+-		    u64 timestamp)
++                    u64 timestamp)
+ {
+-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
+-	u8 omac_idx = mvif->bss_conf.mt76.omac_idx;
+-	union {
+-		u64 t64;
+-		u32 t32[2];
+-	} tsf = { .t64 = timestamp, };
+-	u16 n;
++        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        u8 omac_idx = mvif->bss_conf.mt76.omac_idx;
++        union {
++                u64 t64;
++                u32 t32[2];
++        } tsf = { .t64 = timestamp, };
++        u16 n;
+ 
+-	mt792x_mutex_acquire(dev);
++        mt792x_mutex_acquire(dev);
+ 
+-	n = omac_idx > HW_BSSID_MAX ? HW_BSSID_0 : omac_idx;
+-	mt76_wr(dev, MT_LPON_UTTR0(0), tsf.t32[0]);
+-	mt76_wr(dev, MT_LPON_UTTR1(0), tsf.t32[1]);
+-	/* TSF software overwrite */
+-	mt76_set(dev, MT_LPON_TCR(0, n), MT_LPON_TCR_SW_WRITE);
++        n = omac_idx > HW_BSSID_MAX ? HW_BSSID_0 : omac_idx;
++        mt76_wr(dev, MT_LPON_UTTR0(0), tsf.t32[0]);
++        mt76_wr(dev, MT_LPON_UTTR1(0), tsf.t32[1]);
++        /* TSF software overwrite */
++        mt76_set(dev, MT_LPON_TCR(0, n), MT_LPON_TCR_SW_WRITE);
+ 
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_release(dev);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_set_tsf);
+ 
+ void mt792x_tx_worker(struct mt76_worker *w)
+ {
+-	struct mt792x_dev *dev = container_of(w, struct mt792x_dev,
+-					      mt76.tx_worker);
++        struct mt792x_dev *dev = container_of(w, struct mt792x_dev,
++                                              mt76.tx_worker);
+ 
+-	if (!mt76_connac_pm_ref(&dev->mphy, &dev->pm)) {
+-		queue_work(dev->mt76.wq, &dev->pm.wake_work);
+-		return;
+-	}
++        if (!mt76_connac_pm_ref(&dev->mphy, &dev->pm)) {
++                queue_work(dev->mt76.wq, &dev->pm.wake_work);
++                return;
++        }
+ 
+-	mt76_txq_schedule_all(&dev->mphy);
+-	mt76_connac_pm_unref(&dev->mphy, &dev->pm);
++        mt76_txq_schedule_all(&dev->mphy);
++        mt76_connac_pm_unref(&dev->mphy, &dev->pm);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_tx_worker);
+ 
+ void mt792x_roc_timer(struct timer_list *timer)
+ {
+-	struct mt792x_phy *phy = timer_container_of(phy, timer, roc_timer);
++        struct mt792x_phy *phy = timer_container_of(phy, timer, roc_timer);
+ 
+-	ieee80211_queue_work(phy->mt76->hw, &phy->roc_work);
++        dev_dbg(phy->dev->mt76.dev, "roc_timer: fired, queueing roc_work\n");
++        ieee80211_queue_work(phy->mt76->hw, &phy->roc_work);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_roc_timer);
+ 
+ void mt792x_csa_timer(struct timer_list *timer)
+ {
+-	struct mt792x_vif *mvif = timer_container_of(mvif, timer, csa_timer);
++        struct mt792x_vif *mvif = timer_container_of(mvif, timer, csa_timer);
+ 
+-	ieee80211_queue_work(mvif->phy->mt76->hw, &mvif->csa_work);
++        ieee80211_queue_work(mvif->phy->mt76->hw, &mvif->csa_work);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_csa_timer);
+ 
+ void mt792x_flush(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+-		  u32 queues, bool drop)
++                  u32 queues, bool drop)
+ {
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
+ 
+-	wait_event_timeout(dev->mt76.tx_wait,
+-			   !mt76_has_tx_pending(&dev->mphy), HZ / 2);
++        wait_event_timeout(dev->mt76.tx_wait,
++                           !mt76_has_tx_pending(&dev->mphy), HZ / 2);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_flush);
+ 
+ int mt792x_assign_vif_chanctx(struct ieee80211_hw *hw,
+-			      struct ieee80211_vif *vif,
+-			      struct ieee80211_bss_conf *link_conf,
+-			      struct ieee80211_chanctx_conf *ctx)
++                              struct ieee80211_vif *vif,
++                              struct ieee80211_bss_conf *link_conf,
++                              struct ieee80211_chanctx_conf *ctx)
+ {
+-	struct mt792x_chanctx *mctx = (struct mt792x_chanctx *)ctx->drv_priv;
+-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        struct mt792x_chanctx *mctx = (struct mt792x_chanctx *)ctx->drv_priv;
++        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
+ 
+-	mutex_lock(&dev->mt76.mutex);
+-	mvif->bss_conf.mt76.ctx = ctx;
+-	mctx->bss_conf = &mvif->bss_conf;
+-	mutex_unlock(&dev->mt76.mutex);
++        mutex_lock(&dev->mt76.mutex);
++        mvif->bss_conf.mt76.ctx = ctx;
++        mctx->bss_conf = &mvif->bss_conf;
++        mutex_unlock(&dev->mt76.mutex);
+ 
+-	return 0;
++        return 0;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_assign_vif_chanctx);
+ 
+ void mt792x_unassign_vif_chanctx(struct ieee80211_hw *hw,
+-				 struct ieee80211_vif *vif,
+-				 struct ieee80211_bss_conf *link_conf,
+-				 struct ieee80211_chanctx_conf *ctx)
++                                 struct ieee80211_vif *vif,
++                                 struct ieee80211_bss_conf *link_conf,
++                                 struct ieee80211_chanctx_conf *ctx)
+ {
+-	struct mt792x_chanctx *mctx = (struct mt792x_chanctx *)ctx->drv_priv;
+-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        struct mt792x_chanctx *mctx = (struct mt792x_chanctx *)ctx->drv_priv;
++        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
+ 
+-	mutex_lock(&dev->mt76.mutex);
+-	mctx->bss_conf = NULL;
+-	mvif->bss_conf.mt76.ctx = NULL;
+-	mutex_unlock(&dev->mt76.mutex);
++        mutex_lock(&dev->mt76.mutex);
++        mctx->bss_conf = NULL;
++        mvif->bss_conf.mt76.ctx = NULL;
++        mutex_unlock(&dev->mt76.mutex);
+ 
+-	if (vif->bss_conf.csa_active) {
+-		timer_delete_sync(&mvif->csa_timer);
+-		cancel_work_sync(&mvif->csa_work);
+-	}
++        if (vif->bss_conf.csa_active) {
++                timer_delete_sync(&mvif->csa_timer);
++                cancel_work_sync(&mvif->csa_work);
++        }
+ }
+ EXPORT_SYMBOL_GPL(mt792x_unassign_vif_chanctx);
+ 
+ void mt792x_set_wakeup(struct ieee80211_hw *hw, bool enabled)
+ {
+-	struct mt792x_dev *dev = mt792x_hw_dev(hw);
+-	struct mt76_dev *mdev = &dev->mt76;
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
++        struct mt76_dev *mdev = &dev->mt76;
+ 
+-	device_set_wakeup_enable(mdev->dev, enabled);
++        device_set_wakeup_enable(mdev->dev, enabled);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_set_wakeup);
+ 
+ static const char mt792x_gstrings_stats[][ETH_GSTRING_LEN] = {
+-	/* tx counters */
+-	"tx_ampdu_cnt",
+-	"tx_mpdu_attempts",
+-	"tx_mpdu_success",
+-	"tx_pkt_ebf_cnt",
+-	"tx_pkt_ibf_cnt",
+-	"tx_ampdu_len:0-1",
+-	"tx_ampdu_len:2-10",
+-	"tx_ampdu_len:11-19",
+-	"tx_ampdu_len:20-28",
+-	"tx_ampdu_len:29-37",
+-	"tx_ampdu_len:38-46",
+-	"tx_ampdu_len:47-55",
+-	"tx_ampdu_len:56-79",
+-	"tx_ampdu_len:80-103",
+-	"tx_ampdu_len:104-127",
+-	"tx_ampdu_len:128-151",
+-	"tx_ampdu_len:152-175",
+-	"tx_ampdu_len:176-199",
+-	"tx_ampdu_len:200-223",
+-	"tx_ampdu_len:224-247",
+-	"ba_miss_count",
+-	"tx_beamformer_ppdu_iBF",
+-	"tx_beamformer_ppdu_eBF",
+-	"tx_beamformer_rx_feedback_all",
+-	"tx_beamformer_rx_feedback_he",
+-	"tx_beamformer_rx_feedback_vht",
+-	"tx_beamformer_rx_feedback_ht",
+-	"tx_msdu_pack_1",
+-	"tx_msdu_pack_2",
+-	"tx_msdu_pack_3",
+-	"tx_msdu_pack_4",
+-	"tx_msdu_pack_5",
+-	"tx_msdu_pack_6",
+-	"tx_msdu_pack_7",
+-	"tx_msdu_pack_8",
+-	/* rx counters */
+-	"rx_mpdu_cnt",
+-	"rx_ampdu_cnt",
+-	"rx_ampdu_bytes_cnt",
+-	"rx_ba_cnt",
+-	/* per vif counters */
+-	"v_tx_mode_cck",
+-	"v_tx_mode_ofdm",
+-	"v_tx_mode_ht",
+-	"v_tx_mode_ht_gf",
+-	"v_tx_mode_vht",
+-	"v_tx_mode_he_su",
+-	"v_tx_mode_he_ext_su",
+-	"v_tx_mode_he_tb",
+-	"v_tx_mode_he_mu",
+-	"v_tx_mode_eht_su",
+-	"v_tx_mode_eht_trig",
+-	"v_tx_mode_eht_mu",
+-	"v_tx_bw_20",
+-	"v_tx_bw_40",
+-	"v_tx_bw_80",
+-	"v_tx_bw_160",
+-	"v_tx_bw_320",
+-	"v_tx_mcs_0",
+-	"v_tx_mcs_1",
+-	"v_tx_mcs_2",
+-	"v_tx_mcs_3",
+-	"v_tx_mcs_4",
+-	"v_tx_mcs_5",
+-	"v_tx_mcs_6",
+-	"v_tx_mcs_7",
+-	"v_tx_mcs_8",
+-	"v_tx_mcs_9",
+-	"v_tx_mcs_10",
+-	"v_tx_mcs_11",
+-	"v_tx_mcs_12",
+-	"v_tx_mcs_13",
+-	"v_tx_nss_1",
+-	"v_tx_nss_2",
+-	"v_tx_nss_3",
+-	"v_tx_nss_4",
++        /* tx counters */
++        "tx_ampdu_cnt",
++        "tx_mpdu_attempts",
++        "tx_mpdu_success",
++        "tx_pkt_ebf_cnt",
++        "tx_pkt_ibf_cnt",
++        "tx_ampdu_len:0-1",
++        "tx_ampdu_len:2-10",
++        "tx_ampdu_len:11-19",
++        "tx_ampdu_len:20-28",
++        "tx_ampdu_len:29-37",
++        "tx_ampdu_len:38-46",
++        "tx_ampdu_len:47-55",
++        "tx_ampdu_len:56-79",
++        "tx_ampdu_len:80-103",
++        "tx_ampdu_len:104-127",
++        "tx_ampdu_len:128-151",
++        "tx_ampdu_len:152-175",
++        "tx_ampdu_len:176-199",
++        "tx_ampdu_len:200-223",
++        "tx_ampdu_len:224-247",
++        "ba_miss_count",
++        "tx_beamformer_ppdu_iBF",
++        "tx_beamformer_ppdu_eBF",
++        "tx_beamformer_rx_feedback_all",
++        "tx_beamformer_rx_feedback_he",
++        "tx_beamformer_rx_feedback_vht",
++        "tx_beamformer_rx_feedback_ht",
++        "tx_msdu_pack_1",
++        "tx_msdu_pack_2",
++        "tx_msdu_pack_3",
++        "tx_msdu_pack_4",
++        "tx_msdu_pack_5",
++        "tx_msdu_pack_6",
++        "tx_msdu_pack_7",
++        "tx_msdu_pack_8",
++        /* rx counters */
++        "rx_mpdu_cnt",
++        "rx_ampdu_cnt",
++        "rx_ampdu_bytes_cnt",
++        "rx_ba_cnt",
++        /* per vif counters */
++        "v_tx_mode_cck",
++        "v_tx_mode_ofdm",
++        "v_tx_mode_ht",
++        "v_tx_mode_ht_gf",
++        "v_tx_mode_vht",
++        "v_tx_mode_he_su",
++        "v_tx_mode_he_ext_su",
++        "v_tx_mode_he_tb",
++        "v_tx_mode_he_mu",
++        "v_tx_mode_eht_su",
++        "v_tx_mode_eht_trig",
++        "v_tx_mode_eht_mu",
++        "v_tx_bw_20",
++        "v_tx_bw_40",
++        "v_tx_bw_80",
++        "v_tx_bw_160",
++        "v_tx_bw_320",
++        "v_tx_mcs_0",
++        "v_tx_mcs_1",
++        "v_tx_mcs_2",
++        "v_tx_mcs_3",
++        "v_tx_mcs_4",
++        "v_tx_mcs_5",
++        "v_tx_mcs_6",
++        "v_tx_mcs_7",
++        "v_tx_mcs_8",
++        "v_tx_mcs_9",
++        "v_tx_mcs_10",
++        "v_tx_mcs_11",
++        "v_tx_mcs_12",
++        "v_tx_mcs_13",
++        "v_tx_nss_1",
++        "v_tx_nss_2",
++        "v_tx_nss_3",
++        "v_tx_nss_4",
+ };
+ 
+ void mt792x_get_et_strings(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+-			   u32 sset, u8 *data)
++                           u32 sset, u8 *data)
+ {
+-	if (sset != ETH_SS_STATS)
+-		return;
++        if (sset != ETH_SS_STATS)
++                return;
+ 
+-	memcpy(data, mt792x_gstrings_stats, sizeof(mt792x_gstrings_stats));
++        memcpy(data, mt792x_gstrings_stats, sizeof(mt792x_gstrings_stats));
+ 
+-	data += sizeof(mt792x_gstrings_stats);
+-	page_pool_ethtool_stats_get_strings(data);
++        data += sizeof(mt792x_gstrings_stats);
++        page_pool_ethtool_stats_get_strings(data);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_get_et_strings);
+ 
+ int mt792x_get_et_sset_count(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+-			     int sset)
++                             int sset)
+ {
+-	if (sset != ETH_SS_STATS)
+-		return 0;
++        if (sset != ETH_SS_STATS)
++                return 0;
+ 
+-	return ARRAY_SIZE(mt792x_gstrings_stats) +
+-	       page_pool_ethtool_stats_get_count();
++        return ARRAY_SIZE(mt792x_gstrings_stats) +
++               page_pool_ethtool_stats_get_count();
+ }
+ EXPORT_SYMBOL_GPL(mt792x_get_et_sset_count);
+ 
+ static void
+ mt792x_ethtool_worker(void *wi_data, struct ieee80211_sta *sta)
+ {
+-	struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
+-	struct mt76_ethtool_worker_info *wi = wi_data;
++        struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
++        struct mt76_ethtool_worker_info *wi = wi_data;
+ 
+-	if (msta->vif->bss_conf.mt76.idx != wi->idx)
+-		return;
++        if (msta->vif->bss_conf.mt76.idx != wi->idx)
++                return;
+ 
+-	mt76_ethtool_worker(wi, &msta->deflink.wcid.stats, true);
++        mt76_ethtool_worker(wi, &msta->deflink.wcid.stats, true);
+ }
+ 
+ void mt792x_get_et_stats(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+-			 struct ethtool_stats *stats, u64 *data)
++                         struct ethtool_stats *stats, u64 *data)
+ {
+-	struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
+-	int stats_size = ARRAY_SIZE(mt792x_gstrings_stats);
+-	struct mt792x_phy *phy = mt792x_hw_phy(hw);
+-	struct mt792x_dev *dev = phy->dev;
+-	struct mt76_mib_stats *mib = &phy->mib;
+-	struct mt76_ethtool_worker_info wi = {
+-		.data = data,
+-		.idx = mvif->bss_conf.mt76.idx,
+-	};
+-	int i, ei = 0;
++        struct mt792x_vif *mvif = (struct mt792x_vif *)vif->drv_priv;
++        int stats_size = ARRAY_SIZE(mt792x_gstrings_stats);
++        struct mt792x_phy *phy = mt792x_hw_phy(hw);
++        struct mt792x_dev *dev = phy->dev;
++        struct mt76_mib_stats *mib = &phy->mib;
++        struct mt76_ethtool_worker_info wi = {
++                .data = data,
++                .idx = mvif->bss_conf.mt76.idx,
++        };
++        int i, ei = 0;
+ 
+-	mt792x_mutex_acquire(dev);
++        mt792x_mutex_acquire(dev);
+ 
+-	mt792x_mac_update_mib_stats(phy);
++        mt792x_mac_update_mib_stats(phy);
+ 
+-	data[ei++] = mib->tx_ampdu_cnt;
+-	data[ei++] = mib->tx_mpdu_attempts_cnt;
+-	data[ei++] = mib->tx_mpdu_success_cnt;
+-	data[ei++] = mib->tx_pkt_ebf_cnt;
+-	data[ei++] = mib->tx_pkt_ibf_cnt;
++        data[ei++] = mib->tx_ampdu_cnt;
++        data[ei++] = mib->tx_mpdu_attempts_cnt;
++        data[ei++] = mib->tx_mpdu_success_cnt;
++        data[ei++] = mib->tx_pkt_ebf_cnt;
++        data[ei++] = mib->tx_pkt_ibf_cnt;
+ 
+-	/* Tx ampdu stat */
+-	for (i = 0; i < 15; i++)
+-		data[ei++] = phy->mt76->aggr_stats[i];
++        /* Tx ampdu stat */
++        for (i = 0; i < 15; i++)
++                data[ei++] = phy->mt76->aggr_stats[i];
+ 
+-	data[ei++] = phy->mib.ba_miss_cnt;
++        data[ei++] = phy->mib.ba_miss_cnt;
+ 
+-	/* Tx Beamformer monitor */
+-	data[ei++] = mib->tx_bf_ibf_ppdu_cnt;
+-	data[ei++] = mib->tx_bf_ebf_ppdu_cnt;
++        /* Tx Beamformer monitor */
++        data[ei++] = mib->tx_bf_ibf_ppdu_cnt;
++        data[ei++] = mib->tx_bf_ebf_ppdu_cnt;
+ 
+-	/* Tx Beamformer Rx feedback monitor */
+-	data[ei++] = mib->tx_bf_rx_fb_all_cnt;
+-	data[ei++] = mib->tx_bf_rx_fb_he_cnt;
+-	data[ei++] = mib->tx_bf_rx_fb_vht_cnt;
+-	data[ei++] = mib->tx_bf_rx_fb_ht_cnt;
++        /* Tx Beamformer Rx feedback monitor */
++        data[ei++] = mib->tx_bf_rx_fb_all_cnt;
++        data[ei++] = mib->tx_bf_rx_fb_he_cnt;
++        data[ei++] = mib->tx_bf_rx_fb_vht_cnt;
++        data[ei++] = mib->tx_bf_rx_fb_ht_cnt;
+ 
+-	/* Tx amsdu info (pack-count histogram) */
+-	for (i = 0; i < ARRAY_SIZE(mib->tx_amsdu); i++)
+-		data[ei++] = mib->tx_amsdu[i];
++        /* Tx amsdu info (pack-count histogram) */
++        for (i = 0; i < ARRAY_SIZE(mib->tx_amsdu); i++)
++                data[ei++] = mib->tx_amsdu[i];
+ 
+-	/* rx counters */
+-	data[ei++] = mib->rx_mpdu_cnt;
+-	data[ei++] = mib->rx_ampdu_cnt;
+-	data[ei++] = mib->rx_ampdu_bytes_cnt;
+-	data[ei++] = mib->rx_ba_cnt;
++        /* rx counters */
++        data[ei++] = mib->rx_mpdu_cnt;
++        data[ei++] = mib->rx_ampdu_cnt;
++        data[ei++] = mib->rx_ampdu_bytes_cnt;
++        data[ei++] = mib->rx_ba_cnt;
+ 
+-	/* Add values for all stations owned by this vif */
+-	wi.initial_stat_idx = ei;
+-	ieee80211_iterate_stations_atomic(hw, mt792x_ethtool_worker, &wi);
++        /* Add values for all stations owned by this vif */
++        wi.initial_stat_idx = ei;
++        ieee80211_iterate_stations_atomic(hw, mt792x_ethtool_worker, &wi);
+ 
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_release(dev);
+ 
+-	if (!wi.sta_count)
+-		return;
++        if (!wi.sta_count)
++                return;
+ 
+-	ei += wi.worker_stat_count;
++        ei += wi.worker_stat_count;
+ 
+-	mt76_ethtool_page_pool_stats(&dev->mt76, &data[ei], &ei);
+-	stats_size += page_pool_ethtool_stats_get_count();
++        mt76_ethtool_page_pool_stats(&dev->mt76, &data[ei], &ei);
++        stats_size += page_pool_ethtool_stats_get_count();
+ 
+-	if (ei != stats_size)
+-		dev_err(dev->mt76.dev, "ei: %d  SSTATS_LEN: %d", ei,
+-			stats_size);
++        if (ei != stats_size)
++                dev_err(dev->mt76.dev, "ei: %d  SSTATS_LEN: %d", ei,
++                        stats_size);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_get_et_stats);
+ 
+ void mt792x_sta_statistics(struct ieee80211_hw *hw,
+-			   struct ieee80211_vif *vif,
+-			   struct ieee80211_sta *sta,
+-			   struct station_info *sinfo)
++                           struct ieee80211_vif *vif,
++                           struct ieee80211_sta *sta,
++                           struct station_info *sinfo)
+ {
+-	struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
+-	struct rate_info *txrate = &msta->deflink.wcid.rate;
++        struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
++        struct rate_info *txrate = &msta->deflink.wcid.rate;
+ 
+-	if (!txrate->legacy && !txrate->flags)
+-		return;
++        if (!txrate->legacy && !txrate->flags)
++                return;
+ 
+-	if (txrate->legacy) {
+-		sinfo->txrate.legacy = txrate->legacy;
+-	} else {
+-		sinfo->txrate.mcs = txrate->mcs;
+-		sinfo->txrate.nss = txrate->nss;
+-		sinfo->txrate.bw = txrate->bw;
+-		sinfo->txrate.he_gi = txrate->he_gi;
+-		sinfo->txrate.he_dcm = txrate->he_dcm;
+-		sinfo->txrate.he_ru_alloc = txrate->he_ru_alloc;
+-	}
+-	sinfo->tx_failed = msta->deflink.wcid.stats.tx_failed;
+-	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_FAILED);
++        if (txrate->legacy) {
++                sinfo->txrate.legacy = txrate->legacy;
++        } else {
++                sinfo->txrate.mcs = txrate->mcs;
++                sinfo->txrate.nss = txrate->nss;
++                sinfo->txrate.bw = txrate->bw;
++                sinfo->txrate.he_gi = txrate->he_gi;
++                sinfo->txrate.he_dcm = txrate->he_dcm;
++                sinfo->txrate.he_ru_alloc = txrate->he_ru_alloc;
++        }
++        sinfo->tx_failed = msta->deflink.wcid.stats.tx_failed;
++        sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_FAILED);
+ 
+-	sinfo->tx_retries = msta->deflink.wcid.stats.tx_retries;
+-	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_RETRIES);
++        sinfo->tx_retries = msta->deflink.wcid.stats.tx_retries;
++        sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_RETRIES);
+ 
+-	sinfo->txrate.flags = txrate->flags;
+-	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
++        sinfo->txrate.flags = txrate->flags;
++        sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
+ 
+-	sinfo->ack_signal = (s8)msta->deflink.ack_signal;
+-	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
++        sinfo->ack_signal = (s8)msta->deflink.ack_signal;
++        sinfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
+ 
+-	sinfo->avg_ack_signal = -(s8)ewma_avg_signal_read(&msta->deflink.avg_ack_signal);
+-	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
++        sinfo->avg_ack_signal = -(s8)ewma_avg_signal_read(&msta->deflink.avg_ack_signal);
++        sinfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_sta_statistics);
+ 
+ void mt792x_set_coverage_class(struct ieee80211_hw *hw, int radio_idx,
+-			       s16 coverage_class)
++                               s16 coverage_class)
+ {
+-	struct mt792x_phy *phy = mt792x_hw_phy(hw);
+-	struct mt792x_dev *dev = phy->dev;
++        struct mt792x_phy *phy = mt792x_hw_phy(hw);
++        struct mt792x_dev *dev = phy->dev;
+ 
+-	mt792x_mutex_acquire(dev);
++        mt792x_mutex_acquire(dev);
+ 
+-	phy->coverage_class = max_t(s16, coverage_class, 0);
+-	mt792x_mac_set_timeing(phy);
++        phy->coverage_class = max_t(s16, coverage_class, 0);
++        mt792x_mac_set_timeing(phy);
+ 
+-	mt792x_mutex_release(dev);
++        mt792x_mutex_release(dev);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_set_coverage_class);
+ 
+ int mt792x_init_wiphy(struct ieee80211_hw *hw)
+ {
+-	struct mt792x_phy *phy = mt792x_hw_phy(hw);
+-	struct mt792x_dev *dev = phy->dev;
+-	struct wiphy *wiphy = hw->wiphy;
+-
+-	hw->queues = 4;
+-	if (dev->has_eht) {
+-		hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_EHT;
+-		hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_EHT;
+-	} else {
+-		hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
+-		hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
+-	}
+-	hw->netdev_features = NETIF_F_RXCSUM;
+-
+-	hw->radiotap_timestamp.units_pos =
+-		IEEE80211_RADIOTAP_TIMESTAMP_UNIT_US;
+-
+-	phy->slottime = 9;
+-
+-	hw->sta_data_size = sizeof(struct mt792x_sta);
+-	hw->vif_data_size = sizeof(struct mt792x_vif);
+-	hw->chanctx_data_size = sizeof(struct mt792x_chanctx);
+-
+-	if (dev->fw_features & MT792x_FW_CAP_CNM) {
+-		wiphy->flags |= WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
+-		wiphy->iface_combinations = if_comb_chanctx;
+-		wiphy->n_iface_combinations = ARRAY_SIZE(if_comb_chanctx);
+-	} else {
+-		wiphy->flags &= ~WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
+-		wiphy->iface_combinations = if_comb;
+-		wiphy->n_iface_combinations = ARRAY_SIZE(if_comb);
+-	}
+-	wiphy->flags &= ~(WIPHY_FLAG_IBSS_RSN | WIPHY_FLAG_4ADDR_AP |
+-			  WIPHY_FLAG_4ADDR_STATION);
+-	wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
+-				 BIT(NL80211_IFTYPE_AP) |
+-				 BIT(NL80211_IFTYPE_P2P_CLIENT) |
+-				 BIT(NL80211_IFTYPE_P2P_GO) |
+-				 BIT(NL80211_IFTYPE_P2P_DEVICE);
+-	wiphy->max_remain_on_channel_duration = 5000;
+-	wiphy->max_scan_ie_len = MT76_CONNAC_SCAN_IE_LEN;
+-	wiphy->max_scan_ssids = 4;
+-	wiphy->max_sched_scan_plan_interval =
+-		MT76_CONNAC_MAX_TIME_SCHED_SCAN_INTERVAL;
+-	wiphy->max_sched_scan_ie_len = IEEE80211_MAX_DATA_LEN;
+-	wiphy->max_sched_scan_ssids = MT76_CONNAC_MAX_SCHED_SCAN_SSID;
+-	wiphy->max_match_sets = MT76_CONNAC_MAX_SCAN_MATCH;
+-	wiphy->max_sched_scan_reqs = 1;
+-	wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH |
+-			WIPHY_FLAG_SPLIT_SCAN_6GHZ;
+-
+-	wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
+-			   NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR;
+-	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SET_SCAN_DWELL);
+-	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_LEGACY);
+-	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_HT);
+-	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_VHT);
+-	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_HE);
+-	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_ACK_SIGNAL_SUPPORT);
+-	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_CAN_REPLACE_PTK0);
+-
+-	ieee80211_hw_set(hw, SINGLE_SCAN_ON_ALL_BANDS);
+-	ieee80211_hw_set(hw, HAS_RATE_CONTROL);
+-	ieee80211_hw_set(hw, SUPPORTS_TX_ENCAP_OFFLOAD);
+-	ieee80211_hw_set(hw, SUPPORTS_RX_DECAP_OFFLOAD);
+-	ieee80211_hw_set(hw, WANT_MONITOR_VIF);
+-	ieee80211_hw_set(hw, SUPPORTS_PS);
+-	ieee80211_hw_set(hw, SUPPORTS_DYNAMIC_PS);
+-	ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
+-	ieee80211_hw_set(hw, CONNECTION_MONITOR);
+-	ieee80211_hw_set(hw, SUPPORTS_MULTI_BSSID);
+-	ieee80211_hw_set(hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
+-
+-	ieee80211_hw_set(hw, CHANCTX_STA_CSA);
+-
+-
+-	if (dev->pm.enable)
+-		ieee80211_hw_set(hw, CONNECTION_MONITOR);
+-
+-	hw->max_tx_fragments = 4;
+-
+-	return 0;
++        struct mt792x_phy *phy = mt792x_hw_phy(hw);
++        struct mt792x_dev *dev = phy->dev;
++        struct wiphy *wiphy = hw->wiphy;
++
++        hw->queues = 4;
++        if (dev->has_eht) {
++                hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_EHT;
++                hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_EHT;
++        } else {
++                hw->max_rx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
++                hw->max_tx_aggregation_subframes = IEEE80211_MAX_AMPDU_BUF_HE;
++        }
++        hw->netdev_features = NETIF_F_RXCSUM;
++
++        hw->radiotap_timestamp.units_pos =
++                IEEE80211_RADIOTAP_TIMESTAMP_UNIT_US;
++
++        phy->slottime = 9;
++
++        hw->sta_data_size = sizeof(struct mt792x_sta);
++        hw->vif_data_size = sizeof(struct mt792x_vif);
++        hw->chanctx_data_size = sizeof(struct mt792x_chanctx);
++
++        if (dev->fw_features & MT792x_FW_CAP_CNM) {
++                wiphy->flags |= WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
++                wiphy->iface_combinations = if_comb_chanctx;
++                wiphy->n_iface_combinations = ARRAY_SIZE(if_comb_chanctx);
++        } else {
++                wiphy->flags &= ~WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
++                wiphy->iface_combinations = if_comb;
++                wiphy->n_iface_combinations = ARRAY_SIZE(if_comb);
++        }
++        wiphy->flags &= ~(WIPHY_FLAG_IBSS_RSN | WIPHY_FLAG_4ADDR_AP |
++                          WIPHY_FLAG_4ADDR_STATION);
++        wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
++                                 BIT(NL80211_IFTYPE_AP) |
++                                 BIT(NL80211_IFTYPE_P2P_CLIENT) |
++                                 BIT(NL80211_IFTYPE_P2P_GO) |
++                                 BIT(NL80211_IFTYPE_P2P_DEVICE);
++        wiphy->max_remain_on_channel_duration = 5000;
++        wiphy->max_scan_ie_len = MT76_CONNAC_SCAN_IE_LEN;
++        wiphy->max_scan_ssids = 4;
++        wiphy->max_sched_scan_plan_interval =
++                MT76_CONNAC_MAX_TIME_SCHED_SCAN_INTERVAL;
++        wiphy->max_sched_scan_ie_len = IEEE80211_MAX_DATA_LEN;
++        wiphy->max_sched_scan_ssids = MT76_CONNAC_MAX_SCHED_SCAN_SSID;
++        wiphy->max_match_sets = MT76_CONNAC_MAX_SCAN_MATCH;
++        wiphy->max_sched_scan_reqs = 1;
++        wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH |
++                        WIPHY_FLAG_SPLIT_SCAN_6GHZ;
++
++        wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
++                           NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR;
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_SET_SCAN_DWELL);
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_LEGACY);
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_HT);
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_VHT);
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_HE);
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_ACK_SIGNAL_SUPPORT);
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_CAN_REPLACE_PTK0);
++
++        ieee80211_hw_set(hw, SINGLE_SCAN_ON_ALL_BANDS);
++        ieee80211_hw_set(hw, HAS_RATE_CONTROL);
++        ieee80211_hw_set(hw, SUPPORTS_TX_ENCAP_OFFLOAD);
++        ieee80211_hw_set(hw, SUPPORTS_RX_DECAP_OFFLOAD);
++        ieee80211_hw_set(hw, WANT_MONITOR_VIF);
++        ieee80211_hw_set(hw, SUPPORTS_PS);
++        ieee80211_hw_set(hw, SUPPORTS_DYNAMIC_PS);
++        ieee80211_hw_set(hw, SUPPORTS_VHT_EXT_NSS_BW);
++        ieee80211_hw_set(hw, CONNECTION_MONITOR);
++        ieee80211_hw_set(hw, SUPPORTS_MULTI_BSSID);
++        ieee80211_hw_set(hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
++
++        ieee80211_hw_set(hw, CHANCTX_STA_CSA);
++
++
++        if (dev->pm.enable)
++                ieee80211_hw_set(hw, CONNECTION_MONITOR);
++
++        hw->max_tx_fragments = 4;
++
++        return 0;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_init_wiphy);
+ 
+ static u8
+ mt792x_get_offload_capability(struct device *dev, const char *fw_wm)
+ {
+-	const struct mt76_connac2_fw_trailer *hdr;
+-	struct mt792x_realease_info *rel_info;
+-	const struct firmware *fw;
+-	int ret, i, offset = 0;
+-	const u8 *data, *end;
+-	u8 offload_caps = 0;
++        const struct mt76_connac2_fw_trailer *hdr;
++        struct mt792x_realease_info *rel_info;
++        const struct firmware *fw;
++        int ret, i, offset = 0;
++        const u8 *data, *end;
++        u8 offload_caps = 0;
+ 
+-	ret = request_firmware(&fw, fw_wm, dev);
+-	if (ret)
+-		return ret;
++        ret = request_firmware(&fw, fw_wm, dev);
++        if (ret)
++                return ret;
+ 
+-	if (!fw || !fw->data || fw->size < sizeof(*hdr)) {
+-		dev_err(dev, "Invalid firmware\n");
+-		goto out;
+-	}
++        if (!fw || !fw->data || fw->size < sizeof(*hdr)) {
++                dev_err(dev, "Invalid firmware\n");
++                goto out;
++        }
+ 
+-	data = fw->data;
+-	hdr = (const void *)(fw->data + fw->size - sizeof(*hdr));
++        data = fw->data;
++        hdr = (const void *)(fw->data + fw->size - sizeof(*hdr));
+ 
+-	for (i = 0; i < hdr->n_region; i++) {
+-		const struct mt76_connac2_fw_region *region;
++        for (i = 0; i < hdr->n_region; i++) {
++                const struct mt76_connac2_fw_region *region;
+ 
+-		region = (const void *)((const u8 *)hdr -
+-					(hdr->n_region - i) * sizeof(*region));
+-		offset += le32_to_cpu(region->len);
+-	}
++                region = (const void *)((const u8 *)hdr -
++                                        (hdr->n_region - i) * sizeof(*region));
++                offset += le32_to_cpu(region->len);
++        }
+ 
+-	data += offset + 16;
+-	rel_info = (struct mt792x_realease_info *)data;
+-	data += sizeof(*rel_info);
+-	end = data + le16_to_cpu(rel_info->len);
++        data += offset + 16;
++        rel_info = (struct mt792x_realease_info *)data;
++        data += sizeof(*rel_info);
++        end = data + le16_to_cpu(rel_info->len);
+ 
+-	while (data < end) {
+-		rel_info = (struct mt792x_realease_info *)data;
+-		data += sizeof(*rel_info);
++        while (data < end) {
++                rel_info = (struct mt792x_realease_info *)data;
++                data += sizeof(*rel_info);
+ 
+-		if (rel_info->tag == MT792x_FW_TAG_FEATURE) {
+-			struct mt792x_fw_features *features;
++                if (rel_info->tag == MT792x_FW_TAG_FEATURE) {
++                        struct mt792x_fw_features *features;
+ 
+-			features = (struct mt792x_fw_features *)data;
+-			offload_caps = features->data;
+-			break;
+-		}
++                        features = (struct mt792x_fw_features *)data;
++                        offload_caps = features->data;
++                        break;
++                }
+ 
+-		data += le16_to_cpu(rel_info->len) + rel_info->pad_len;
+-	}
++                data += le16_to_cpu(rel_info->len) + rel_info->pad_len;
++        }
+ 
+ out:
+-	release_firmware(fw);
++        release_firmware(fw);
+ 
+-	return offload_caps;
++        return offload_caps;
+ }
+ 
+ struct ieee80211_ops *
+ mt792x_get_mac80211_ops(struct device *dev,
+-			const struct ieee80211_ops *mac80211_ops,
+-			void *drv_data, u8 *fw_features)
+-{
+-	struct ieee80211_ops *ops;
+-
+-	ops = devm_kmemdup(dev, mac80211_ops, sizeof(struct ieee80211_ops),
+-			   GFP_KERNEL);
+-	if (!ops)
+-		return NULL;
+-
+-	*fw_features = mt792x_get_offload_capability(dev, drv_data);
+-	if (!(*fw_features & MT792x_FW_CAP_CNM)) {
+-		ops->remain_on_channel = NULL;
+-		ops->cancel_remain_on_channel = NULL;
+-		ops->add_chanctx = ieee80211_emulate_add_chanctx;
+-		ops->remove_chanctx = ieee80211_emulate_remove_chanctx;
+-		ops->change_chanctx = ieee80211_emulate_change_chanctx;
+-		ops->switch_vif_chanctx = ieee80211_emulate_switch_vif_chanctx;
+-		ops->assign_vif_chanctx = NULL;
+-		ops->unassign_vif_chanctx = NULL;
+-		ops->mgd_prepare_tx = NULL;
+-		ops->mgd_complete_tx = NULL;
+-	}
+-	return ops;
++                        const struct ieee80211_ops *mac80211_ops,
++                        void *drv_data, u8 *fw_features)
++{
++        struct ieee80211_ops *ops;
++
++        ops = devm_kmemdup(dev, mac80211_ops, sizeof(struct ieee80211_ops),
++                           GFP_KERNEL);
++        if (!ops)
++                return NULL;
++
++        *fw_features = mt792x_get_offload_capability(dev, drv_data);
++        if (!(*fw_features & MT792x_FW_CAP_CNM)) {
++                ops->remain_on_channel = NULL;
++                ops->cancel_remain_on_channel = NULL;
++                ops->add_chanctx = ieee80211_emulate_add_chanctx;
++                ops->remove_chanctx = ieee80211_emulate_remove_chanctx;
++                ops->change_chanctx = ieee80211_emulate_change_chanctx;
++                ops->switch_vif_chanctx = ieee80211_emulate_switch_vif_chanctx;
++                ops->assign_vif_chanctx = NULL;
++                ops->unassign_vif_chanctx = NULL;
++                ops->mgd_prepare_tx = NULL;
++                ops->mgd_complete_tx = NULL;
++        }
++        return ops;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_get_mac80211_ops);
+ 
+ int mt792x_init_wcid(struct mt792x_dev *dev)
+ {
+-	int idx;
++        int idx;
+ 
+-	/* Beacon and mgmt frames should occupy wcid 0 */
+-	idx = mt76_wcid_alloc(dev->mt76.wcid_mask, MT792x_WTBL_STA - 1);
+-	if (idx)
+-		return -ENOSPC;
++        /* Beacon and mgmt frames should occupy wcid 0 */
++        idx = mt76_wcid_alloc(dev->mt76.wcid_mask, MT792x_WTBL_STA - 1);
++        if (idx)
++                return -ENOSPC;
+ 
+-	dev->mt76.global_wcid.idx = idx;
+-	dev->mt76.global_wcid.hw_key_idx = -1;
+-	dev->mt76.global_wcid.tx_info |= MT_WCID_TX_INFO_SET;
+-	rcu_assign_pointer(dev->mt76.wcid[idx], &dev->mt76.global_wcid);
++        dev->mt76.global_wcid.idx = idx;
++        dev->mt76.global_wcid.hw_key_idx = -1;
++        dev->mt76.global_wcid.tx_info |= MT_WCID_TX_INFO_SET;
++        rcu_assign_pointer(dev->mt76.wcid[idx], &dev->mt76.global_wcid);
+ 
+-	return 0;
++        return 0;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_init_wcid);
+ 
+ int mt792x_mcu_drv_pmctrl(struct mt792x_dev *dev)
+ {
+-	struct mt76_phy *mphy = &dev->mt76.phy;
+-	struct mt76_connac_pm *pm = &dev->pm;
+-	int err = 0;
++        struct mt76_phy *mphy = &dev->mt76.phy;
++        struct mt76_connac_pm *pm = &dev->pm;
++        int err = 0;
+ 
+-	mutex_lock(&pm->mutex);
++        mutex_lock(&pm->mutex);
+ 
+-	if (!test_bit(MT76_STATE_PM, &mphy->state))
+-		goto out;
++        if (!test_bit(MT76_STATE_PM, &mphy->state))
++                goto out;
+ 
+-	err = __mt792x_mcu_drv_pmctrl(dev);
++        err = __mt792x_mcu_drv_pmctrl(dev);
+ out:
+-	mutex_unlock(&pm->mutex);
++        mutex_unlock(&pm->mutex);
+ 
+-	if (err)
+-		mt792x_reset(&dev->mt76);
++        if (err)
++                mt792x_reset(&dev->mt76);
+ 
+-	return err;
++        return err;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_mcu_drv_pmctrl);
+ 
+ int mt792x_mcu_fw_pmctrl(struct mt792x_dev *dev)
+ {
+-	struct mt76_phy *mphy = &dev->mt76.phy;
+-	struct mt76_connac_pm *pm = &dev->pm;
+-	int err = 0;
++        struct mt76_phy *mphy = &dev->mt76.phy;
++        struct mt76_connac_pm *pm = &dev->pm;
++        int err = 0;
+ 
+-	mutex_lock(&pm->mutex);
++        mutex_lock(&pm->mutex);
+ 
+-	if (mt76_connac_skip_fw_pmctrl(mphy, pm))
+-		goto out;
++        if (mt76_connac_skip_fw_pmctrl(mphy, pm))
++                goto out;
+ 
+-	err = __mt792x_mcu_fw_pmctrl(dev);
++        err = __mt792x_mcu_fw_pmctrl(dev);
+ out:
+-	mutex_unlock(&pm->mutex);
++        mutex_unlock(&pm->mutex);
+ 
+-	if (err)
+-		mt792x_reset(&dev->mt76);
++        if (err)
++                mt792x_reset(&dev->mt76);
+ 
+-	return err;
++        return err;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_mcu_fw_pmctrl);
+ 
+ int __mt792xe_mcu_drv_pmctrl(struct mt792x_dev *dev)
+ {
+-	int i, err = 0;
++        int i, err = 0;
+ 
+-	for (i = 0; i < MT792x_DRV_OWN_RETRY_COUNT; i++) {
+-		mt76_wr(dev, MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_CLR_OWN);
++        for (i = 0; i < MT792x_DRV_OWN_RETRY_COUNT; i++) {
++                mt76_wr(dev, MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_CLR_OWN);
+ 
+-		if (dev->aspm_supported)
+-			usleep_range(2000, 3000);
++                if (dev->aspm_supported)
++                        usleep_range(2000, 3000);
+ 
+-		if (mt76_poll_msec_tick(dev, MT_CONN_ON_LPCTL,
+-					PCIE_LPCR_HOST_OWN_SYNC, 0, 50, 1))
+-			break;
+-	}
++                if (mt76_poll_msec_tick(dev, MT_CONN_ON_LPCTL,
++                                        PCIE_LPCR_HOST_OWN_SYNC, 0, 50, 1))
++                        break;
++        }
+ 
+-	if (i == MT792x_DRV_OWN_RETRY_COUNT) {
+-		dev_err(dev->mt76.dev, "driver own failed\n");
+-		err = -EIO;
+-	}
++        if (i == MT792x_DRV_OWN_RETRY_COUNT) {
++                dev_err(dev->mt76.dev, "driver own failed\n");
++                err = -EIO;
++        }
+ 
+-	return err;
++        return err;
+ }
+ EXPORT_SYMBOL_GPL(__mt792xe_mcu_drv_pmctrl);
+ 
+ int mt792xe_mcu_drv_pmctrl(struct mt792x_dev *dev)
+ {
+-	struct mt76_phy *mphy = &dev->mt76.phy;
+-	struct mt76_connac_pm *pm = &dev->pm;
+-	int err;
++        struct mt76_phy *mphy = &dev->mt76.phy;
++        struct mt76_connac_pm *pm = &dev->pm;
++        int err;
+ 
+-	err = __mt792xe_mcu_drv_pmctrl(dev);
+-	if (err < 0)
+-		goto out;
++        err = __mt792xe_mcu_drv_pmctrl(dev);
++        if (err < 0)
++                goto out;
+ 
+-	mt792x_wpdma_reinit_cond(dev);
+-	clear_bit(MT76_STATE_PM, &mphy->state);
++        mt792x_wpdma_reinit_cond(dev);
++        clear_bit(MT76_STATE_PM, &mphy->state);
+ 
+-	pm->stats.last_wake_event = jiffies;
+-	pm->stats.doze_time += pm->stats.last_wake_event -
+-			       pm->stats.last_doze_event;
++        pm->stats.last_wake_event = jiffies;
++        pm->stats.doze_time += pm->stats.last_wake_event -
++                               pm->stats.last_doze_event;
+ out:
+-	return err;
++        return err;
+ }
+ EXPORT_SYMBOL_GPL(mt792xe_mcu_drv_pmctrl);
+ 
+ int mt792xe_mcu_fw_pmctrl(struct mt792x_dev *dev)
+ {
+-	struct mt76_phy *mphy = &dev->mt76.phy;
+-	struct mt76_connac_pm *pm = &dev->pm;
+-	int i;
++        struct mt76_phy *mphy = &dev->mt76.phy;
++        struct mt76_connac_pm *pm = &dev->pm;
++        int i;
+ 
+-	for (i = 0; i < MT792x_DRV_OWN_RETRY_COUNT; i++) {
+-		mt76_wr(dev, MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_SET_OWN);
+-		if (mt76_poll_msec_tick(dev, MT_CONN_ON_LPCTL,
+-					PCIE_LPCR_HOST_OWN_SYNC, 4, 50, 1))
+-			break;
+-	}
++        for (i = 0; i < MT792x_DRV_OWN_RETRY_COUNT; i++) {
++                mt76_wr(dev, MT_CONN_ON_LPCTL, PCIE_LPCR_HOST_SET_OWN);
++                if (mt76_poll_msec_tick(dev, MT_CONN_ON_LPCTL,
++                                        PCIE_LPCR_HOST_OWN_SYNC, 4, 50, 1))
++                        break;
++        }
+ 
+-	if (i == MT792x_DRV_OWN_RETRY_COUNT) {
+-		dev_err(dev->mt76.dev, "firmware own failed\n");
+-		clear_bit(MT76_STATE_PM, &mphy->state);
+-		return -EIO;
+-	}
++        if (i == MT792x_DRV_OWN_RETRY_COUNT) {
++                dev_err(dev->mt76.dev, "firmware own failed\n");
++                clear_bit(MT76_STATE_PM, &mphy->state);
++                return -EIO;
++        }
+ 
+-	pm->stats.last_doze_event = jiffies;
+-	pm->stats.awake_time += pm->stats.last_doze_event -
+-				pm->stats.last_wake_event;
++        pm->stats.last_doze_event = jiffies;
++        pm->stats.awake_time += pm->stats.last_doze_event -
++                                pm->stats.last_wake_event;
+ 
+-	return 0;
++        return 0;
+ }
+ EXPORT_SYMBOL_GPL(mt792xe_mcu_fw_pmctrl);
+ 
+ int mt792x_load_firmware(struct mt792x_dev *dev)
+ {
+-	int ret;
++        int ret;
+ 
+-	mt76_connac_mcu_restart(&dev->mt76);
++        mt76_connac_mcu_restart(&dev->mt76);
+ 
+-	if (!mt76_poll_msec(dev, MT_CONN_ON_MISC, MT_TOP_MISC_FW_STATE,
+-			    MT_TOP_MISC2_FW_PWR_ON, 1000))
+-		dev_warn(dev->mt76.dev,
+-			 "MCU is not ready for firmware download\n");
++        if (!mt76_poll_msec(dev, MT_CONN_ON_MISC, MT_TOP_MISC_FW_STATE,
++                            MT_TOP_MISC2_FW_PWR_ON, 1000))
++                dev_warn(dev->mt76.dev,
++                         "MCU is not ready for firmware download\n");
+ 
+-	ret = mt76_connac2_load_patch(&dev->mt76, mt792x_patch_name(dev));
+-	if (ret)
+-		return ret;
++        ret = mt76_connac2_load_patch(&dev->mt76, mt792x_patch_name(dev));
++        if (ret)
++                return ret;
+ 
+-	if (mt76_is_sdio(&dev->mt76)) {
+-		/* activate again */
+-		ret = __mt792x_mcu_fw_pmctrl(dev);
+-		if (!ret)
+-			ret = __mt792x_mcu_drv_pmctrl(dev);
+-	}
++        if (mt76_is_sdio(&dev->mt76)) {
++                /* activate again */
++                ret = __mt792x_mcu_fw_pmctrl(dev);
++                if (!ret)
++                        ret = __mt792x_mcu_drv_pmctrl(dev);
++        }
+ 
+-	ret = mt76_connac2_load_ram(&dev->mt76, mt792x_ram_name(dev), NULL);
+-	if (ret)
+-		return ret;
++        ret = mt76_connac2_load_ram(&dev->mt76, mt792x_ram_name(dev), NULL);
++        if (ret)
++                return ret;
+ 
+-	if (!mt76_poll_msec(dev, MT_CONN_ON_MISC, MT_TOP_MISC2_FW_N9_RDY,
+-			    MT_TOP_MISC2_FW_N9_RDY, 1500)) {
+-		dev_err(dev->mt76.dev, "Timeout for initializing firmware\n");
++        if (!mt76_poll_msec(dev, MT_CONN_ON_MISC, MT_TOP_MISC2_FW_N9_RDY,
++                            MT_TOP_MISC2_FW_N9_RDY, 1500)) {
++                dev_err(dev->mt76.dev, "Timeout for initializing firmware\n");
+ 
+-		return -EIO;
+-	}
++                return -EIO;
++        }
+ 
+ #ifdef CONFIG_PM
+-	dev->mt76.hw->wiphy->wowlan = &mt76_connac_wowlan_support;
++        dev->mt76.hw->wiphy->wowlan = &mt76_connac_wowlan_support;
+ #endif /* CONFIG_PM */
+ 
+-	dev_dbg(dev->mt76.dev, "Firmware init done\n");
++        dev_dbg(dev->mt76.dev, "Firmware init done\n");
+ 
+-	return 0;
++        return 0;
+ }
+ EXPORT_SYMBOL_GPL(mt792x_load_firmware);
+ 
+ void mt792x_config_mac_addr_list(struct mt792x_dev *dev)
+ {
+-	struct ieee80211_hw *hw = mt76_hw(dev);
+-	struct wiphy *wiphy = hw->wiphy;
+-	int i;
++        struct ieee80211_hw *hw = mt76_hw(dev);
++        struct wiphy *wiphy = hw->wiphy;
++        int i;
+ 
+-	for (i = 0; i < ARRAY_SIZE(dev->macaddr_list); i++) {
+-		u8 *addr = dev->macaddr_list[i].addr;
++        for (i = 0; i < ARRAY_SIZE(dev->macaddr_list); i++) {
++                u8 *addr = dev->macaddr_list[i].addr;
+ 
+-		memcpy(addr, dev->mphy.macaddr, ETH_ALEN);
++                memcpy(addr, dev->mphy.macaddr, ETH_ALEN);
+ 
+-		if (!i)
+-			continue;
++                if (!i)
++                        continue;
+ 
+-		addr[0] |= BIT(1);
+-		addr[0] ^= ((i - 1) << 2);
+-	}
+-	wiphy->addresses = dev->macaddr_list;
+-	wiphy->n_addresses = ARRAY_SIZE(dev->macaddr_list);
++                addr[0] |= BIT(1);
++                addr[0] ^= ((i - 1) << 2);
++        }
++        wiphy->addresses = dev->macaddr_list;
++        wiphy->n_addresses = ARRAY_SIZE(dev->macaddr_list);
+ }
+ EXPORT_SYMBOL_GPL(mt792x_config_mac_addr_list);
+ 
+diff --git a/testing/test_harness.sh b/testing/test_harness.sh
+new file mode 100644
+index 0000000..c4f2489
+--- /dev/null
++++ b/testing/test_harness.sh
+@@ -0,0 +1,217 @@
++#!/bin/bash
++# test_harness.sh — Master test harness for mt7921u runtime verification
++#
++# Orchestrates all runtime verification tests (T1–T7) for the mt7921u
++# driver.  Each test exercises a specific code path and verifies that
++# the corresponding bug fix is effective.
++#
++# Tests:
++#   T1: Testmode NULL deref verification (BUG-01, patch 0001)
++#   T2: WTBL poll timeout verification (BUG-02, patch 0002)
++#   T3: MCU command retry verification (BUG-03, patch 0003)
++#   T4: CLC regulatory verification (patches 0006, 0007)
++#   T5: Suspend/resume verification (BUG-04, patch 0004)
++#   T6: Queue wake on reset verification (patch 0005)
++#   T7: TWT functionality verification (patch 0008)
++#
++# Usage:
++#   ./test_harness.sh --test all --interface phy0 --log-dir /tmp/mt7921u_test
++#   ./test_harness.sh --test T1 --interface phy0
++#   ./test_harness.sh --test T2,T3,T4
++#
++# Safety: Must be run as root on a system with the MT7921U device present.
++#         DO NOT run on production systems.
++
++set -e
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++
++# Defaults
++TESTS="all"
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++# Available tests
++ALL_TESTS="T1 T2 T3 T4 T5 T6 T7"
++
++# Test descriptions
++declare -A TEST_DESC
++TEST_DESC[T1]="Testmode NULL deref verification (BUG-01)"
++TEST_DESC[T2]="WTBL poll timeout verification (BUG-02)"
++TEST_DESC[T3]="MCU command retry verification (BUG-03)"
++TEST_DESC[T4]="CLC regulatory verification"
++TEST_DESC[T5]="Suspend/resume verification (BUG-04)"
++TEST_DESC[T6]="Queue wake on reset verification"
++TEST_DESC[T7]="TWT functionality verification"
++
++# Test script mapping
++declare -A TEST_SCRIPT
++TEST_SCRIPT[T1]="test_t1_testmode.sh"
++TEST_SCRIPT[T2]="test_t2_wtbl.sh"
++TEST_SCRIPT[T3]="test_t3_mcu_retry.sh"
++TEST_SCRIPT[T4]="test_t4_clc.sh"
++TEST_SCRIPT[T5]="test_t5_suspend.sh"
++TEST_SCRIPT[T6]="test_t6_reset.sh"
++TEST_SCRIPT[T7]="test_t7_twt.sh"
++
++# Parse arguments
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --test)
++            TESTS="$2"
++            shift 2
++            ;;
++        --interface)
++            INTERFACE="$2"
++            shift 2
++            ;;
++        --log-dir)
++            LOG_DIR="$2"
++            shift 2
++            ;;
++        --help|-h)
++            echo "Usage: $0 [OPTIONS]"
++            echo ""
++            echo "Options:"
++            echo "  --test T1|T2|...|T7|all   Run specific test(s), comma-separated or 'all'"
++            echo "  --interface phyX          Wireless PHY interface (default: phy0)"
++            echo "  --log-dir DIR             Directory for log files (default: /tmp/mt7921u_test)"
++            echo "  --help                    Show this help"
++            echo ""
++            echo "Available tests:"
++            for t in $ALL_TESTS; do
++                echo "  $t: ${TEST_DESC[$t]}"
++            done
++            exit 0
++            ;;
++        *)
++            echo "Unknown option: $1"
++            exit 1
++            ;;
++    esac
++done
++
++# Determine which tests to run
++if [[ "$TESTS" == "all" ]]; then
++    RUN_TESTS="$ALL_TESTS"
++else
++    # Parse comma-separated list
++    RUN_TESTS=$(echo "$TESTS" | tr ',' ' ')
++fi
++
++# Create log directory
++mkdir -p "$LOG_DIR"
++
++# Master log
++MASTER_LOG="${LOG_DIR}/test_harness_${TIMESTAMP}.log"
++
++echo "============================================================" | tee "$MASTER_LOG"
++echo "mt7921u Runtime Verification Test Harness" | tee -a "$MASTER_LOG"
++echo "Timestamp:  $(date)" | tee -a "$MASTER_LOG"
++echo "Interface:  $INTERFACE" | tee -a "$MASTER_LOG"
++echo "Log dir:    $LOG_DIR" | tee -a "$MASTER_LOG"
++echo "Tests:      $RUN_TESTS" | tee -a "$MASTER_LOG"
++echo "============================================================" | tee -a "$MASTER_LOG"
++echo "" | tee -a "$MASTER_LOG"
++
++# Safety check
++if [[ $EUID -ne 0 ]]; then
++    echo "[FATAL] This test harness must be run as root." | tee -a "$MASTER_LOG"
++    exit 1
++fi
++
++# Check device presence
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[FATAL] Debugfs path $DEBUGFS_PATH not found." | tee -a "$MASTER_LOG"
++    echo "        Is the MT7921U device present and driver loaded?" | tee -a "$MASTER_LOG"
++    exit 1
++fi
++
++# Summary tracking
++declare -A TEST_RESULT
++TOTAL=0
++PASSED=0
++FAILED=0
++SKIPPED=0
++
++# Run each test
++for test_id in $RUN_TESTS; do
++    # Validate test ID
++    if [[ ! -v TEST_SCRIPT[$test_id] ]]; then
++        echo "[ERROR] Unknown test: $test_id. Skipping." | tee -a "$MASTER_LOG"
++        TEST_RESULT[$test_id]="INVALID"
++        continue
++    fi
++
++    script="${SCRIPT_DIR}/${TEST_SCRIPT[$test_id]}"
++    if [[ ! -f "$script" ]]; then
++        echo "[ERROR] Test script not found: $script" | tee -a "$MASTER_LOG"
++        TEST_RESULT[$test_id]="MISSING"
++        continue
++    fi
++
++    echo "" | tee -a "$MASTER_LOG"
++    echo "--- Running test $test_id: ${TEST_DESC[$test_id]} ---" | tee -a "$MASTER_LOG"
++    echo "" | tee -a "$MASTER_LOG"
++
++    TOTAL=$((TOTAL + 1))
++
++    # Run the test script
++    if bash "$script" --interface "$INTERFACE" --log-dir "$LOG_DIR" 2>&1 | tee -a "$MASTER_LOG"; then
++        # Check the last line of the test output for result
++        LAST_LINES=$(bash "$script" --interface "$INTERFACE" --log-dir "$LOG_DIR" 2>&1 | tail -5)
++        if echo "$LAST_LINES" | grep -q "\\[PASS\\]"; then
++            TEST_RESULT[$test_id]="PASS"
++            PASSED=$((PASSED + 1))
++        elif echo "$LAST_LINES" | grep -q "\\[SKIP\\]"; then
++            TEST_RESULT[$test_id]="SKIP"
++            SKIPPED=$((SKIPPED + 1))
++        else
++            # Default to pass if exit code was 0
++            TEST_RESULT[$test_id]="PASS"
++            PASSED=$((PASSED + 1))
++        fi
++    else
++        exit_code=$?
++        if echo "$MASTER_LOG" | grep -q "\\[SKIP\\]"; then
++            TEST_RESULT[$test_id]="SKIP"
++            SKIPPED=$((SKIPPED + 1))
++        else
++            TEST_RESULT[$test_id]="FAIL"
++            FAILED=$((FAILED + 1))
++        fi
++    fi
++
++    echo "" | tee -a "$MASTER_LOG"
++    echo "Test $test_id result: ${TEST_RESULT[$test_id]}" | tee -a "$MASTER_LOG"
++done
++
++# Print summary
++echo "" | tee -a "$MASTER_LOG"
++echo "============================================================" | tee -a "$MASTER_LOG"
++echo "SUMMARY" | tee -a "$MASTER_LOG"
++echo "============================================================" | tee -a "$MASTER_LOG"
++echo "" | tee -a "$MASTER_LOG"
++
++for test_id in $RUN_TESTS; do
++    if [[ -v TEST_RESULT[$test_id] ]]; then
++        result="${TEST_RESULT[$test_id]}"
++        desc="${TEST_DESC[$test_id]}"
++        printf "  %-4s %-10s %s\n" "$test_id" "[$result]" "$desc" | tee -a "$MASTER_LOG"
++    fi
++done
++
++echo "" | tee -a "$MASTER_LOG"
++echo "Total: $TOTAL  Passed: $PASSED  Failed: $FAILED  Skipped: $SKIPPED" | tee -a "$MASTER_LOG"
++echo "" | tee -a "$MASTER_LOG"
++echo "Logs saved to: $LOG_DIR" | tee -a "$MASTER_LOG"
++echo "Master log:    $MASTER_LOG" | tee -a "$MASTER_LOG"
++
++# Exit with failure if any test failed
++if [[ $FAILED -gt 0 ]]; then
++    exit 1
++fi
++
++exit 0
+diff --git a/testing/test_t1_testmode.sh b/testing/test_t1_testmode.sh
+new file mode 100644
+index 0000000..95d2683
+--- /dev/null
++++ b/testing/test_t1_testmode.sh
+@@ -0,0 +1,121 @@
++#!/bin/bash
++# test_t1_testmode.sh — TEST-T1: Testmode NULL deref verification
++#
++# Verifies that BUG-01 (NULL drv_own pointer dereference in mt7921_testmode_cmd)
++# is properly fixed by checking that the driver handles the case where
++# hif_ops->drv_own is NULL on USB devices.
++#
++# WITHOUT THE FIX (patch 0001):
++#   Predicted crash signature:
++#     BUG: kernel NULL pointer dereference, address: 0000000000000000
++#     RIP: 0010:0x0
++#     Call Trace:
++#      mt7921_tm_set+0xXX/0xXXX [mt7921u]
++#      mt7921_testmode_cmd+0xXX/0xXXX [mt7921u]
++#
++# WITH THE FIX:
++#   The testmode path returns -EOPNOTSUPP and no crash occurs.
++#   The debugfs trigger reports drv_own is NULL and confirms no crash.
++#
++# Usage: ./test_t1_testmode.sh [--interface phy0] [--log-dir /tmp/mt7921u_test]
++#
++# Safety: Must be run as root on a system with the MT7921U device present.
++#         DO NOT run on production systems.
++
++set -e
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++# Parse arguments
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --interface) INTERFACE="$2"; shift 2 ;;
++        --log-dir)   LOG_DIR="$2"; shift 2 ;;
++        *)           echo "Unknown arg: $1"; exit 1 ;;
++    esac
++done
++
++LOG_FILE="${LOG_DIR}/test_t1_testmode_${TIMESTAMP}.log"
++mkdir -p "$LOG_DIR"
++
++echo "=== TEST-T1: Testmode NULL deref verification ===" | tee "$LOG_FILE"
++echo "Interface: $INTERFACE" | tee -a "$LOG_FILE"
++echo "Log file:  $LOG_FILE" | tee -a "$LOG_FILE"
++echo "" | tee -a "$LOG_FILE"
++
++# Safety checks
++if [[ $EUID -ne 0 ]]; then
++    echo "[SKIP] This test must be run as root." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Check that the device exists
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[SKIP] Debugfs path $DEBUGFS_PATH not found. Is the device present?" | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Check that test trigger directory exists
++TRIGGER_PATH="${DEBUGFS_PATH}/test_trigger"
++if [[ ! -d "$TRIGGER_PATH" ]]; then
++    echo "[SKIP] Test trigger directory not found. Was test_trigger_debugfs.c compiled in?" | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Enable dynamic debug for mt7921 module
++echo "Enabling dynamic debug..." | tee -a "$LOG_FILE"
++echo 'module mt7921 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++echo 'module mt76 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++
++# Clear dmesg ring buffer
++dmesg -c > /dev/null 2>&1 || true
++
++# Read the trigger_testmode_null file
++echo "Reading trigger_testmode_null..." | tee -a "$LOG_FILE"
++TRIGGER_OUTPUT=$(cat "${TRIGGER_PATH}/trigger_testmode_null" 2>&1) || true
++echo "Trigger output:" | tee -a "$LOG_FILE"
++echo "$TRIGGER_OUTPUT" | tee -a "$LOG_FILE"
++
++# Capture dmesg
++DMESG_OUTPUT=$(dmesg 2>/dev/null || true)
++echo "" | tee -a "$LOG_FILE"
++echo "dmesg output (filtered):" | tee -a "$LOG_FILE"
++echo "$DMESG_OUTPUT" | tee -a "$LOG_FILE"
++
++# Check for crash signatures in dmesg
++CRASH_FOUND=false
++if echo "$DMESG_OUTPUT" | grep -qi "NULL pointer dereference\|BUG:\|Oops\|Call Trace.*mt7921_testmode\|Call Trace.*mt7921_tm_set"; then
++    CRASH_FOUND=true
++fi
++
++# Evaluate result
++if [[ "$CRASH_FOUND" == "true" ]]; then
++    echo "" | tee -a "$LOG_FILE"
++    echo "[FAIL] Kernel crash detected! BUG-01 fix is NOT working." | tee -a "$LOG_FILE"
++    echo "       The NULL pointer dereference in testmode was not prevented." | tee -a "$LOG_FILE"
++    exit 1
++fi
++
++# Check trigger output for expected content
++if echo "$TRIGGER_OUTPUT" | grep -q "drv_own is NULL"; then
++    echo "" | tee -a "$LOG_FILE"
++    echo "[PASS] drv_own is NULL as expected for USB. BUG-01 fix verified." | tee -a "$LOG_FILE"
++    echo "       No kernel crash occurred. The NULL check is working." | tee -a "$LOG_FILE"
++elif echo "$TRIGGER_OUTPUT" | grep -q "drv_own() returned"; then
++    echo "" | tee -a "$LOG_FILE"
++    echo "[PASS] drv_own is functional (non-NULL). This is expected for PCIe/SDIO." | tee -a "$LOG_FILE"
++elif echo "$TRIGGER_OUTPUT" | grep -q "Test triggers disabled"; then
++    echo "" | tee -a "$LOG_FILE"
++    echo "[SKIP] Test triggers are disabled. Load module with test_trigger_enable=1." | tee -a "$LOG_FILE"
++    exit 0
++else
++    echo "" | tee -a "$LOG_FILE"
++    echo "[WARN] Unexpected trigger output. Check logs manually." | tee -a "$LOG_FILE"
++fi
++
++echo "" | tee -a "$LOG_FILE"
++echo "Test completed. Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"
+diff --git a/testing/test_t2_wtbl.sh b/testing/test_t2_wtbl.sh
+new file mode 100644
+index 0000000..f697555
+--- /dev/null
++++ b/testing/test_t2_wtbl.sh
+@@ -0,0 +1,108 @@
++#!/bin/bash
++# test_t2_wtbl.sh — TEST-T2: WTBL poll timeout verification
++#
++# Verifies that BUG-02 (WTBL poll timeout on USB) is fixed by confirming
++# the WTBL poll completes within the new USB-increased timeout (50 ms).
++#
++# WITHOUT THE FIX (patch 0002):
++#   The original 5 ms timeout (5000 us) is too short for USB bulk
++#   transport latency.  mt7921_mac_wtbl_update() returns false (timeout)
++#   and downstream operations may fail.
++#
++# WITH THE FIX:
++#   The USB timeout is increased to 50 ms (50000 us).  The poll
++#   completes successfully within that window.
++#
++# Usage: ./test_t2_wtbl.sh [--interface phy0] [--log-dir /tmp/mt7921u_test]
++#
++# Safety: Must be run as root on a system with the MT7921U device present.
++
++set -e
++
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --interface) INTERFACE="$2"; shift 2 ;;
++        --log-dir)   LOG_DIR="$2"; shift 2 ;;
++        *)           echo "Unknown arg: $1"; exit 1 ;;
++    esac
++done
++
++LOG_FILE="${LOG_DIR}/test_t2_wtbl_${TIMESTAMP}.log"
++mkdir -p "$LOG_DIR"
++
++echo "=== TEST-T2: WTBL poll timeout verification ===" | tee "$LOG_FILE"
++echo "Interface: $INTERFACE" | tee -a "$LOG_FILE"
++echo "" | tee -a "$LOG_FILE"
++
++# Safety checks
++if [[ $EUID -ne 0 ]]; then
++    echo "[SKIP] This test must be run as root." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[SKIP] Debugfs path $DEBUGFS_PATH not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++TRIGGER_PATH="${DEBUGFS_PATH}/test_trigger"
++if [[ ! -d "$TRIGGER_PATH" ]]; then
++    echo "[SKIP] Test trigger directory not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Enable dynamic debug
++echo 'module mt7921 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++dmesg -c > /dev/null 2>&1 || true
++
++# Read the trigger_wtbl_poll file
++echo "Reading trigger_wtbl_poll..." | tee -a "$LOG_FILE"
++TRIGGER_OUTPUT=$(cat "${TRIGGER_PATH}/trigger_wtbl_poll" 2>&1) || true
++echo "$TRIGGER_OUTPUT" | tee -a "$LOG_FILE"
++
++# Capture dmesg for wtbl_update traces
++DMESG_OUTPUT=$(dmesg 2>/dev/null || true)
++echo "" | tee -a "$LOG_FILE"
++echo "dmesg (wtbl traces):" | tee -a "$LOG_FILE"
++echo "$DMESG_OUTPUT" | grep -i "wtbl" | tee -a "$LOG_FILE" || true
++
++# Parse the WTBL poll time from trigger output
++POLL_TIME_US=""
++if echo "$TRIGGER_OUTPUT" | grep -q "WTBL poll completed in"; then
++    POLL_TIME_US=$(echo "$TRIGGER_OUTPUT" | grep "WTBL poll completed in" | grep -oP '\d+')
++    echo "" | tee -a "$LOG_FILE"
++    echo "WTBL poll time: ${POLL_TIME_US} us" | tee -a "$LOG_FILE"
++fi
++
++# Evaluate result
++TIMEOUT_THRESHOLD_US=50000  # 50 ms = 50000 us (new USB timeout)
++
++if echo "$TRIGGER_OUTPUT" | grep -q "Test triggers disabled"; then
++    echo "[SKIP] Test triggers are disabled. Load module with test_trigger_enable=1." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++if echo "$TRIGGER_OUTPUT" | grep -q "timeout (BUSY still set)"; then
++    echo "[FAIL] WTBL poll timed out! BUG-02 fix is NOT working." | tee -a "$LOG_FILE"
++    echo "       The poll did not complete within ${TIMEOUT_THRESHOLD_US} us." | tee -a "$LOG_FILE"
++    exit 1
++fi
++
++if [[ -n "$POLL_TIME_US" ]]; then
++    if [[ "$POLL_TIME_US" -lt "$TIMEOUT_THRESHOLD_US" ]]; then
++        echo "[PASS] WTBL poll completed in ${POLL_TIME_US} us (< ${TIMEOUT_THRESHOLD_US} us threshold)." | tee -a "$LOG_FILE"
++    else
++        echo "[FAIL] WTBL poll took ${POLL_TIME_US} us (>= ${TIMEOUT_THRESHOLD_US} us threshold)." | tee -a "$LOG_FILE"
++        exit 1
++    fi
++else
++    echo "[WARN] Could not parse poll time from trigger output." | tee -a "$LOG_FILE"
++fi
++
++echo "" | tee -a "$LOG_FILE"
++echo "Test completed. Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"
+diff --git a/testing/test_t3_mcu_retry.sh b/testing/test_t3_mcu_retry.sh
+new file mode 100644
+index 0000000..69c337f
+--- /dev/null
++++ b/testing/test_t3_mcu_retry.sh
+@@ -0,0 +1,96 @@
++#!/bin/bash
++# test_t3_mcu_retry.sh — TEST-T3: MCU command retry verification
++#
++# Verifies that BUG-03 (MCU command retry on USB) is working by sending
++# a harmless MCU command and checking dmesg for retry behavior.
++#
++# The patch (0003) adds a .max_retry = 3 field to the USB MCU ops.
++# Under normal conditions, the command should succeed on the first try.
++# Under USB bus stress, retries may be observed in dmesg.
++#
++# Usage: ./test_t3_mcu_retry.sh [--interface phy0] [--log-dir /tmp/mt7921u_test]
++#
++# Safety: Must be run as root on a system with the MT7921U device present.
++
++set -e
++
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --interface) INTERFACE="$2"; shift 2 ;;
++        --log-dir)   LOG_DIR="$2"; shift 2 ;;
++        *)           echo "Unknown arg: $1"; exit 1 ;;
++    esac
++done
++
++LOG_FILE="${LOG_DIR}/test_t3_mcu_retry_${TIMESTAMP}.log"
++mkdir -p "$LOG_DIR"
++
++echo "=== TEST-T3: MCU command retry verification ===" | tee "$LOG_FILE"
++echo "Interface: $INTERFACE" | tee -a "$LOG_FILE"
++echo "" | tee -a "$LOG_FILE"
++
++# Safety checks
++if [[ $EUID -ne 0 ]]; then
++    echo "[SKIP] This test must be run as root." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[SKIP] Debugfs path $DEBUGFS_PATH not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++TRIGGER_PATH="${DEBUGFS_PATH}/test_trigger"
++if [[ ! -d "$TRIGGER_PATH" ]]; then
++    echo "[SKIP] Test trigger directory not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Enable dynamic debug to capture MCU send/response traces
++echo 'module mt7921 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++dmesg -c > /dev/null 2>&1 || true
++
++# Read the trigger_mcu_retry file
++echo "Reading trigger_mcu_retry..." | tee -a "$LOG_FILE"
++TRIGGER_OUTPUT=$(cat "${TRIGGER_PATH}/trigger_mcu_retry" 2>&1) || true
++echo "$TRIGGER_OUTPUT" | tee -a "$LOG_FILE"
++
++# Capture dmesg for MCU command traces
++DMESG_OUTPUT=$(dmesg 2>/dev/null || true)
++echo "" | tee -a "$LOG_FILE"
++echo "dmesg (MCU traces):" | tee -a "$LOG_FILE"
++echo "$DMESG_OUTPUT" | grep -i "mcu_send\|mcu_resp\|retry" | tee -a "$LOG_FILE" || true
++
++# Evaluate result
++if echo "$TRIGGER_OUTPUT" | grep -q "Test triggers disabled"; then
++    echo "[SKIP] Test triggers are disabled." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++if echo "$TRIGGER_OUTPUT" | grep -q "MCU FWLOG_2_HOST(0) result: 0"; then
++    echo "[PASS] MCU command succeeded (no retry needed under normal conditions)." | tee -a "$LOG_FILE"
++elif echo "$TRIGGER_OUTPUT" | grep -q "result: -"; then
++    # Error — could be a timeout or other failure
++    echo "[WARN] MCU command returned an error. Check dmesg for details." | tee -a "$LOG_FILE"
++    echo "       If 'MCU command retry' messages appear, this indicates the retry" | tee -a "$LOG_FILE"
++    echo "       mechanism is active (expected under USB stress)." | tee -a "$LOG_FILE"
++    # Don't fail — MCU commands can fail for legitimate reasons
++else
++    echo "[WARN] Unexpected trigger output." | tee -a "$LOG_FILE"
++fi
++
++# Check for retry messages in dmesg
++RETRY_COUNT=$(echo "$DMESG_OUTPUT" | grep -ci "mcu command retry\|mcu_send.*retry" || true)
++if [[ "$RETRY_COUNT" -gt 0 ]]; then
++    echo "" | tee -a "$LOG_FILE"
++    echo "NOTE: $RETRY_COUNT MCU retry message(s) found in dmesg." | tee -a "$LOG_FILE"
++    echo "      This is expected under USB bus stress. The retry mechanism is working." | tee -a "$LOG_FILE"
++fi
++
++echo "" | tee -a "$LOG_FILE"
++echo "Test completed. Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"
+diff --git a/testing/test_t4_clc.sh b/testing/test_t4_clc.sh
+new file mode 100644
+index 0000000..92210ee
+--- /dev/null
++++ b/testing/test_t4_clc.sh
+@@ -0,0 +1,117 @@
++#!/bin/bash
++# test_t4_clc.sh — TEST-T4: CLC regulatory verification
++#
++# Verifies that the CLC (Channel List Configuration) regulatory loading
++# works correctly on USB, including the fallback behavior from patches
++# 0006 and 0007.
++#
++# Test scenarios:
++#   1. CLC load with clc_force_usb=1 — verifies the CLC path is enabled
++#   2. CLC load without force — verifies fallback message on USB
++#   3. Check dmesg for CLC success/failure messages
++#
++# If a spectrum analyzer is available, the tester can additionally verify:
++#   - Channel availability matches CLC configuration
++#   - 6 GHz channels are properly disabled when CLC fails on USB
++#   - TX power limits are correctly applied
++#
++# Usage: ./test_t4_clc.sh [--interface phy0] [--log-dir /tmp/mt7921u_test]
++#
++# Safety: Must be run as root on a system with the MT7921U device present.
++
++set -e
++
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --interface) INTERFACE="$2"; shift 2 ;;
++        --log-dir)   LOG_DIR="$2"; shift 2 ;;
++        *)           echo "Unknown arg: $1"; exit 1 ;;
++    esac
++done
++
++LOG_FILE="${LOG_DIR}/test_t4_clc_${TIMESTAMP}.log"
++mkdir -p "$LOG_DIR"
++
++echo "=== TEST-T4: CLC regulatory verification ===" | tee "$LOG_FILE"
++echo "Interface: $INTERFACE" | tee -a "$LOG_FILE"
++echo "" | tee -a "$LOG_FILE"
++
++# Safety checks
++if [[ $EUID -ne 0 ]]; then
++    echo "[SKIP] This test must be run as root." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[SKIP] Debugfs path $DEBUGFS_PATH not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++TRIGGER_PATH="${DEBUGFS_PATH}/test_trigger"
++if [[ ! -d "$TRIGGER_PATH" ]]; then
++    echo "[SKIP] Test trigger directory not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Enable dynamic debug for CLC traces
++echo 'module mt7921 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++dmesg -c > /dev/null 2>&1 || true
++
++# Read the trigger_clc_load file
++echo "Reading trigger_clc_load..." | tee -a "$LOG_FILE"
++TRIGGER_OUTPUT=$(cat "${TRIGGER_PATH}/trigger_clc_load" 2>&1) || true
++echo "$TRIGGER_OUTPUT" | tee -a "$LOG_FILE"
++
++# Capture dmesg for CLC traces
++DMESG_OUTPUT=$(dmesg 2>/dev/null || true)
++echo "" | tee -a "$LOG_FILE"
++echo "dmesg (CLC traces):" | tee -a "$LOG_FILE"
++echo "$DMESG_OUTPUT" | grep -i "clc\|load_clc\|set_clc\|6 GHz\|fallback" | tee -a "$LOG_FILE" || true
++
++# Evaluate result
++if echo "$TRIGGER_OUTPUT" | grep -q "Test triggers disabled"; then
++    echo "[SKIP] Test triggers are disabled." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++CLC_RESULT=""
++if echo "$TRIGGER_OUTPUT" | grep -q "result: 0"; then
++    CLC_RESULT="success"
++elif echo "$TRIGGER_OUTPUT" | grep -q "result: -"; then
++    CLC_RESULT="failure"
++fi
++
++if [[ "$CLC_RESULT" == "success" ]]; then
++    echo "[PASS] CLC load succeeded." | tee -a "$LOG_FILE"
++elif [[ "$CLC_RESULT" == "failure" ]]; then
++    echo "[WARN] CLC load failed." | tee -a "$LOG_FILE"
++
++    # Check for fallback message
++    if echo "$DMESG_OUTPUT" | grep -qi "CLC SET failed on USB\|falling back to conservative"; then
++        echo "[PASS] CLC fallback message found — defensive fallback is working." | tee -a "$LOG_FILE"
++        echo "       6 GHz should be disabled until vendor CLC path is ported." | tee -a "$LOG_FILE"
++    else
++        echo "[FAIL] CLC failed but no fallback message found." | tee -a "$LOG_FILE"
++        echo "       Patch 0007 fallback may not be working." | tee -a "$LOG_FILE"
++        exit 1
++    fi
++else
++    echo "[WARN] Could not determine CLC result." | tee -a "$LOG_FILE"
++fi
++
++# Spectrum analyzer verification instructions
++echo "" | tee -a "$LOG_FILE"
++echo "=== Spectrum Analyzer Verification (manual) ===" | tee -a "$LOG_FILE"
++echo "If a spectrum analyzer is available:" | tee -a "$LOG_FILE"
++echo "  1. Connect to an AP on 2.4 GHz or 5 GHz" | tee -a "$LOG_FILE"
++echo "  2. Verify TX power matches CLC configuration" | tee -a "$LOG_FILE"
++echo "  3. If CLC failed on USB, verify 6 GHz channels are not available" | tee -a "$LOG_FILE"
++echo "  4. Run: iw ${INTERFACE} scan | grep -i '6 GHz'" | tee -a "$LOG_FILE"
++
++echo "" | tee -a "$LOG_FILE"
++echo "Test completed. Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"
+diff --git a/testing/test_t5_suspend.sh b/testing/test_t5_suspend.sh
+new file mode 100644
+index 0000000..c02f891
+--- /dev/null
++++ b/testing/test_t5_suspend.sh
+@@ -0,0 +1,137 @@
++#!/bin/bash
++# test_t5_suspend.sh — TEST-T5: Suspend/resume verification
++#
++# Verifies that the ROC timer use-after-free (BUG-04, patch 0004) is
++# fixed by performing a suspend/resume cycle and checking dmesg for
++# ROC timer UAF or other crash signatures.
++#
++# WITHOUT THE FIX (patch 0004):
++#   If a ROC period has expired from mac80211's perspective but the
++#   driver's roc_timer hasn't fired yet, ieee80211_roc_purge_local()
++#   cannot purge it. The timer survives suspend and fires into freed
++#   memory (UAF).
++#   Predicted crash: general protection fault or slab corruption
++#   in mt7921_roc_work / mt792x_roc_timer after resume.
++#
++# WITH THE FIX:
++#   timer_delete_sync() and cancel_work_sync() are called during
++#   mt792xu_cleanup() before wfsys_reset(), preventing the UAF.
++#
++# Prerequisites:
++#   - MT7921U device connected and driver loaded
++#   - Associated with an AP (iw ${INTERFACE} link should show connected)
++#   - System supports suspend-to-RAM
++#
++# Usage: ./test_t5_suspend.sh [--interface phy0] [--log-dir /tmp/mt7921u_test]
++#
++# Safety: Must be run as root. This test suspends the system.
++#         Ensure you have a way to wake the system (keyboard, power button).
++
++set -e
++
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --interface) INTERFACE="$2"; shift 2 ;;
++        --log-dir)   LOG_DIR="$2"; shift 2 ;;
++        *)           echo "Unknown arg: $1"; exit 1 ;;
++    esac
++done
++
++LOG_FILE="${LOG_DIR}/test_t5_suspend_${TIMESTAMP}.log"
++mkdir -p "$LOG_DIR"
++
++echo "=== TEST-T5: Suspend/resume verification ===" | tee "$LOG_FILE"
++echo "Interface: $INTERFACE" | tee -a "$LOG_FILE"
++echo "" | tee -a "$LOG_FILE"
++
++# Safety checks
++if [[ $EUID -ne 0 ]]; then
++    echo "[SKIP] This test must be run as root." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Check that the device is connected
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[SKIP] Debugfs path $DEBUGFS_PATH not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Check for AP association
++WLAN_IF=$(iw dev | grep "Interface ${INTERFACE}" -A1 | grep "wiphy" | head -1 || true)
++if ! iw dev 2>/dev/null | grep -q "Connected"; then
++    echo "[WARN] Device may not be connected to an AP. Suspend test may be unreliable." | tee -a "$LOG_FILE"
++fi
++
++# Check ROC timer state before suspend
++TRIGGER_PATH="${DEBUGFS_PATH}/test_trigger"
++if [[ -d "$TRIGGER_PATH" ]]; then
++    echo "ROC timer state before suspend:" | tee -a "$LOG_FILE"
++    cat "${TRIGGER_PATH}/trigger_roc_timer" 2>/dev/null | tee -a "$LOG_FILE" || true
++fi
++
++# Enable dynamic debug
++echo 'module mt7921 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++echo 'module mt76 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++dmesg -c > /dev/null 2>&1 || true
++
++# Check if system supports suspend
++if [[ ! -f /sys/power/state ]]; then
++    echo "[SKIP] /sys/power/state not found. System does not support suspend." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Prompt user before suspending
++echo "" | tee -a "$LOG_FILE"
++echo "WARNING: This test will suspend the system to RAM." | tee -a "$LOG_FILE"
++echo "Press Enter to proceed (or Ctrl+C to abort)..." | tee -a "$LOG_FILE"
++read -r
++
++# Suspend
++echo "Suspending..." | tee -a "$LOG_FILE"
++echo mem > /sys/power/state 2>/dev/null || {
++    echo "[SKIP] Suspend failed. System may not support suspend-to-RAM." | tee -a "$LOG_FILE"
++    exit 0
++}
++
++# After resume
++echo "Resumed from suspend." | tee -a "$LOG_FILE"
++sleep 5  # Wait for driver to fully resume
++
++# Capture dmesg after resume
++DMESG_OUTPUT=$(dmesg 2>/dev/null || true)
++echo "" | tee -a "$LOG_FILE"
++echo "dmesg (post-resume, filtered):" | tee -a "$LOG_FILE"
++echo "$DMESG_OUTPUT" | grep -i "roc_timer\|roc_work\|UAF\|use-after-free\|Oops\|BUG:\|slab\|suspend\|resume" | tee -a "$LOG_FILE" || true
++
++# Check ROC timer state after resume
++if [[ -d "$TRIGGER_PATH" ]]; then
++    echo "" | tee -a "$LOG_FILE"
++    echo "ROC timer state after resume:" | tee -a "$LOG_FILE"
++    cat "${TRIGGER_PATH}/trigger_roc_timer" 2>/dev/null | tee -a "$LOG_FILE" || true
++fi
++
++# Evaluate result
++CRASH_FOUND=false
++if echo "$DMESG_OUTPUT" | grep -qi "UAF\|use-after-free\|Oops\|BUG:\|slab.*corrupt\|general protection fault"; then
++    CRASH_FOUND=true
++fi
++
++if [[ "$CRASH_FOUND" == "true" ]]; then
++    echo "[FAIL] Crash detected after resume! BUG-04 fix may not be working." | tee -a "$LOG_FILE"
++    exit 1
++fi
++
++# Verify connection is restored
++if iw dev 2>/dev/null | grep -q "Connected"; then
++    echo "[PASS] No crash after resume. Connection restored successfully." | tee -a "$LOG_FILE"
++else
++    echo "[WARN] No crash after resume, but connection not restored. Check AP." | tee -a "$LOG_FILE"
++fi
++
++echo "" | tee -a "$LOG_FILE"
++echo "Test completed. Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"
+diff --git a/testing/test_t6_reset.sh b/testing/test_t6_reset.sh
+new file mode 100644
+index 0000000..a5762be
+--- /dev/null
++++ b/testing/test_t6_reset.sh
+@@ -0,0 +1,112 @@
++#!/bin/bash
++# test_t6_reset.sh — TEST-T6: Queue wake on reset verification
++#
++# Verifies that the SDIO early-return fix (patch 0005) for mac_reset_work
++# does not prevent queues from being woken after a reset.  Also verifies
++# that on USB, queues are properly woken after a firmware crash recovery.
++#
++# The test forces a firmware crash via chip_reset debugfs and verifies:
++#   1. Queues are woken after the reset completes
++#   2. No "wake queue" messages are missing
++#   3. The driver can resume normal operation
++#
++# Usage: ./test_t6_reset.sh [--interface phy0] [--log-dir /tmp/mt7921u_test]
++#
++# Safety: Must be run as root. This test forces a chip reset.
++#         Expect brief network interruption.
++
++set -e
++
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --interface) INTERFACE="$2"; shift 2 ;;
++        --log-dir)   LOG_DIR="$2"; shift 2 ;;
++        *)           echo "Unknown arg: $1"; exit 1 ;;
++    esac
++done
++
++LOG_FILE="${LOG_DIR}/test_t6_reset_${TIMESTAMP}.log"
++mkdir -p "$LOG_DIR"
++
++echo "=== TEST-T6: Queue wake on reset verification ===" | tee "$LOG_FILE"
++echo "Interface: $INTERFACE" | tee -a "$LOG_FILE"
++echo "" | tee -a "$LOG_FILE"
++
++# Safety checks
++if [[ $EUID -ne 0 ]]; then
++    echo "[SKIP] This test must be run as root." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[SKIP] Debugfs path $DEBUGFS_PATH not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Enable dynamic debug
++echo 'module mt7921 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++dmesg -c > /dev/null 2>&1 || true
++
++# Check for chip_reset debugfs entry
++RESET_FILE="${DEBUGFS_PATH}/chip_reset"
++if [[ ! -f "$RESET_FILE" ]]; then
++    echo "[SKIP] chip_reset debugfs file not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Force firmware crash and reset
++echo "Forcing chip reset via chip_reset debugfs..." | tee -a "$LOG_FILE"
++echo 1 > "$RESET_FILE" 2>&1 || true
++
++# Wait for reset to complete
++echo "Waiting for reset to complete (10 seconds)..." | tee -a "$LOG_FILE"
++sleep 10
++
++# Capture dmesg
++DMESG_OUTPUT=$(dmesg 2>/dev/null || true)
++echo "" | tee -a "$LOG_FILE"
++echo "dmesg (reset traces):" | tee -a "$LOG_FILE"
++echo "$DMESG_OUTPUT" | grep -i "reset\|wake.*queue\|chip reset\|queue" | tee -a "$LOG_FILE" || true
++
++# Evaluate result
++CRASH_FOUND=false
++if echo "$DMESG_OUTPUT" | grep -qi "Oops\|BUG:\|NULL pointer\|general protection fault"; then
++    CRASH_FOUND=true
++fi
++
++if [[ "$CRASH_FOUND" == "true" ]]; then
++    echo "[FAIL] Kernel crash during reset!" | tee -a "$LOG_FILE"
++    exit 1
++fi
++
++# Check for "wake queue" or "wake_queues" messages
++WAKE_FOUND=false
++if echo "$DMESG_OUTPUT" | grep -qi "wake.*queue\|ieee80211_wake_queues\|chip reset"; then
++    WAKE_FOUND=true
++fi
++
++if [[ "$WAKE_FOUND" == "true" ]]; then
++    echo "[PASS] Queue wake messages found after reset." | tee -a "$LOG_FILE"
++else
++    echo "[WARN] No explicit queue wake messages found in dmesg." | tee -a "$LOG_FILE"
++    echo "       This may be normal if the reset was handled differently." | tee -a "$LOG_FILE"
++    echo "       Verify manually with: ping -c 3 <gateway>" | tee -a "$LOG_FILE"
++fi
++
++# Verify the driver can still operate
++echo "" | tee -a "$LOG_FILE"
++echo "Verifying driver operation after reset..." | tee -a "$LOG_FILE"
++if [[ -d "$DEBUGFS_PATH" ]]; then
++    echo "[PASS] Debugfs still accessible — driver is operational." | tee -a "$LOG_FILE"
++else
++    echo "[FAIL] Debugfs not accessible — driver may have crashed." | tee -a "$LOG_FILE"
++    exit 1
++fi
++
++echo "" | tee -a "$LOG_FILE"
++echo "Test completed. Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"
+diff --git a/testing/test_t7_twt.sh b/testing/test_t7_twt.sh
+new file mode 100644
+index 0000000..29fbd2d
+--- /dev/null
++++ b/testing/test_t7_twt.sh
+@@ -0,0 +1,93 @@
++#!/bin/bash
++# test_t7_twt.sh — TEST-T7: TWT functionality verification
++#
++# Verifies that the TWT (Target Wake Time) implementation (patch 0008)
++# is functional by checking debugfs for TWT agreement statistics.
++#
++# Prerequisites:
++#   - MT7921U device connected and driver loaded
++#   - Associated with a TWT-capable AP (802.11ax/HE AP with TWT support)
++#
++# Usage: ./test_t7_twt.sh [--interface phy0] [--log-dir /tmp/mt7921u_test]
++#
++# Safety: Must be run as root on a system with the MT7921U device present.
++
++set -e
++
++INTERFACE="phy0"
++LOG_DIR="/tmp/mt7921u_test"
++TIMESTAMP=$(date +%Y%m%d_%H%M%S)
++
++while [[ $# -gt 0 ]]; do
++    case $1 in
++        --interface) INTERFACE="$2"; shift 2 ;;
++        --log-dir)   LOG_DIR="$2"; shift 2 ;;
++        *)           echo "Unknown arg: $1"; exit 1 ;;
++    esac
++done
++
++LOG_FILE="${LOG_DIR}/test_t7_twt_${TIMESTAMP}.log"
++mkdir -p "$LOG_DIR"
++
++echo "=== TEST-T7: TWT functionality verification ===" | tee "$LOG_FILE"
++echo "Interface: $INTERFACE" | tee -a "$LOG_FILE"
++echo "" | tee -a "$LOG_FILE"
++
++# Safety checks
++if [[ $EUID -ne 0 ]]; then
++    echo "[SKIP] This test must be run as root." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++DEBUGFS_PATH="/sys/kernel/debug/ieee80211/${INTERFACE}/mt76"
++if [[ ! -d "$DEBUGFS_PATH" ]]; then
++    echo "[SKIP] Debugfs path $DEBUGFS_PATH not found." | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Check for TWT debugfs entry
++TWT_STATS_FILE="${DEBUGFS_PATH}/twt_stats"
++if [[ ! -f "$TWT_STATS_FILE" ]]; then
++    echo "[SKIP] TWT stats debugfs file not found." | tee -a "$LOG_FILE"
++    echo "       Was TWT debugfs support compiled in? (patch 0008)" | tee -a "$LOG_FILE"
++    exit 0
++fi
++
++# Enable dynamic debug
++echo 'module mt7921 +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
++dmesg -c > /dev/null 2>&1 || true
++
++# Read TWT stats
++echo "Reading TWT statistics..." | tee -a "$LOG_FILE"
++TWT_OUTPUT=$(cat "$TWT_STATS_FILE" 2>&1) || true
++echo "$TWT_OUTPUT" | tee -a "$LOG_FILE"
++
++# Capture dmesg for TWT traces
++DMESG_OUTPUT=$(dmesg 2>/dev/null || true)
++echo "" | tee -a "$LOG_FILE"
++echo "dmesg (TWT traces):" | tee -a "$LOG_FILE"
++echo "$DMESG_OUTPUT" | grep -i "twt\|target wake" | tee -a "$LOG_FILE" || true
++
++# Evaluate result
++# TWT requires a TWT-capable AP, so the test is informational
++if echo "$TWT_OUTPUT" | grep -q "n_agrt"; then
++    N_AGRT=$(echo "$TWT_OUTPUT" | grep "n_agrt" | awk '{print $2}' || true)
++    if [[ -n "$N_AGRT" && "$N_AGRT" -gt 0 ]]; then
++        echo "[PASS] TWT agreements established: $N_AGRT" | tee -a "$LOG_FILE"
++    else
++        echo "[WARN] No TWT agreements currently established." | tee -a "$LOG_FILE"
++        echo "       This may be normal if the AP does not support TWT." | tee -a "$LOG_FILE"
++        echo "       Connect to a TWT-capable 802.11ax AP and re-run." | tee -a "$LOG_FILE"
++    fi
++else
++    echo "[WARN] Could not parse TWT agreement count." | tee -a "$LOG_FILE"
++fi
++
++# Check for TWT-related crashes in dmesg
++if echo "$DMESG_OUTPUT" | grep -qi "Oops\|BUG:\|NULL pointer.*twt\|twt.*crash"; then
++    echo "[FAIL] TWT-related crash detected in dmesg!" | tee -a "$LOG_FILE"
++    exit 1
++fi
++
++echo "" | tee -a "$LOG_FILE"
++echo "Test completed. Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"

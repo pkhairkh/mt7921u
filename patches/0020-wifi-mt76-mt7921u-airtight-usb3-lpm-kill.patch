@@ -1,0 +1,85 @@
+--- mt7921/usb.c.pre-0020	2026-09-05 14:07:14.790049957 +0200
++++ mt7921/usb.c	2026-09-05 16:30:00.891796809 +0200
+@@ -7,6 +7,7 @@
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/usb.h>
++#include <linux/usb/quirks.h>
+ 
+ #include "mt7921.h"
+ #include "mcu.h"
+@@ -88,6 +89,50 @@
+         return 0;
+ }
+ 
++/* 0020 (Part XI.6): airtight USB3 U1/U2 kill for this radio's whole
++ * hub chain. The USB core re-arms hardware LPM after every successful
++ * usb_reset_device(), so 0017's probe-time-only usb_disable_lpm() is
++ * undone by the first wedge-recovery reset - after that the dongle
++ * links sit in U1 again and the next link glitch re-wedges the
++ * firmware: the "USB reset happens over and over" loop (the 15:13:03
++ * correlated dual-chip wedge is the shared-hub-link variant of the
++ * same mechanism). Make the kill sticky instead:
++ *  - USB_QUIRK_NO_LPM on the device: usb_enable_lpm() refuses to
++ *    re-arm LPM for quirked devices, and the bit survives in-place
++ *    resets; full re-probes land in probe(), which re-sets it.
++ *  - usb_disable_lpm() for immediate effect on the current state.
++ *  - Walk the ancestor hubs (the RTS5411 chain carries only the two
++ *    mt7921u radios - no collateral) and apply both there too, killing
++ *    LPM on the shared links whose glitch can wedge both chips within
++ *    seconds of each other.
++ * Re-asserted from mt7921u_mac_reset() completion: the in-place reset
++ * path never re-runs probe.
++ */
++static void mt7921u_usb_lpm_kill(struct mt792x_dev *dev)
++{
++        struct usb_device *udev, *hub;
++        int ret;
++
++        udev = interface_to_usbdev(to_usb_interface(dev->mt76.dev));
++        if (!udev || udev->speed < USB_SPEED_SUPER)
++                return;
++
++        udev->quirks |= USB_QUIRK_NO_LPM;
++        ret = usb_disable_lpm(udev);
++        dev_info(dev->mt76.dev, "sl0020: LPM kill %s ret=%d\n",
++                 dev_name(&udev->dev), ret);
++
++        /* ancestor hubs, stopping at the root hub */
++        hub = udev->parent;
++        while (hub && hub->parent) {
++                hub->quirks |= USB_QUIRK_NO_LPM;
++                ret = usb_disable_lpm(hub);
++                dev_info(dev->mt76.dev, "sl0020: LPM kill hub %s ret=%d\n",
++                         dev_name(&hub->dev), ret);
++                hub = hub->parent;
++        }
++}
++
+ static int mt7921u_mac_reset(struct mt792x_dev *dev)
+ {
+         int err;
+@@ -150,6 +195,11 @@
+ out:
+         clear_bit(MT76_RESET, &dev->mphy.state);
+ 
++        /* 0020: the USB core re-armed U1/U2 during the reset
++         * surgery - re-assert the LPM kill before the radio
++         * goes back to work. */
++        mt7921u_usb_lpm_kill(dev);
++
+         mt76_worker_enable(&dev->mt76.tx_worker);
+ 
+         return err;
+@@ -256,7 +306,10 @@
+          * .disconnect: the wedge-path disconnect must stay free of extra
+          * control transfers, and this driver is the only binder of this
+          * device, so the refcount imbalance is by design. */
+-        usb_disable_lpm(udev);
++        /* 0020 supersedes the plain 0017 call: sticky NO_LPM
++         * quirk, ancestor-hub coverage, re-asserted from the
++         * reset path. */
++        mt7921u_usb_lpm_kill(dev);
+ 
+         usb_set_intfdata(usb_intf, dev);
+ 

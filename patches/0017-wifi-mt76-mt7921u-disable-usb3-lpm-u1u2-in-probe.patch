@@ -1,0 +1,23 @@
+--- a/mt7921/usb.c
++++ b/mt7921/usb.c
+@@ -244,10 +244,21 @@ static int mt7921u_probe(struct usb_inte
+         atomic_set(&dev->mt76.bus_hung, false);
+         mt792xu_reset_work_init(dev);
+
+         udev = usb_get_dev(udev);
+         usb_reset_device(udev);
++
++        /* 0017 (Part XI mitigation): kill device-initiated USB3 U1/U2 on
++         * this link. .disable_hub_initiated_lpm only covers hub-initiated
++         * L1; U1/U2 stay enabled through the RTS5411 chain and are a
++         * standing suspect for class A/B device death (dead links show
++         * "disable of device-initiated U1 failed" only once the chip is
++         * already gone - too late). Deliberately NOT re-enabled in
++         * .disconnect: the wedge-path disconnect must stay free of extra
++         * control transfers, and this driver is the only binder of this
++         * device, so the refcount imbalance is by design. */
++        usb_disable_lpm(udev);
+
+         usb_set_intfdata(usb_intf, dev);
+
+         ret = __mt76u_init(mdev, usb_intf, &bus_ops);

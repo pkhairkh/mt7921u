@@ -1,0 +1,45 @@
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/main.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+@@ -28,11 +28,19 @@
+  * fallback this driver already uses for ADHOC/MESH group keys.
+  * Pairwise keys (PTK, incl. SAE) stay in hardware - never showed the
+  * wedge.
++ *
++ * 0019: the same warm-state re-program defect fires on the STA side:
++ * upstream-AP group rekeys and roam teardown/re-setup wedge the MCU on
++ * BSS_INFO_UPDATE (0x00020002) / STA_REC_UPDATE (0x00020003). Group keys
++ * now run in software in STA mode as well (upstream GTK/IGTK installs
++ * never reach the firmware). STA roaming itself is handled by pinning
++ * the BSSID in wpa_sta.conf (FRITZ!Box steering flip-flop observed
++ * e7<->e8, 2026-09-05).
+  */
+ static bool ap_sw_groupkey = true;
+ module_param_named(ap_sw_groupkey, ap_sw_groupkey, bool, 0644);
+ MODULE_PARM_DESC(ap_sw_groupkey,
+-                 "Run AP-mode group keys (GTK/IGTK) in software (default: true)");
++                 "Run group keys (GTK/IGTK, AP and STA modes) in software (default: true)");
+ 
+ /* Kernel 6.12 compat: ieee80211_set_sband_iftype_data API differences.
+  *
+@@ -594,9 +602,20 @@
+         /* 0018: AP-mode group keys in software - see top-of-file note.
+          * Covers GTK (CCMP) and IGTK (AES_CMAC) alike; both were seen
+          * failing back-to-back during one group rekey (12:59:24-30).
++         *
++         * 0019: extend to STA-mode group keys. The upstream AP
++         * (FRITZ!Box 7530) rekeys GTK/IGTK periodically; each install is a
++         * warm-state STA_REC_UPDATE/BSS_INFO_UPDATE re-program inside the
++         * firmware - the exact command class that wedges the MCU
++         * (0x00020002/0x00020003 timeouts, observed on the STA dongle
++         * 2026-09-05 15:13:03 and 15:33:32, both at roam/rekey events).
++         * STA-side sw crypto means the firmware never sees those commands.
++         * Pairwise (PTK/SAE) keys stay in hardware.
+          */
+         if (ap_sw_groupkey &&
+-            vif->type == NL80211_IFTYPE_AP &&
++            (vif->type == NL80211_IFTYPE_AP ||
++             vif->type == NL80211_IFTYPE_AP_VLAN ||
++             vif->type == NL80211_IFTYPE_STATION) &&
+             !(key->flags & IEEE80211_KEY_FLAG_PAIRWISE))
+                 return -EOPNOTSUPP;
+ 

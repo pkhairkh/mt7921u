@@ -1,0 +1,49 @@
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/main.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+@@ -9,6 +9,30 @@
+ #include "mt7921.h"
+ #include <linux/version.h>
+ #include "mcu.h"
++
++/* 0018: AP-mode group keys (GTK/IGTK) in software.
++ *
++ * The WM firmware (20241106 build) wedges on STA_REC_UPDATE group-key
++ * (re)installs for a warm AP-mode BSS: after BSS enable -> station
++ * join/leave -> hostapd re-enable cycles, the next group-key set never
++ * gets a firmware ACK. The wedge is total: the USB control endpoint
++ * goes silent (-110) and the subsequent USB device reset fails at
++ * SET_ADDRESS (-62) - the dongle is only recoverable by replug.
++ * Observed 3x on 2-1.4.3 (12:05:43, 12:59:24, 14:41:22, all during
++ * group-key sets on warm state; both GTK idx1 and IGTK idx4 seen
++ * failing back-to-back). Identical first-time installs on a cold BSS
++ * always succeed.
++ *
++ * Fix: do not exercise that firmware path at all. mac80211 handles
++ * group keys in software when set_key returns -EOPNOTSUPP - the same
++ * fallback this driver already uses for ADHOC/MESH group keys.
++ * Pairwise keys (PTK, incl. SAE) stay in hardware - never showed the
++ * wedge.
++ */
++static bool ap_sw_groupkey = true;
++module_param_named(ap_sw_groupkey, ap_sw_groupkey, bool, 0644);
++MODULE_PARM_DESC(ap_sw_groupkey,
++                 "Run AP-mode group keys (GTK/IGTK) in software (default: true)");
+ 
+ /* Kernel 6.12 compat: ieee80211_set_sband_iftype_data API differences.
+  *
+@@ -564,6 +588,15 @@
+              vif->type == NL80211_IFTYPE_MESH_POINT) &&
+             (key->cipher == WLAN_CIPHER_SUITE_TKIP ||
+              key->cipher == WLAN_CIPHER_SUITE_CCMP) &&
++            !(key->flags & IEEE80211_KEY_FLAG_PAIRWISE))
++                return -EOPNOTSUPP;
++
++        /* 0018: AP-mode group keys in software - see top-of-file note.
++         * Covers GTK (CCMP) and IGTK (AES_CMAC) alike; both were seen
++         * failing back-to-back during one group rekey (12:59:24-30).
++         */
++        if (ap_sw_groupkey &&
++            vif->type == NL80211_IFTYPE_AP &&
+             !(key->flags & IEEE80211_KEY_FLAG_PAIRWISE))
+                 return -EOPNOTSUPP;
+ 

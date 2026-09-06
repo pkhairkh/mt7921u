@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mt7921u-ai <patch-engineer@mt7921u.local>
+Date: Fri, 2 May 2026 00:00:00 +0000
+Subject: [PATCH 6/6] wifi: mt76: mt7921: enable CLC for USB (experimental)
+
+The mt7921_load_clc() function returns 0 immediately for USB devices
+at mcu.c:425-427, blocking 6 GHz band operation and leaving 2.4/5 GHz
+without country-specific power limits. Without CLC data, the firmware
+has no regulatory domain information, and clc_chan_conf remains at
+0xff (all UNII bits enabled) without actual jurisdiction-specific
+power reduction.
+
+This creates both a feature gap (no 6 GHz channels) and a regulatory
+compliance risk: the device may transmit at power levels exceeding
+legal EIRP limits in jurisdictions that require country-specific power
+reduction (FCC: 30 dBm, ETSI: 20 dBm, etc.).
+
+Remove the mt76_is_usb() condition from the CLC skip path, allowing
+USB devices to load CLC data. This is marked experimental because the
+firmware may not accept MCU_CE_CMD(SET_CLC) over USB bulk transport.
+If SET_CLC is rejected by the firmware, the retry mechanism from the
+preceding patch (max_retry = 3) will attempt multiple times before
+falling back to chip reset.
+
+If testing confirms SET_CLC is not viable over USB, the alternative
+path is to port the vendor driver's regulatory mechanism
+(CMD_ID_CAL_BACKUP_IN_HOST_V2 + rlmDomainGetChnlList()), which uses
+an entirely different command interface for USB regulatory
+configuration.
+
+The module parameter disable_clc remains available as a safety
+override.
+
+Fixes: 967a4ff41e4e ("mt76: mt7921: introduce mt7921u support")
+Signed-off-by: mt7921u-ai <patch-engineer@mt7921u.local>
+---
+ drivers/net/wireless/mediatek/mt76/mt7921/mcu.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+index 1234567..abcdef6 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+@@ -424,8 +424,7 @@ static int mt7921_load_clc(struct mt792x_dev *dev, const char *fw_name)
+ 	u8 *clc_base = NULL, hw_encap = 0;
+
+ 	dev->phy.clc_chan_conf = 0xff;
+-	if (mt7921_disable_clc ||
+-	    mt76_is_usb(&dev->mt76))
++	if (mt7921_disable_clc)
+ 		return 0;
+
+ 	if (mt76_is_mmio(&dev->mt76)) {
+
+--
+2.47.0

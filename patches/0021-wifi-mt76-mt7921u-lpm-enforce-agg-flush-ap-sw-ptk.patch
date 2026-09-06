@@ -1,0 +1,224 @@
+--- a/mt7921/usb.c
++++ b/mt7921/usb.c
+@@ -122,6 +122,15 @@
+         dev_info(dev->mt76.dev, "sl0020: LPM kill %s ret=%d\n",
+                  dev_name(&udev->dev), ret);
+ 
++        /* 0021: usb_detect_quirks() rebuilds udev->quirks from the
++         * static list at every hub_port_init (every usb_reset_device),
++         * wiping runtime NO_LPM bits, and the reset tail re-arms LPM
++         * (hub.c: hub_port_init rebases lpm_disable_count=1, then
++         * "done:" calls usb_unlocked_enable_lpm). lpm_capable=0 gates
++         * every re-arm until the next hub_port_init; mac_work's
++         * sl0021 enforce closes that window within 250 ms. */
++        udev->lpm_capable = 0;
++
+         /* ancestor hubs, stopping at the root hub */
+         hub = udev->parent;
+         while (hub && hub->parent) {
+@@ -130,6 +139,8 @@
+                 dev_info(dev->mt76.dev, "sl0020: LPM kill hub %s ret=%d\n",
+                          dev_name(&hub->dev), ret);
+                 hub = hub->parent;
++                hub->lpm_capable = 0;
++                hub = hub->parent;
+         }
+ }
+ 
+@@ -159,6 +170,13 @@
+         mt76u_stop_rx(&dev->mt76);
+         mt76u_stop_tx(&dev->mt76);
+ 
++        /* 0021: flush RX-aggr reorder sessions before the fw restart.
++         * Reorder buffers park skbs whose frags own page_pool pages;
++         * stranded across a reset they pin those pages forever
++         * (observed: pool id 24, 147 inflight >25 min after the
++         * 2026-09-05 16:38 wedge + reset). */
++        mt76_rx_aggr_flush(&dev->mt76);
++
+         mt792xu_wfsys_reset(dev);
+ 
+         clear_bit(MT76_MCU_RESET, &dev->mphy.state);
+--- a/mt792x_usb.c
++++ b/mt792x_usb.c
+@@ -258,6 +258,12 @@
+ 
+         mt792xu_wfsys_reset(dev);
+         skb_queue_purge(&dev->mt76.mcu.res_q);
++
++        /* 0021: free RX-aggr reorder skbs before the queues (and
++         * page pools) are destroyed - otherwise their pages stay
++         * inflight and the pool shutdown stalls forever. */
++        mt76_rx_aggr_flush(&dev->mt76);
++
+         mt76u_queues_deinit(&dev->mt76);
+ }
+ 
+--- a/mt792x_mac.c
++++ b/mt792x_mac.c
+@@ -7,6 +7,47 @@
+ #include "mt792x.h"
+ #include "mt792x_regs.h"
+ 
++#include <linux/usb.h>
++#include <linux/usb/quirks.h>
++
++/* 0021: USB LPM state enforcement. usb_reset_and_verify_device() ends
++ * with usb_unlocked_enable_lpm() and hub_port_init() rebases
++ * lpm_disable_count=1 and rebuilds udev->quirks from the static list,
++ * so every recovery reset re-arms U1 on the dongle links (observed with
++ * 0020 live: u1=enabled on 2-1.1/2-1.4.3 in every soak snapshot). This
++ * runs from mac_work every 250 ms; the healthy-path cost is a few
++ * struct reads. */
++static void mt792x_usb_lpm_enforce(struct mt76_dev *dev)
++{
++        struct usb_interface *intf;
++        struct usb_device *udev;
++
++        if (!mt76_is_usb(dev))
++                return;
++
++        intf = to_usb_interface(dev->dev);
++        if (!intf)
++                return;
++        udev = interface_to_usbdev(intf);
++        if (!udev || udev->speed < USB_SPEED_SUPER)
++                return;
++
++        /* dead: no link timeouts, no LPM capability left */
++        if (!udev->lpm_capable &&
++            !udev->u1_params.timeout && !udev->u2_params.timeout)
++                return;
++
++        dev_info(dev->dev,
++                 "sl0021: re-armed LPM detected, re-killing (u1=%d u2=%d to=%d/%d cap=%d)\n",
++                 udev->usb3_lpm_u1_enabled, udev->usb3_lpm_u2_enabled,
++                 udev->u1_params.timeout, udev->u2_params.timeout,
++                 udev->lpm_capable);
++        udev->quirks |= USB_QUIRK_NO_LPM;
++        if (udev->u1_params.timeout || udev->u2_params.timeout)
++                usb_disable_lpm(udev);
++        udev->lpm_capable = 0;
++}
++
+ void mt792x_mac_work(struct work_struct *work)
+ {
+         struct mt792x_phy *phy;
+@@ -18,6 +59,10 @@
+ 
+         mt792x_mutex_acquire(phy->dev);
+ 
++        mt792x_usb_lpm_enforce(mphy->dev);
++
++        mt792x_mutex_acquire(phy->dev);
++
+         mt76_update_survey(mphy);
+         if (++mphy->mac_work_count == 2) {
+                 mphy->mac_work_count = 0;
+--- a/mt7921/mcu.c
++++ b/mt7921/mcu.c
+@@ -65,6 +65,13 @@
+                          cmd, seq, count,
+                          mt7921_mcu_timeout_retries);
+ 
++                /* 0021: first timeout of a storm - capture the
++                 * sender's call path (the wait happens in the sender's
++                 * context), so the actual trigger is identifiable
++                 * from dmesg next time it wedges. */
++                if (count == 1)
++                        dump_stack();
++
+                 if (count >= mt7921_mcu_timeout_retries) {
+                         atomic_set(&dev->mcu_timeout_count, 0);
+ 
+--- a/agg-rx.c
++++ b/agg-rx.c
+@@ -301,3 +301,39 @@
+         }
+ }
+ EXPORT_SYMBOL_GPL(mt76_rx_aggr_stop);
++
++/* 0021: chip-reset path - flush every RX-aggr reorder session.
++ * Reorder buffers park skbs whose frags own page_pool pages; if a
++ * chip reset (fw re-download / full re-init) leaves the old sessions
++ * stranded, those pages stay inflight forever (observed: pool id 24
++ * stuck at 147 inflight >25 min after the 2026-09-05 16:38 wedge).
++ * Called after the rx worker is stopped, so there is no concurrent
++ * reorder activity. */
++void mt76_rx_aggr_flush(struct mt76_dev *dev)
++{
++        struct mt76_wcid *wcid;
++        struct mt76_rx_tid *tid;
++        int i, tidno;
++
++        rcu_read_lock();
++        for (i = 0; i < MT76_N_WCIDS; i++) {
++                wcid = rcu_dereference(dev->wcid[i]);
++                if (!wcid || !wcid->sta)
++                        continue;
++
++                for (tidno = 0; tidno < IEEE80211_NUM_TIDS; tidno++) {
++                        struct mt76_rx_tid *old;
++
++                        tid = rcu_dereference(wcid->aggr[tidno]);
++                        if (!tid)
++                                continue;
++                        old = rcu_replace_pointer(wcid->aggr[tidno], NULL, 1);
++                        if (old == tid) {
++                                mt76_rx_aggr_shutdown(dev, tid);
++                                kfree_rcu(tid, rcu_head);
++                        }
++                }
++        }
++        rcu_read_unlock();
++}
++EXPORT_SYMBOL_GPL(mt76_rx_aggr_flush);
+--- a/mt76.h
++++ b/mt76.h
+@@ -1646,6 +1646,7 @@
+ int mt76_rx_aggr_start(struct mt76_dev *dev, struct mt76_wcid *wcid, u8 tid,
+                        u16 ssn, u16 size);
+ void mt76_rx_aggr_stop(struct mt76_dev *dev, struct mt76_wcid *wcid, u8 tid);
++void mt76_rx_aggr_flush(struct mt76_dev *dev);
+ 
+ void mt76_wcid_key_setup(struct mt76_dev *dev, struct mt76_wcid *wcid,
+                          struct ieee80211_key_conf *key);
+--- a/mt7921/main.c
++++ b/mt7921/main.c
+@@ -42,6 +42,18 @@
+ MODULE_PARM_DESC(ap_sw_groupkey,
+                  "Run group keys (GTK/IGTK, AP and STA modes) in software (default: true)");
+ 
++/* 0021: AP-mode pairwise (PTK) keys in software as well. The fw PTK
++ * install path is the last remaining key command in AP mode; moving
++ * it to mac80211 sw crypto also makes the CCMP PN host-owned
++ * (monotonic across any fw glitch/reset - the PN-replay
++ * client-discards class dies) and leaves zero key TLVs in the
++ * STA_REC/BSS_INFO warm re-program class. STA-mode PTK stays in
++ * hardware for uplink throughput. */
++static bool ap_sw_ptk = true;
++module_param_named(ap_sw_ptk, ap_sw_ptk, bool, 0644);
++MODULE_PARM_DESC(ap_sw_ptk,
++                 "Run AP-mode pairwise (PTK) keys in software (default: true)");
++
+ /* Kernel 6.12 compat: ieee80211_set_sband_iftype_data API differences.
+  *
+  * In 6.12, ieee80211_set_sband_iftype_data is a 2-arg MACRO that expands
+@@ -619,6 +631,17 @@
+             !(key->flags & IEEE80211_KEY_FLAG_PAIRWISE))
+                 return -EOPNOTSUPP;
+ 
++        /* 0021: see ap_sw_ptk note above. */
++        if (ap_sw_ptk &&
++            (vif->type == NL80211_IFTYPE_AP ||
++             vif->type == NL80211_IFTYPE_AP_VLAN) &&
++            (key->flags & IEEE80211_KEY_FLAG_PAIRWISE) &&
++            (key->cipher == WLAN_CIPHER_SUITE_CCMP ||
++             key->cipher == WLAN_CIPHER_SUITE_CCMP_256 ||
++             key->cipher == WLAN_CIPHER_SUITE_GCMP ||
++             key->cipher == WLAN_CIPHER_SUITE_GCMP_256))
++                return -EOPNOTSUPP;
++
+         /* fall back to sw encryption for unsupported ciphers */
+         switch (key->cipher) {
+         case WLAN_CIPHER_SUITE_AES_CMAC:

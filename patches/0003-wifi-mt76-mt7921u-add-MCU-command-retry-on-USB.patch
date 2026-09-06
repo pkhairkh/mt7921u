@@ -1,0 +1,47 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mt7921u-ai <patch-engineer@mt7921u.local>
+Date: Fri, 2 May 2026 00:00:00 +0000
+Subject: [PATCH 3/6] wifi: mt76: mt7921u: add MCU command retry on USB
+
+The USB mcu_ops does not set .max_retry (defaults to 0). When an MCU
+command times out on USB, mt7921_mcu_parse_response() immediately
+calls mt792x_reset(mdev), triggering a full chip reset for any
+transient USB delay.
+
+USB is inherently less reliable than PCIe: transient delays can be
+caused by autosuspend transitions, bus contention, host controller
+scheduling, cable issues, or firmware garbage collection pauses. A
+single missed response should not require a full chip reset.
+
+The mt76 core MCU layer already supports command retry via the
+.max_retry field in struct mt76_mcu_ops. When a command times out
+and max_retry > 0, the core resends the command up to max_retry
+times before calling mcu_parse_response(). Only after all retries
+are exhausted does the parse_response callback fire — and only then
+does mt792x_reset() get called.
+
+Set .max_retry = 3 for the USB mcu_ops. This is consistent with the
+SDIO driver which also sets max_retry for its bus-specific
+characteristics.
+
+Fixes: 967a4ff41e4e ("mt76: mt7921: introduce mt7921u support")
+Cc: stable@vger.kernel.org
+Signed-off-by: mt7921u-ai <patch-engineer@mt7921u.local>
+---
+ drivers/net/wireless/mediatek/mt76/mt7921/usb.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/usb.c b/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
+index 1234567..abcdef3 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/usb.c
+@@ -65,6 +65,7 @@ static int mt7921u_mcu_init(struct mt792x_dev *dev)
+ {
+ 	static const struct mt76_mcu_ops mcu_ops = {
++		.max_retry = 3,
+ 		.headroom = MT_SDIO_HDR_SIZE +
+ 			    sizeof(struct mt76_connac2_mcu_txd),
+ 		.tailroom = MT_USB_TAIL_SIZE,
+
+--
+2.47.0

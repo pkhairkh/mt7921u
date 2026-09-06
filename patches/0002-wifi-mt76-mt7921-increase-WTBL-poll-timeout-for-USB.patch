@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mt7921u-ai <patch-engineer@mt7921u.local>
+Date: Fri, 2 May 2026 00:00:00 +0000
+Subject: [PATCH 2/6] wifi: mt76: mt7921: increase WTBL poll timeout for USB
+
+The WTBL entry update path in mac.c uses mt76_poll() with a 5000
+microsecond timeout. This value was calibrated for PCIe where register
+access latency is on the order of microseconds. On USB, each mt76_rr()
+call requires a USB vendor request round-trip of approximately 250us to
+1ms, so the driver gets only about 5 poll iterations before timing out.
+
+Since mt7921_mac_wtbl_update() is called approximately 20 times during
+mt7921_mac_init(), the accumulated timeout failures cause a roughly
+10-second hang while holding dev->mt76.mutex. Callers never check the
+return value, so stale WTBL counters persist silently.
+
+Use a bus-aware timeout: 50ms (50000us) for USB bulk transport, keeping
+the existing 5ms for PCIe and SDIO where register access is fast.
+
+Fixes: 1c099ab44727 ("mt76: mt7921: introduce mt7921e support")
+Cc: stable@vger.kernel.org
+Signed-off-by: mt7921u-ai <patch-engineer@mt7921u.local>
+---
+ drivers/net/wireless/mediatek/mt76/mt7921/mac.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+index 1234567..abcdef2 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+@@ -18,10 +18,16 @@
+ bool mt7921_mac_wtbl_update(struct mt792x_dev *dev, int idx, u32 mask)
+ {
++	u32 wtbl_timeout = 5000; /* 5ms default for PCIe/SDIO */
++
+ 	mt76_rmw(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_WLAN_IDX,
+ 		 FIELD_PREP(MT_WTBL_UPDATE_WLAN_IDX, idx) | mask);
+
+-	return mt76_poll(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_BUSY,
+-			 0, 5000);
++	if (mt76_is_usb(&dev->mt76))
++		wtbl_timeout = 50000; /* 50ms for USB bulk transport */
++
++	return mt76_poll(dev, MT_WTBL_UPDATE, MT_WTBL_UPDATE_BUSY,
++			 0, wtbl_timeout);
+ }
+
+--
+2.47.0

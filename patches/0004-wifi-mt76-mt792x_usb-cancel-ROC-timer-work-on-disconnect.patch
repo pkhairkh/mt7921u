@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mt7921u-ai <patch-engineer@mt7921u.local>
+Date: Fri, 2 May 2026 00:00:00 +0000
+Subject: [PATCH 4/6] wifi: mt76: mt792x_usb: cancel ROC timer/work on
+ disconnect
+
+On USB disconnect, mt792xu_disconnect() does NOT cancel phy->roc_timer
+or phy->roc_work. If a ROC (remain-on-channel) period has expired from
+mac80211's perspective but the driver's roc_timer hasn't fired yet,
+ieee80211_roc_purge_local() finds no ieee80211_roc to purge — the
+timer is independent of mac80211's ROC list management. The timer
+survives past mt76_free_device(), and when it eventually fires, it
+accesses freed driver structures, resulting in a use-after-free.
+
+This was incorrectly marked as DISPROVED in an earlier analysis on the
+assumption that ieee80211_unregister_hw() -> ieee80211_roc_purge_local()
+would cancel the timer. However, roc_purge_local() only cancels
+mac80211-managed offchannel operations still on the active list. Once
+a ROC expires, it is removed from the list, and the driver's kernel
+timer is not tracked by mac80211.
+
+Add timer_delete_sync(&dev->phy.roc_timer) and
+cancel_work_sync(&dev->phy.roc_work) to mt792xu_cleanup(), before the
+driver structures are freed. This ensures both the timer and its
+associated work item are cancelled synchronously before deallocation.
+
+Fixes: 268e4c1c4d5d ("wifi: mt76: mt7921: add remain-on-channel support")
+Cc: stable@vger.kernel.org
+Signed-off-by: mt7921u-ai <patch-engineer@mt7921u.local>
+---
+ drivers/net/wireless/mediatek/mt76/mt792x_usb.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x_usb.c b/drivers/net/wireless/mediatek/mt76/mt792x_usb.c
+index 1234567..abcdef4 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x_usb.c
++++ b/drivers/net/wireless/mediatek/mt76/mt792x_usb.c
+@@ -94,7 +94,17 @@ static void mt792xu_cleanup(struct mt792x_dev *dev)
+ {
+ 	clear_bit(MT76_STATE_INITIALIZED, &dev->mphy.state);
++
++	/* Cancel ROC timer and work before freeing driver structures.
++	 * If a ROC period has expired from mac80211's perspective but
++	 * the driver's roc_timer hasn't fired yet, there is no
++	 * ieee80211_roc for ieee80211_roc_purge_local() to purge.
++	 * The timer would survive and fire into freed memory (UAF).
++	 */
++	timer_delete_sync(&dev->phy.roc_timer);
++	cancel_work_sync(&dev->phy.roc_work);
++
+ 	mt792xu_wfsys_reset(dev);
+ 	skb_queue_purge(&dev->mt76.mcu.res_q);
+ 	mt76u_queues_deinit(&dev->mt76);
+
+--
+2.47.0

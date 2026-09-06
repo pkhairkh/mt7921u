@@ -1,0 +1,243 @@
+diff --git a/drivers/net/wireless/mediatek/mt76/mt76.h b/drivers/net/wireless/mediatek/mt76/mt76.h
+index 7afaca0..3461afc 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt76.h
++++ b/drivers/net/wireless/mediatek/mt76/mt76.h
+@@ -597,6 +597,7 @@ enum {
+         MT76_STATE_ROC,
+         MT76_STATE_PM,
+         MT76_STATE_WED_RESET,
++        MT76_STATE_ASSOC,
+ };
+ 
+ enum mt76_sta_event {
+@@ -754,6 +755,14 @@ struct mt76_usb {
+         u8 num_out_eps;
+         bool sg_en;
+ 
++        /* USB control-path wedge detection: consecutive ETIMEDOUTs on
++         * vendor requests and the fast-fail probe mode they trigger. */
++        atomic_t ctl_timeouts;
++        bool ctl_fastfail;
++        /* Total successful RX URB completions, for the data-path
++         * watchdog in mt792x_mac_work(). */
++        atomic_t rx_urb_completions;
++
+         struct mt76u_mcu {
+                 u8 *data;
+                 /* multiple reads */
+@@ -983,6 +992,10 @@ struct mt76_phy {
+         struct delayed_work mac_work;
+         u8 mac_work_count;
+ 
++        /* USB data-path watchdog state (see mt792x_mac_work) */
++        int last_rx_urb_count;
++        u8 rx_stale_ticks;
++
+         struct {
+                 struct sk_buff *head;
+                 struct sk_buff **tail;
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/main.c b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+index ace4f88..97c2d72 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/main.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/main.c
+@@ -799,6 +799,13 @@ static void mt7921_bss_info_changed(struct ieee80211_hw *hw,
+                 mt7921_mcu_sta_update(dev, NULL, vif, true,
+                                       MT76_STA_INFO_STATE_ASSOC);
+                 mt7921_mcu_set_beacon_filter(dev, vif, vif->cfg.assoc);
++
++                /* Track association for the USB data-path watchdog in
++                 * mt792x_mac_work() */
++                if (vif->cfg.assoc)
++                        set_bit(MT76_STATE_ASSOC, &dev->mphy.state);
++                else
++                        clear_bit(MT76_STATE_ASSOC, &dev->mphy.state);
+         }
+ 
+         if (changed & BSS_CHANGED_ARP_FILTER) {
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+index e25e41d..a8905b6 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+@@ -3,6 +3,7 @@
+ 
+ #include <linux/fs.h>
+ #include <linux/firmware.h>
++#include <linux/usb.h>
+ #include "mt7921.h"
+ #include "mcu.h"
+ #include "../mt76_connac2_mac.h"
+@@ -21,6 +22,11 @@ module_param_named(clc_force_usb, clc_force_usb, bool, 0644);
+ MODULE_PARM_DESC(clc_force_usb, "force CLC SET command on USB even if previously failed");
+ 
+ #define MT7921_MCU_TIMEOUT_MAX  3
++/* After this many full MCU recovery cycles that failed to stop the
++ * timeouts, escalate to a full USB port reset (usb_queue_reset_device).
++ * This is the only software recovery that revives a hard-wedged
++ * MT7921U MCU short of a power cycle. */
++#define MT7921_USB_RESCUE_THRESHOLD 3
+ 
+ static int mt7921_mcu_timeout_retries = MT7921_MCU_TIMEOUT_MAX;
+ module_param_named(mcu_timeout_retries, mt7921_mcu_timeout_retries, int, 0644);
+@@ -46,11 +52,23 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
+                          mt7921_mcu_timeout_retries);
+ 
+                 if (count >= mt7921_mcu_timeout_retries) {
+-                        dev_err(mdev->dev,
+-                                "MCU timeout threshold reached (%d), resetting\n",
+-                                count);
+                         atomic_set(&dev->mcu_timeout_count, 0);
+-                        mt792x_reset(mdev);
++
++                        if (mt76_is_usb(mdev) && dev->hw_init_done &&
++                            !dev->pm.suspended &&
++                            atomic_inc_return(&dev->usb_rescue_count) >=
++                            MT7921_USB_RESCUE_THRESHOLD) {
++                                dev_err(mdev->dev,
++                                        "MCU still wedged after %d recovery cycles, escalating to USB device reset\n",
++                                        atomic_read(&dev->usb_rescue_count));
++                                atomic_set(&dev->usb_rescue_count, 0);
++                                usb_queue_reset_device(to_usb_interface(mdev->dev));
++                        } else {
++                                dev_err(mdev->dev,
++                                        "MCU timeout threshold reached (%d), resetting\n",
++                                        count);
++                                mt792x_reset(mdev);
++                        }
+                 }
+ 
+                 return -ETIMEDOUT;
+@@ -58,6 +76,7 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
+ 
+         /* Successful response — reset timeout counter */
+         atomic_set(&dev->mcu_timeout_count, 0);
++        atomic_set(&dev->usb_rescue_count, 0);
+ 
+         rxd = (struct mt76_connac2_mcu_rxd *)skb->data;
+         if (seq != rxd->seq)
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x.h b/drivers/net/wireless/mediatek/mt76/mt792x.h
+index a6d22e5..4d256ac 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x.h
++++ b/drivers/net/wireless/mediatek/mt76/mt792x.h
+@@ -42,6 +42,9 @@
+ #define MT792x_BASIC_RATES_TBL  11
+ 
+ #define MT792x_WATCHDOG_TIME    (HZ / 4)
++/* 120 ticks * 250ms = 30s without a single RX URB completion while
++ * associated => bulk data path is wedged (mt792x_mac_work) */
++#define MT792x_RX_STALE_TICKS   120
+ 
+ #define MT792x_DRV_OWN_RETRY_COUNT      10
+ #define MT792x_MCU_INIT_RETRY_COUNT     10
+@@ -360,6 +363,9 @@ struct mt792x_dev {
+         bool aspm_supported:1;
+         bool hif_idle:1;
+         bool hif_resumed:1;
++
++        /* Consecutive MCU recovery cycles (usb_rescue escalation, mcu.c) */
++        atomic_t usb_rescue_count;
+         bool regd_change:1;
+         wait_queue_head_t wait;
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x_mac.c b/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
+index 79e16b7..5c82cf4 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
+@@ -26,6 +26,32 @@ void mt792x_mac_work(struct work_struct *work)
+ 
+         mt792x_mutex_release(phy->dev);
+ 
++        /* USB: silent data-path death detection. A wedged chip stops
++         * completing bulk RX URBs while the control path may still
++         * answer, which historically left STA interfaces dead with no
++         * kernel signature at all. Armed only while a station interface
++         * is associated, where received beacons guarantee continuous RX
++         * URB completions, so an idle AP never false-positives. */
++        if (mt76_is_usb(mphy->dev) &&
++            test_bit(MT76_STATE_RUNNING, &mphy->state) &&
++            test_bit(MT76_STATE_ASSOC, &mphy->state)) {
++                struct mt76_dev *mdev = mphy->dev;
++                int cur = atomic_read(&mdev->usb.rx_urb_completions);
++
++                if (cur == mphy->last_rx_urb_count) {
++                        if (++mphy->rx_stale_ticks >= MT792x_RX_STALE_TICKS) {
++                                dev_warn(mdev->dev,
++                                         "no RX URB completions for %d s, data path wedged, resetting\n",
++                                         (MT792x_RX_STALE_TICKS * MT792x_WATCHDOG_TIME) / HZ);
++                                mphy->rx_stale_ticks = 0;
++                                mt792x_reset(mdev);
++                        }
++                } else {
++                        mphy->last_rx_urb_count = cur;
++                        mphy->rx_stale_ticks = 0;
++                }
++        }
++
+         mt76_tx_status_check(mphy->dev, false);
+         ieee80211_queue_delayed_work(phy->mt76->hw, &mphy->mac_work,
+                                      MT792x_WATCHDOG_TIME);
+diff --git a/drivers/net/wireless/mediatek/mt76/usb.c b/drivers/net/wireless/mediatek/mt76/usb.c
+index 4379b1b..ecf9033 100755
+--- a/drivers/net/wireless/mediatek/mt76/usb.c
++++ b/drivers/net/wireless/mediatek/mt76/usb.c
+@@ -10,6 +10,10 @@
+ 
+ #define MT_VEND_REQ_MAX_RETRY   10
+ #define MT_VEND_REQ_TOUT_MS     300
++/* Fast-fail probe timeout while the control path is wedged */
++#define MT_VEND_REQ_FAST_TOUT_MS 50
++/* Consecutive control ETIMEDOUTs before engaging fast-fail mode */
++#define MT76U_CTL_WEDGE_THRESHOLD 10
+ 
+ static bool disable_usb_sg;
+ module_param_named(disable_usb_sg, disable_usb_sg, bool, 0644);
+@@ -32,6 +36,7 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
+         struct usb_interface *uintf = to_usb_interface(dev->dev);
+         struct usb_device *udev = interface_to_usbdev(uintf);
+         unsigned int pipe;
++        unsigned int tout_ms;
+         int i, ret;
+ 
+         lockdep_assert_held(&dev->usb.usb_ctrl_mtx);
+@@ -42,8 +47,31 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
+                 if (test_bit(MT76_REMOVED, &dev->phy.state))
+                         return -EIO;
+ 
++                /* While the control path is wedged (10+ consecutive
++                 * ETIMEDOUTs) probe with a short timeout so callers fail
++                 * fast instead of stalling ~3 s per request. This keeps
++                 * periodic work (survey, MIB stats) from holding
++                 * dev->mt76.mutex for minutes on a dead chip and blocking
++                 * both the reset work and userspace. Any successful
++                 * transfer clears the mode again. */
++                tout_ms = dev->usb.ctl_fastfail ? MT_VEND_REQ_FAST_TOUT_MS
++                                                : MT_VEND_REQ_TOUT_MS;
++
+                 ret = usb_control_msg(udev, pipe, req, req_type, val,
+-                                      offset, buf, len, MT_VEND_REQ_TOUT_MS);
++                                      offset, buf, len, tout_ms);
++                if (ret >= 0) {
++                        atomic_set(&dev->usb.ctl_timeouts, 0);
++                        dev->usb.ctl_fastfail = false;
++                } else if (ret == -ETIMEDOUT) {
++                        if (!dev->usb.ctl_fastfail &&
++                            atomic_inc_return(&dev->usb.ctl_timeouts) >=
++                            MT76U_CTL_WEDGE_THRESHOLD) {
++                                dev->usb.ctl_fastfail = true;
++                                dev_err(dev->dev,
++                                        "USB control path wedged (%d consecutive timeouts), entering fast-fail mode\n",
++                                        MT76U_CTL_WEDGE_THRESHOLD);
++                        }
++                }
+                 if (ret == -ENODEV || ret == -EPROTO)
+                         set_bit(MT76_REMOVED, &dev->phy.state);
+                 if (ret >= 0 || ret == -ENODEV || ret == -EPROTO)
+@@ -583,6 +611,9 @@ static void mt76u_complete_rx(struct urb *urb)
+ 
+         trace_rx_urb(dev, urb);
+ 
++        /* Count data arrivals for the mac_work data-path watchdog */
++        atomic_inc(&dev->usb.rx_urb_completions);
++
+         switch (urb->status) {
+         case -ECONNRESET:
+         case -ESHUTDOWN:

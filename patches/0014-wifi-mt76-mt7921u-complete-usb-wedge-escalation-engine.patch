@@ -1,0 +1,197 @@
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+index 0450cc7..2d91bb8 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mac.c
+@@ -4,6 +4,7 @@
+ #include <linux/devcoredump.h>
+ #include <linux/etherdevice.h>
+ #include <linux/timekeeping.h>
++#include <linux/usb.h>
+ #include "mt7921.h"
+ #include "../dma.h"
+ #include "../mt76_connac2_mac.h"
+@@ -762,9 +763,25 @@ void mt7921_mac_reset_work(struct work_struct *work)
+                 return;
+         }
+ 
+-        if (i == 10)
++        if (i == 10) {
+                 dev_err(dev->mt76.dev, "chip reset failed\n");
+ 
++                /* BUG-13 fix: ten consecutive failed full resets on USB
++                 * mean the device is hard-wedged beyond in-driver recovery.
++                 * Escalate straight to a USB port reset instead of giving
++                 * up - historically "giving up" left the interface dead,
++                 * the mac_work watchdogs disarmed and userspace wedged. */
++                if (mt76_is_usb(&dev->mt76)) {
++                        dev_err(dev->mt76.dev,
++                                "escalating to USB device reset after %d failed chip resets\n",
++                                i);
++                        dev->usb_rescue_last = jiffies;
++                        atomic_set(&dev->usb_rescue_count, 0);
++                        usb_queue_reset_device(
++                                to_usb_interface(dev->mt76.dev));
++                }
++        }
++
+         if (test_and_clear_bit(MT76_HW_SCANNING, &dev->mphy.state)) {
+                 struct cfg80211_scan_info info = {
+                         .aborted = true,
+@@ -780,6 +797,17 @@ void mt7921_mac_reset_work(struct work_struct *work)
+         ieee80211_iterate_active_interfaces(hw,
+                                             IEEE80211_IFACE_ITER_RESUME_ALL,
+                                             mt7921_vif_connect_iter, NULL);
++
++        /* BUG-13 fix: re-arm the mac_work watchdog chain. Nothing else
++         * reliably restarts it after a reset: a STA only re-arms it via
++         * wpa_supplicant's retry -> set_channel, and an idle AP never
++         * does. Without this, one chip reset permanently disarms the
++         * RX-URB watchdog and the control-wedge escalation (patches
++         * 0012/0013) exactly when the device needs them most. */
++        if (test_bit(MT76_STATE_RUNNING, &dev->mphy.state))
++                ieee80211_queue_delayed_work(hw, &dev->mphy.mac_work,
++                                             MT792x_WATCHDOG_TIME);
++
+         mt76_connac_power_save_sched(&dev->mt76.phy, pm);
+ }
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+index a8905b6..feccb90 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/mcu.c
+@@ -45,7 +45,21 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
+                 cmd, seq, skb);
+ 
+         if (!skb) {
+-                int count = atomic_inc_return(&dev->mcu_timeout_count);
++                int count;
++
++                /* BUG-13 fix: failures only accumulate while they are
++                 * fresh. Counters are NEVER reset by successes: a
++                 * flapping wedge (firmware re-download succeeds while
++                 * UNI commands keep timing out) must not clear the
++                 * escalation state, or the USB port-reset threshold
++                 * is never reached. */
++                if (!dev->mcu_fail_last ||
++                    time_after(jiffies, dev->mcu_fail_last +
++                               MT792x_RESCUE_DECAY_JIFFIES))
++                        atomic_set(&dev->mcu_timeout_count, 0);
++                dev->mcu_fail_last = jiffies;
++
++                count = atomic_inc_return(&dev->mcu_timeout_count);
+                 dev_warn(mdev->dev,
+                          "Message %08x (seq %d) timeout (%d/%d)\n",
+                          cmd, seq, count,
+@@ -54,13 +68,22 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
+                 if (count >= mt7921_mcu_timeout_retries) {
+                         atomic_set(&dev->mcu_timeout_count, 0);
+ 
++                        /* Fresh rescue ladder if the last escalation
++                         * has gone stale (device was healthy for a
++                         * while before this new storm). */
++                        if (!dev->usb_rescue_last ||
++                            time_after(jiffies, dev->usb_rescue_last +
++                                       MT792x_RESCUE_DECAY_JIFFIES))
++                                atomic_set(&dev->usb_rescue_count, 0);
++                        dev->usb_rescue_last = jiffies;
++
+                         if (mt76_is_usb(mdev) && dev->hw_init_done &&
+                             !dev->pm.suspended &&
+                             atomic_inc_return(&dev->usb_rescue_count) >=
+                             MT7921_USB_RESCUE_THRESHOLD) {
+                                 dev_err(mdev->dev,
+                                         "MCU still wedged after %d recovery cycles, escalating to USB device reset\n",
+-                                        atomic_read(&dev->usb_rescue_count));
++                                        MT7921_USB_RESCUE_THRESHOLD);
+                                 atomic_set(&dev->usb_rescue_count, 0);
+                                 usb_queue_reset_device(to_usb_interface(mdev->dev));
+                         } else {
+@@ -74,9 +97,11 @@ int mt7921_mcu_parse_response(struct mt76_dev *mdev, int cmd,
+                 return -ETIMEDOUT;
+         }
+ 
+-        /* Successful response — reset timeout counter */
+-        atomic_set(&dev->mcu_timeout_count, 0);
+-        atomic_set(&dev->usb_rescue_count, 0);
++        /* Successful response. BUG-13: deliberately does NOT reset the
++         * timeout/rescue counters - isolated successes during a flapping
++         * wedge (fw re-download OK, UNI commands time out) historically
++         * kept the recovery ladder at zero forever. The counters decay
++         * through staleness instead (see the timeout path above). */
+ 
+         rxd = (struct mt76_connac2_mcu_rxd *)skb->data;
+         if (seq != rxd->seq)
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x.h b/drivers/net/wireless/mediatek/mt76/mt792x.h
+index dd58f1b..3e3233a 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt792x.h
++++ b/drivers/net/wireless/mediatek/mt76/mt792x.h
+@@ -53,6 +53,12 @@
+ /* Failed wedge-recovery cycles before escalating to a full USB port
+  * reset. Mirrors MT7921_USB_RESCUE_THRESHOLD in mt7921/mcu.c. */
+ #define MT792x_USB_RESCUE_THRESHOLD 3
++/* Rescue-ladder decay (BUG-13): escalation counters survive isolated
++ * MCU successes - a flapping wedge (firmware re-download succeeds while
++ * UNI commands keep timing out) must not clear them, or the port-reset
++ * threshold is never reached. Counters reset only when failures go
++ * stale: this long after the last timeout / escalation. */
++#define MT792x_RESCUE_DECAY_JIFFIES (60 * HZ)
+ 
+ #define MT792x_DRV_OWN_RETRY_COUNT      10
+ #define MT792x_MCU_INIT_RETRY_COUNT     10
+@@ -374,6 +380,13 @@ struct mt792x_dev {
+ 
+         /* Consecutive MCU recovery cycles (usb_rescue escalation, mcu.c) */
+         atomic_t usb_rescue_count;
++        /* jiffies of the last escalation (usb_rescue_count bump) and of
++         * the last MCU timeout. Escalation counters decay only through
++         * staleness against these, never through isolated successes.
++         * Unsynchronized access is deliberate: the worst race costs
++         * one extra recovery cycle (see MT792x_RESCUE_DECAY_JIFFIES). */
++        unsigned long usb_rescue_last;
++        unsigned long mcu_fail_last;
+         bool regd_change:1;
+         wait_queue_head_t wait;
+ 
+diff --git a/drivers/net/wireless/mediatek/mt76/mt792x_mac.c b/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
+index e8facc5..f12f1c5 100755
+--- a/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt792x_mac.c
+@@ -44,6 +44,17 @@ void mt792x_mac_work(struct work_struct *work)
+                 if (++mphy->ctl_wedge_ticks >=
+                     MT792x_CTL_WEDGE_ESCALATE_TICKS) {
+                         mphy->ctl_wedge_ticks = 0;
++
++                        /* Fresh rescue ladder if the last escalation
++                         * has gone stale. BUG-13: the ladder must not
++                         * be clearable by isolated successes (flapping
++                         * wedge); it decays through staleness only. */
++                        if (!mdev792x->usb_rescue_last ||
++                            time_after(jiffies, mdev792x->usb_rescue_last +
++                                       MT792x_RESCUE_DECAY_JIFFIES))
++                                atomic_set(&mdev792x->usb_rescue_count, 0);
++                        mdev792x->usb_rescue_last = jiffies;
++
+                         if (atomic_inc_return(&mdev792x->usb_rescue_count) >=
+                             MT792x_USB_RESCUE_THRESHOLD) {
+                                 atomic_set(&mdev792x->usb_rescue_count, 0);
+diff --git a/drivers/net/wireless/mediatek/mt76/usb.c b/drivers/net/wireless/mediatek/mt76/usb.c
+index c58d536..4813c06 100755
+--- a/drivers/net/wireless/mediatek/mt76/usb.c
++++ b/drivers/net/wireless/mediatek/mt76/usb.c
+@@ -68,12 +68,12 @@ int __mt76u_vendor_request(struct mt76_dev *dev, u8 req, u8 req_type,
+                         atomic_set(&dev->usb.ctl_err_streak, 0);
+                         dev->usb.ctl_fastfail = false;
+                 } else if (ret == -ETIMEDOUT || ret == -EPIPE ||
+-                           ret == -ESHUTDOWN) {
++                           ret == -ESHUTDOWN || ret == -EILSEQ) {
+                         /* Count every hard control error, not just
+                          * -ETIMEDOUT: a wedged MT7921U behind a hub
+-                         * can present as endpoint STALL (-EPIPE) or
+-                         * host-side shutdown storms just as well as
+-                         * timeouts. */
++                         * can present as endpoint STALL (-EPIPE), host
++                         * shutdown storms (-ESHUTDOWN) or CRC errors
++                         * (-EILSEQ) just as well as timeouts. */
+                         if (!dev->usb.ctl_fastfail &&
+                             atomic_inc_return(&dev->usb.ctl_timeouts) >=
+                             MT76U_CTL_WEDGE_THRESHOLD) {

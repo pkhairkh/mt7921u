@@ -1,0 +1,27 @@
+--- a/mt76_connac_mac.c	2026-09-06 18:52:45.933219459 +0000
++++ b/mt76_connac_mac.c	2026-09-06 18:52:54.373225823 +0000
+@@ -522,7 +522,23 @@
+                                     BSS_CHANGED_BEACON_ENABLED));
+         bool inband_disc = !!(changed & (BSS_CHANGED_UNSOL_BCAST_PROBE_RESP |
+                                          BSS_CHANGED_FILS_DISCOVERY));
+-        bool amsdu_en = wcid->amsdu;
++        /* 0028: TXD7_HW_AMSDU instructs the fw/PLE to A-MSDU-pack the TXDs
++         * submitted on this WCID. That packing is only valid for 802.3
++         * fastpath frames whose payloads the fw encrypts itself (it builds
++         * one CCMP header per A-MSDU subframe). With software-encrypted
++         * stations (ap_sw_ptk / ap_sw_groupkey) every TXD is already a
++         * complete, CCMP-encrypted native 802.11 MPDU; the fw packs PAIRS
++         * of them into "A-MSDUs" that are invalid on the air and the peer
++         * discards wholesale. Measured on 2-1.4.3 (2026-09-06, diag19/20):
++         * ap_sw_ptk=Y flood of 140,875 frames produced 53.6k fw 2-MSDU
++         * packs + 33.7k single-TXDs; the peer answered exactly 33,667
++         * frames = the 1-MSDU count (every packed pair dropped), BA miss
++         * 2219/15s, A-MPDU depth collapsed to 1. Same flood with HW-PTK
++         * (802.3 path): 0.16% loss, 18 MPDU/PPDU. Gate the bit on the
++         * 802.3 path so the SW-crypto lanes keep valid single-MPDU air
++         * frames; A-MPDU (per-MPDU) aggregation is unaffected by this bit.
++         */
++        bool amsdu_en = wcid->amsdu && is_8023;
+ 
+         if (vif) {
+                 struct mt76_vif_link *mvif = (struct mt76_vif_link *)vif->drv_priv;

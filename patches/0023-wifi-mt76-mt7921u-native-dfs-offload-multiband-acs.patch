@@ -1,0 +1,400 @@
+--- mt792x_core.c.pre-0023	2026-09-05 18:30:52.462145271 +0200
++++ mt792x_core.c	2026-09-05 18:33:18.740774184 +0200
+@@ -8,6 +8,11 @@
+ #include <linux/version.h>
+ #include "dma.h"
+ 
++/* 0023: channel widths the fw RDD engine can monitor (DFS offload). */
++#define MT792x_RADAR_DETECT_WIDTHS \
++        (BIT(NL80211_CHAN_WIDTH_20_NOHT) | BIT(NL80211_CHAN_WIDTH_20) | \
++         BIT(NL80211_CHAN_WIDTH_40) | BIT(NL80211_CHAN_WIDTH_80))
++
+ static const struct ieee80211_iface_limit if_limits[] = {
+         {
+                 .max = MT792x_MAX_INTERFACES,
+@@ -26,6 +31,7 @@
+                 .max_interfaces = MT792x_MAX_INTERFACES,
+                 .num_different_channels = 1,
+                 .beacon_int_infra_match = true,
++                .radar_detect_widths = MT792x_RADAR_DETECT_WIDTHS,
+         },
+ };
+ 
+@@ -75,6 +81,7 @@
+                 .max_interfaces = 3,
+                 .num_different_channels = 1,
+                 .beacon_int_infra_match = false,
++                .radar_detect_widths = MT792x_RADAR_DETECT_WIDTHS,
+         }
+ };
+ 
+@@ -745,9 +752,14 @@
+         wiphy->max_sched_scan_reqs = 1;
+         wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH |
+                         WIPHY_FLAG_SPLIT_SCAN_6GHZ ;
+-#ifdef WIPHY_FLAG_HAS_RADAR_DETECT
+-        wiphy->flags |= WIPHY_FLAG_HAS_RADAR_DETECT;
+-#endif
++        /* 0023: native DFS offload. 6.18 removed the mac80211
++         * .start_radar_detection/.end_cac driver ops; DFS on these
++         * kernels is the DFS-offload contract
++         * (NL80211_EXT_FEATURE_DFS_OFFLOAD): the driver runs the
++         * CAC itself (firmware RDD + CAC timer) and reports
++         * NL80211_RADAR_CAC_* events; radar hits mid-operation go
++         * through ieee80211_radar_detected(). */
++        wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_DFS_OFFLOAD);
+ 
+         wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
+                            NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR;
+--- mt7921/main.c.pre-0023	2026-09-05 18:30:52.468882068 +0200
++++ mt7921/main.c	2026-09-05 18:35:30.502447958 +0200
+@@ -754,6 +754,10 @@
+ 
+ static void mt7921_update_txpower_cur(struct ieee80211_hw *hw);
+ 
++/* 0023: DFS offload engine - defined further down (after rfkill_poll). */
++static void __mt7921_dfs_offload_update(struct mt792x_dev *dev);
++static void mt7921_dfs_cac_stop(struct mt792x_dev *dev, bool emit_aborted);
++
+ static int mt7921_config(struct ieee80211_hw *hw, int radio_idx, u32 changed)
+ {
+         struct mt792x_dev *dev = mt792x_hw_dev(hw);
+@@ -777,6 +781,10 @@
+         if (changed & IEEE80211_CONF_CHANGE_CHANNEL)
+                 mt7921_update_txpower_cur(hw);
+ 
++        /* 0023: DFS offload CAC state machine follows the channel. */
++        if (changed & IEEE80211_CONF_CHANGE_CHANNEL)
++                __mt7921_dfs_offload_update(dev);
++
+         if (changed & IEEE80211_CONF_CHANGE_MONITOR) {
+                 ieee80211_iterate_active_interfaces(hw,
+                                                     IEEE80211_IFACE_ITER_RESUME_ALL,
+@@ -789,6 +797,21 @@
+         return ret;
+ }
+ 
++static void mt7921_remove_interface(struct ieee80211_hw *hw,
++                                    struct ieee80211_vif *vif)
++{
++        struct mt792x_dev *dev = mt792x_hw_dev(hw);
++
++        /* 0023: drop DFS offload references to this vif before it
++         * dies (the CAC timer / radar handler hold cac_vif). */
++        mt792x_mutex_acquire(dev);
++        if (dev->phy.dfs_state.cac_vif == vif)
++                mt7921_dfs_cac_stop(dev, true);
++        mt792x_mutex_release(dev);
++
++        mt792x_remove_interface(hw, vif);
++}
++
+ static void mt7921_configure_filter(struct ieee80211_hw *hw,
+                                     unsigned int changed_flags,
+                                     unsigned int *total_flags,
+@@ -828,6 +851,10 @@
+ 
+         mt792x_mutex_acquire(dev);
+ 
++        /* 0023: beacon up/down re-evaluates the DFS offload CAC. */
++        if (changed & BSS_CHANGED_BEACON_ENABLED)
++                __mt7921_dfs_offload_update(dev);
++
+         if (changed & BSS_CHANGED_ERP_SLOT) {
+                 int slottime = info->use_short_slot ? 9 : 20;
+ 
+@@ -1810,6 +1837,184 @@
+         wiphy_rfkill_set_hw_state(hw->wiphy, ret ? false : true);
+ }
+ 
++/* ================= 0023: native DFS offload engine =================
++ * 6.18 removed the .start_radar_detection/.end_cac ieee80211_ops pair;
++ * DFS on such kernels is the NL80211_EXT_FEATURE_DFS_OFFLOAD contract:
++ * the driver autonomously runs the CAC (firmware RDD monitoring + CAC
++ * timer) and reports NL80211_RADAR_CAC_STARTED / CAC_FINISHED /
++ * CAC_ABORTED so hostapd can steer the AP, and radar hits mid-operation
++ * go through ieee80211_radar_detected() so hostapd vacates via CSA.
++ *
++ * Triggers (all idempotent, dev->mt76.mutex held):
++ *   - .config(IEEE80211_CONF_CHANGE_CHANNEL)  (hostapd set_freq)
++ *   - bss_info_changed(BSS_CHANGED_BEACON_ENABLED)
++ *   - post-chip-reset re-evaluation (mt7921_mac_reset_work tail)
++ *   - vif removal clears CAC/vif state (mt7921_remove_interface)
++ */
++static int mt7921_mcu_rdd_set(struct mt792x_dev *dev, bool enable)
++{
++        struct {
++                __le16 tag;
++                __le16 len;
++                u8 rdd_idx;
++                u8 enable;
++                u8 rsv[2];
++        } __packed req = {
++                .tag = cpu_to_le16(UNI_RDD_ON_OFF_CTRL),
++                .len = cpu_to_le16(sizeof(req) - 4),
++                .rdd_idx = 0,
++                .enable = enable,
++        };
++
++        return mt76_mcu_send_msg(&dev->mt76, MCU_UNI_CMD(RDD_CTRL),
++                                 &req, sizeof(req), true);
++}
++
++static void
++mt7921_dfs_cac_emit(struct mt792x_dev *dev, struct ieee80211_vif *vif,
++                    const struct cfg80211_chan_def *chandef,
++                    enum nl80211_radar_event evt)
++{
++        struct wireless_dev *wdev = ieee80211_vif_to_wdev(vif);
++
++        if (!wdev || !wdev->netdev || !chandef->chan)
++                return;
++
++        /* GFP_ATOMIC: also called from the CAC timer (softirq). */
++        cfg80211_cac_event(wdev->netdev, chandef, evt, GFP_ATOMIC, 0);
++}
++
++/* Stop the offload CAC / RDD monitoring (channel change, AP down, vif
++ * removal, chip reset). Process context, may send an MCU command. */
++static void mt7921_dfs_cac_stop(struct mt792x_dev *dev, bool emit_aborted)
++{
++        struct mt7921_dfs_state *dfs = &dev->phy.dfs_state;
++        struct ieee80211_vif *vif = dfs->cac_vif;
++        struct cfg80211_chan_def chandef = dfs->cac_chandef;
++        bool was_active = dfs->cac_active;
++
++        timer_delete_sync(&dfs->cac_timer);
++
++        if (emit_aborted && was_active && vif)
++                mt7921_dfs_cac_emit(dev, vif, &chandef,
++                                    NL80211_RADAR_CAC_ABORTED);
++
++        dfs->cac_active = false;
++        dfs->cac_center_freq = 0;
++        dfs->cac_vif = NULL;
++        memset(&dfs->cac_chandef, 0, sizeof(dfs->cac_chandef));
++
++        if (dfs->rdd_enabled) {
++                dfs->rdd_enabled = false;
++                mt7921_mcu_rdd_set(dev, false);
++        }
++}
++
++static void mt7921_dfs_ap_iter(void *data, u8 *mac,
++                               struct ieee80211_vif *vif)
++{
++        if (vif->type == NL80211_IFTYPE_AP ||
++            vif->type == NL80211_IFTYPE_P2P_GO)
++                *(struct ieee80211_vif **)data = vif;
++}
++
++/* Re-evaluate the DFS offload state for the current operating channel.
++ * Caller holds dev->mt76.mutex. */
++static void __mt7921_dfs_offload_update(struct mt792x_dev *dev)
++{
++        struct mt7921_dfs_state *dfs = &dev->phy.dfs_state;
++        struct cfg80211_chan_def chandef = dev->mt76.phy.chandef;
++        struct ieee80211_channel *chan = chandef.chan;
++        struct ieee80211_vif *vif;
++        unsigned int cac_time_ms;
++        int ret;
++
++        if (!chan) {
++                mt7921_dfs_cac_stop(dev, true);
++                return;
++        }
++
++        if (!(chan->flags & IEEE80211_CHAN_RADAR)) {
++                /* left DFS: end monitoring, abort in-flight CAC */
++                if (dfs->cac_active || dfs->rdd_enabled)
++                        mt7921_dfs_cac_stop(dev, true);
++                return;
++        }
++
++        /* in-flight CAC for a different channel: restart it */
++        if (dfs->cac_active &&
++            dfs->cac_center_freq != chan->center_freq)
++                mt7921_dfs_cac_stop(dev, true);
++
++        if (dfs->cac_active)
++                return; /* CAC running on this channel */
++
++        if (chan->dfs_state == NL80211_DFS_AVAILABLE)
++                return; /* CAC already satisfied */
++
++        if (chan->dfs_state != NL80211_DFS_USABLE) {
++                dev_dbg(dev->mt76.dev,
++                        "sl0023: DFS ch %d unavailable (NOP)\n",
++                        chan->hw_value);
++                return;
++        }
++
++        if (!dfs->rdd_enabled) {
++                ret = mt7921_mcu_rdd_set(dev, true);
++                if (ret) {
++                        dev_err(dev->mt76.dev,
++                                "sl0023: firmware RDD enable failed (%d) - DFS offload CAC cannot run\n",
++                                ret);
++                        return;
++                }
++                dfs->rdd_enabled = true;
++        }
++
++        vif = dfs->cac_vif;
++        if (!vif) {
++                ieee80211_iterate_active_interfaces(
++                                dev->mt76.phy.hw,
++                                IEEE80211_IFACE_ITER_RESUME_ALL,
++                                mt7921_dfs_ap_iter, &vif);
++                dfs->cac_vif = vif;
++        }
++        if (!vif) {
++                /* no AP/GO vif yet: RDD stays armed, CAC starts on a
++                 * later BEACON_ENABLED / channel-set pass with a vif */
++                return;
++        }
++
++        cac_time_ms = cfg80211_chandef_dfs_cac_time(
++                        dev->mt76.phy.hw->wiphy, &chandef);
++        if (!cac_time_ms)
++                cac_time_ms = IEEE80211_DFS_MIN_CAC_TIME_MS;
++
++        dfs->radar_detected = false;
++        dfs->cac_band_idx = 0;
++        dfs->cac_time_ms = cac_time_ms;
++        dfs->cac_chandef = chandef;
++        dfs->cac_active = true;
++        dfs->cac_center_freq = chan->center_freq;
++        dfs->cac_vif = vif;
++
++        mod_timer(&dfs->cac_timer,
++                  jiffies + msecs_to_jiffies(cac_time_ms));
++
++        mt7921_dfs_cac_emit(dev, vif, &chandef,
++                            NL80211_RADAR_CAC_STARTED);
++        dev_info(dev->mt76.dev,
++                 "sl0023: DFS offload CAC started (ch %d, %u ms)\n",
++                 chan->hw_value, cac_time_ms);
++}
++
++void mt7921_dfs_offload_update(struct mt792x_dev *dev)
++{
++        mt792x_mutex_acquire(dev);
++        __mt7921_dfs_offload_update(dev);
++        mt792x_mutex_release(dev);
++}
++
++
+ /* TASK-013: DFS Master Preparation — start_radar_detection implementation.
+  * Sends UNI_RDD_ON_OFF_CTRL to firmware to enable radar detection,
+  * records the CAC request, and arms a kernel timer for CAC completion.
+@@ -1827,12 +2032,18 @@
+         if (!dfs->cac_active)
+                 return;
+ 
++        /* 0023: DFS offload CAC completed cleanly (no radar event from
++         * the firmware before expiry). Report NL80211_RADAR_CAC_FINISHED;
++         * hostapd then brings the beacon up. cac_vif / rdd_enabled STAY
++         * armed: radar while operating must still reach hostapd via
++         * mt7921_radar_detected_event -> ieee80211_radar_detected. */
+         dfs->cac_active = false;
+-        dev_dbg(dev->mt76.dev, "CAC timer expired — channel available\n");
+         dfs->radar_detected = false;
+         if (dfs->cac_vif)
+-                mt792x_cac_finish(dev->mt76.phy.hw, dfs->cac_vif);
+-        dfs->cac_vif = NULL;
++                mt7921_dfs_cac_emit(dev, dfs->cac_vif, &dfs->cac_chandef,
++                                    NL80211_RADAR_CAC_FINISHED);
++        dev_info(dev->mt76.dev,
++                 "sl0023: DFS CAC completed - channel available\n");
+ }
+ 
+ void mt7921_radar_detected_event(struct mt792x_dev *dev,
+@@ -2026,7 +2237,7 @@
+         .start = mt7921_start,
+         .stop = mt7921_stop,
+         .add_interface = mt7921_add_interface,
+-        .remove_interface = mt792x_remove_interface,
++        .remove_interface = mt7921_remove_interface,
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+         .config = mt7921_config,
+ #else
+--- mt7921/mac.c.pre-0023	2026-09-05 18:30:52.480314864 +0200
++++ mt7921/mac.c	2026-09-05 18:32:20.963690422 +0200
+@@ -741,9 +741,15 @@
+         mt7921_csi_cleanup(dev);
+         mt7921_csi_init(dev);
+ 
+-        /* Cancel DFS CAC timer — radar detection state is lost on reset */
++        /* Cancel DFS CAC timer — radar detection state is lost on
++         * reset. 0023: also drop the fw-RDD/vif references; the
++         * post-reset mt7921_dfs_offload_update() below
++         * re-establishes them if the AP still operates on DFS. */
+         timer_delete_sync(&dev->phy.dfs_state.cac_timer);
+         dev->phy.dfs_state.cac_active = false;
++        dev->phy.dfs_state.rdd_enabled = false;
++        dev->phy.dfs_state.cac_center_freq = 0;
++        dev->phy.dfs_state.cac_vif = NULL;
+         dev->phy.dfs_state.cac_vif = NULL;
+         dev->phy.dfs_state.cac_time_ms = 0;
+         dev->phy.dfs_state.radar_detected = false;
+@@ -824,6 +830,11 @@
+                 ieee80211_queue_delayed_work(hw, &dev->mphy.mac_work,
+                                              MT792x_WATCHDOG_TIME);
+ 
++        /* 0023: re-evaluate DFS offload state after the reset (fw
++         * lost RDD state; CAC restarts if the AP still sits on a
++         * DFS channel). */
++        mt7921_dfs_offload_update(dev);
++
+         mt76_connac_power_save_sched(&dev->mt76.phy, pm);
+ }
+ 
+--- mt7921/mt7921.h.pre-0023	2026-09-05 18:32:20.965842015 +0200
++++ mt7921/mt7921.h	2026-09-05 18:32:20.966834645 +0200
+@@ -456,6 +456,7 @@
+ 
+ /* DFS CAC timer callback (defined in main.c) — always visible */
+ void mt7921_cac_timer(struct timer_list *t);
++void mt7921_dfs_offload_update(struct mt792x_dev *dev); /* 0023 */
+ void mt7921_radar_detected_event(struct mt792x_dev *dev, struct sk_buff *skb);
+ 
+ /* Module parameter (defined in mcu.c) — visible for test_trigger_debugfs */
+@@ -517,6 +518,10 @@
+ 	u32 cac_time_ms;
+ 	struct timer_list cac_timer;
+ 	struct ieee80211_vif *cac_vif;
++	/* 0023: DFS offload state */
++	bool rdd_enabled;
++	u32 cac_center_freq;
++	struct cfg80211_chan_def cac_chandef;
+ };
+ #endif
+ 
+--- mt792x.h.pre-0023	2026-09-05 18:32:20.964742441 +0200
++++ mt792x.h	2026-09-05 18:32:20.965110756 +0200
+@@ -218,6 +218,10 @@
+         u32 cac_time_ms;
+         struct timer_list cac_timer;
+         struct ieee80211_vif *cac_vif;
++        /* 0023: DFS offload (NL80211_EXT_FEATURE_DFS_OFFLOAD) state */
++        bool rdd_enabled;
++        u32 cac_center_freq;
++        struct cfg80211_chan_def cac_chandef;
+ };
+ #endif
+ 
+--- mt792x_compat.h.pre-0023	2026-09-05 18:32:20.967618737 +0200
++++ mt792x_compat.h	2026-09-05 18:32:20.968005404 +0200
+@@ -235,8 +235,10 @@
+                 return;
+ 
+         chandef = VIF_CHANDEF(vif);
++        /* 0023: GFP_ATOMIC - this path can be reached from the CAC
++         * timer (softirq) context; GFP_KERNEL would sleep there. */
+         cfg80211_cac_event(netdev, &chandef,
+-                           NL80211_RADAR_CAC_FINISHED, GFP_KERNEL,
++                           NL80211_RADAR_CAC_FINISHED, GFP_ATOMIC,
+                            0 /* link_id */);
+ }
+ #endif
