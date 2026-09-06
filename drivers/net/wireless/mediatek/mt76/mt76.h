@@ -467,6 +467,7 @@ struct mt76_wcid {
 
         struct rate_info rate;
         unsigned long ampdu_state;
+        unsigned long ampdu_retry_time;
 
         u16 idx;
         u8 hw_key_idx;

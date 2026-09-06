@@ -1188,6 +1188,18 @@ void mt76_connac2_tx_check_aggr(struct ieee80211_sta *sta, __le32 *txwi)
         if (!test_and_set_bit(tid, &wcid->ampdu_state)) {
                 if (ieee80211_start_tx_ba_session(sta, tid, 0))
                         clear_bit(tid, &wcid->ampdu_state);
+        } else if (time_after(jiffies, wcid->ampdu_retry_time)) {
+                /* The one-shot bit above can stay set forever when a
+                 * session never became operational: ADDBA reply lost,
+                 * no STOP callback, station object survives. Retry at
+                 * most once per second. -EAGAIN means a session is
+                 * already pending, keep the bit in that case.
+                 */
+                int ret = ieee80211_start_tx_ba_session(sta, tid, 0);
+
+                wcid->ampdu_retry_time = jiffies + HZ;
+                if (ret && ret != -EAGAIN)
+                        clear_bit(tid, &wcid->ampdu_state);
         }
 }
 EXPORT_SYMBOL_GPL(mt76_connac2_tx_check_aggr);

@@ -1193,12 +1193,24 @@ static int mt7921_sta_state(struct ieee80211_hw *hw,
                             enum ieee80211_sta_state new_state)
 {
         struct mt792x_dev *dev = mt792x_hw_dev(hw);
+        struct mt792x_sta *msta = (struct mt792x_sta *)sta->drv_priv;
+        int i;
 
         if (dev->pm.ds_enable) {
                 mt792x_mutex_acquire(dev);
                 mt76_connac_sta_state_dp(&dev->mt76, old_state, new_state);
                 mt792x_mutex_release(dev);
         }
+
+        /* Reassoc without station teardown leaves stale ampdu_state
+         * bits behind, which pins the one-shot ADDBA trigger in
+         * mt76_connac2_tx_check_aggr forever. Fresh stations get a
+         * zeroed drv_priv, so only the re-assoc path needs the reset.
+         */
+        if (old_state == IEEE80211_STA_AUTH &&
+            new_state == IEEE80211_STA_ASSOC)
+                for (i = 0; i < IEEE80211_NUM_TIDS; i++)
+                        clear_bit(i, &msta->deflink.wcid.ampdu_state);
 
         return mt76_sta_state(hw, vif, sta, old_state, new_state);
 }

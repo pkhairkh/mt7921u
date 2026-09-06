@@ -34,6 +34,7 @@ files document each change on top of upstream.
 | 0026 | TX endpoint lifecycle instrumentation | read-only diagnostics, logs once per second; folded |
 | 0027 | USB AC endpoint map + mcast PSD | per-access-class endpoint mapping, multicast PSD |
 | 0028 | gate HW A-MSDU on the 802.3 path | the downlink fix: firmware packed software-encrypted frames into air-invalid A-MSDUs and the peer dropped them wholesale |
+| 0029 | re-arm TX aggregation trigger | clear ampdu_state on re-assoc and retry ADDBA from TX completion; the one-shot bit could stay set forever and no BA session ever established |
 
 0015/0016 exist only as commits in the pre-baseline history; 0024-0026
 were applied directly to the working tree. No files exist for those
