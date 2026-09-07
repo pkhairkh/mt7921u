@@ -516,8 +516,58 @@ void mt7921_mac_add_txs(struct mt792x_dev *dev, void *data)
         u16 wcidx;
         u8 pid;
 
-        if (le32_get_bits(txs_data[0], MT_TXS0_TXS_FORMAT) > 1)
+        /* sl0031: PPDU-format TXS (fmt 2/3) is the only event carrying
+         * per-PPDU retry/fail/byte counts. It used to be dropped here
+         * before anything was parsed, which made retransmissions
+         * invisible on USB: bulk data frames complete blind (no skb
+         * TXS, tx.c:168 gates on REQ_TX_STATUS) and MSDU-format TXS
+         * carries no retry field, so wcid->stats.tx_retries stayed 0
+         * forever while BA misses piled up (task-45 finding 4: 12k BA
+         * misses, "tx retries: 0"). Accumulate the per-PPDU counters
+         * into the per-sta stats - mt792x_core.c maps them to
+         * NL80211 STA_INFO_TX_RETRIES, so iw station dump finally sees
+         * real retry counts. pid is meaningless in PPDU format, so no
+         * skb status processing on this path.
+         */
+        if (le32_get_bits(txs_data[0], MT_TXS0_TXS_FORMAT) > 1) {
+                static atomic_t sl31_ppdu;
+                struct mt76_sta_stats *stats;
+                int sln;
+
+                wcidx = le32_get_bits(txs_data[2], MT_TXS2_WCID);
+
+                sln = atomic_inc_return(&sl31_ppdu);
+                if (sln <= 16 || sln % 1000 == 0)
+                        dev_info(dev->mt76.dev,
+                                 "sl0031: PPDU-TXS#%d wcid=%u retry=%u fail=%u\n",
+                                 sln, wcidx,
+                                 le32_get_bits(txs_data[7],
+                                               MT_TXS7_MPDU_RETRY_CNT),
+                                 le32_get_bits(txs_data[6],
+                                               MT_TXS6_MPDU_FAIL_CNT));
+
+                if (wcidx >= MT792x_WTBL_SIZE)
+                        return;
+
+                rcu_read_lock();
+                wcid = mt76_wcid_ptr(dev, wcidx);
+                if (wcid) {
+                        stats = &wcid->stats;
+                        stats->tx_bytes +=
+                                le32_get_bits(txs_data[5],
+                                              MT_TXS5_MPDU_TX_BYTE) -
+                                le32_get_bits(txs_data[7],
+                                              MT_TXS7_MPDU_RETRY_BYTE);
+                        stats->tx_failed +=
+                                le32_get_bits(txs_data[6],
+                                              MT_TXS6_MPDU_FAIL_CNT);
+                        stats->tx_retries +=
+                                le32_get_bits(txs_data[7],
+                                              MT_TXS7_MPDU_RETRY_CNT);
+                }
+                rcu_read_unlock();
                 return;
+        }
 
         wcidx = le32_get_bits(txs_data[2], MT_TXS2_WCID);
         pid = le32_get_bits(txs_data[3], MT_TXS3_PID);
