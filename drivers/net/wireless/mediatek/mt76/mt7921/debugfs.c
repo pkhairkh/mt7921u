@@ -251,7 +251,16 @@ DEFINE_DEBUGFS_ATTRIBUTE(fops_reset, NULL, mt7921_chip_reset, "%lld\n");
 static int
 mt7921_bt_coex_show(struct seq_file *s, void *data)
 {
-        struct mt792x_dev *dev = dev_get_drvdata(s->private);
+        /* sl0029b: this node is registered via plain debugfs_create_file()
+         * with data=dev, so seq_file->private IS the mt792x_dev* itself.
+         * TASK-016 wrongly ran dev_get_drvdata() on it - that treats the
+         * mt792x_dev* as a struct device* and dereferences the
+         * driver_data member at a struct-device offset (~0x5e3), a
+         * garbage pointer. Every read of this file oopsed the kernel
+         * (mt7921_bt_coex_show+0x28, task-45 finding 3). Use the
+         * pointer directly instead.
+         */
+        struct mt792x_dev *dev = s->private;
 
         seq_printf(s, "bt_coex_supported: %d\n", dev->bt_coex_supported);
 
