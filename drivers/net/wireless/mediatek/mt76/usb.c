@@ -49,13 +49,19 @@ MODULE_PARM_DESC(sl_ep_fix, "Use corrected AC->OUT endpoint map (default: on)");
  * measurement on the unpatched path: 95% of PPDUs carried only 1-2
  * MPDUs (even during a 1k pps flood), downlink cost 3.3x the airtime of
  * uplink for identical traffic, weak-link clients woken per frame.
- * 0 restores the legacy immediate-submit behavior. The PSD/mc pipe is
+ * MEASURED (task-46 A/B, 2026-09-07): bulk windowed TCP already builds
+ * full A-MPDU depth with hold=0 (250 Mbps, 29-37 MPDU/PPDU, 97% of
+ * bytes aggregated); hold=2000 costs -28% and hold=8000 -50% bulk
+ * throughput; reactive/lock-step trickle (the Mac case) never
+ * aggregates at any hold - the window only adds its latency. Hence
+ * default OFF: batch-kick stays, the hold is an experiment knob.
+ * The PSD/mc pipe is
  * never held (mcast/DTIM/PS-response latency must stay immediate).
  * Tunable at /sys/module/mt76_usb/parameters/sl30_tx_hold_us.
  */
-static unsigned int sl30_tx_hold_us = 2000;
+static unsigned int sl30_tx_hold_us = 0;
 module_param_named(sl30_tx_hold_us, sl30_tx_hold_us, uint, 0644);
-MODULE_PARM_DESC(sl30_tx_hold_us, "AC TX coalescing hold in us (0=off, default 2000)");
+MODULE_PARM_DESC(sl30_tx_hold_us, "AC TX coalescing hold in us (0=off by default, see sl0030 measurements)");
 
 /* sl0026a: TX endpoint lifecycle instrumentation (READ-ONLY diagnostics).
  * Per-queue URB submit/complete counters, last-activity timestamps and a
