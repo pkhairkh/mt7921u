@@ -736,6 +736,8 @@ struct mt76_mcu {
         wait_queue_head_t wait;
 };
 
+#include <linux/hrtimer.h>
+
 #define MT_TX_SG_MAX_SIZE       8
 #define MT_RX_SG_MAX_SIZE       4
 #define MT_NUM_TX_ENTRIES       256
@@ -763,6 +765,13 @@ struct mt76_usb {
         /* Total successful RX URB completions, for the data-path
          * watchdog in mt792x_mac_work(). */
         atomic_t rx_urb_completions;
+
+        /* sl0030: AC TX coalescing hold. One soft-mode hrtimer per
+         * device; armed by mt76u_tx_kick() when an AC data queue is
+         * kicked, expires into a flush of all four AC queues. See
+         * mt76-usb/usb.c for the full story. */
+        struct hrtimer tx_hold_timer;
+        atomic_t tx_hold_armed;
 
         struct mt76u_mcu {
                 u8 *data;

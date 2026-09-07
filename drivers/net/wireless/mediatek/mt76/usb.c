@@ -7,6 +7,7 @@
 #include <linux/printk.h>
 #include <linux/jiffies.h>
 #include <linux/atomic.h>
+#include <linux/hrtimer.h>
 #include "mt76.h"
 #include "usb_trace.h"
 #include "dma.h"
@@ -40,6 +41,21 @@ MODULE_PARM_DESC(force_num_out_eps,
 static bool sl_ep_fix = true;
 module_param_named(sl_ep_fix, sl_ep_fix, bool, 0644);
 MODULE_PARM_DESC(sl_ep_fix, "Use corrected AC->OUT endpoint map (default: on)");
+
+/* sl0030: AC TX coalescing hold, in microseconds. When nonzero, AC data
+ * URB submissions are deferred for this long so frames arriving inside
+ * the window accumulate in the USB queue and the firmware can build
+ * real A-MPDUs instead of transmitting one PPDU per frame. Task-45
+ * measurement on the unpatched path: 95% of PPDUs carried only 1-2
+ * MPDUs (even during a 1k pps flood), downlink cost 3.3x the airtime of
+ * uplink for identical traffic, weak-link clients woken per frame.
+ * 0 restores the legacy immediate-submit behavior. The PSD/mc pipe is
+ * never held (mcast/DTIM/PS-response latency must stay immediate).
+ * Tunable at /sys/module/mt76_usb/parameters/sl30_tx_hold_us.
+ */
+static unsigned int sl30_tx_hold_us = 2000;
+module_param_named(sl30_tx_hold_us, sl30_tx_hold_us, uint, 0644);
+MODULE_PARM_DESC(sl30_tx_hold_us, "AC TX coalescing hold in us (0=off, default 2000)");
 
 /* sl0026a: TX endpoint lifecycle instrumentation (READ-ONLY diagnostics).
  * Per-queue URB submit/complete counters, last-activity timestamps and a
@@ -1051,7 +1067,7 @@ mt76u_tx_queue_skb(struct mt76_phy *phy, struct mt76_queue *q,
         return idx;
 }
 
-static void mt76u_tx_kick(struct mt76_dev *dev, struct mt76_queue *q)
+static void mt76u_tx_submit(struct mt76_dev *dev, struct mt76_queue *q)
 {
         struct urb *urb;
         int err;
@@ -1079,6 +1095,80 @@ static void mt76u_tx_kick(struct mt76_dev *dev, struct mt76_queue *q)
 
                 q->first = (q->first + 1) % q->ndesc;
         }
+}
+
+/* sl0030: flush every AC queue. Safe in process and softirq context:
+ * every q->lock holder on the TX path holds the lock with bottom
+ * halves disabled, so a softirq-context taker cannot deadlock against
+ * them on the local CPU.
+ */
+static void mt76u_tx_hold_flush_acs(struct mt76_dev *dev)
+{
+        int i;
+
+        for (i = 0; i < IEEE80211_NUM_ACS; i++) {
+                struct mt76_queue *q = dev->phy.q_tx[i];
+
+                if (!q)
+                        continue;
+
+                spin_lock_bh(&q->lock);
+                mt76u_tx_submit(dev, q);
+                spin_unlock_bh(&q->lock);
+        }
+}
+
+static enum hrtimer_restart mt76u_tx_hold_timer_fn(struct hrtimer *t)
+{
+        struct mt76_usb *usb = container_of(t, struct mt76_usb,
+                                            tx_hold_timer);
+        struct mt76_dev *dev = container_of(usb, struct mt76_dev, usb);
+
+        atomic_set(&usb->tx_hold_armed, 0);
+        mt76u_tx_hold_flush_acs(dev);
+
+        return HRTIMER_NORESTART;
+}
+
+static bool mt76u_tx_hold_is_ac(struct mt76_dev *dev, struct mt76_queue *q)
+{
+        /* only the four AC data queues are held; the PSD/mc pipe
+         * (mcast/DTIM, PS responses, offchannel) stays immediate */
+        return q == dev->phy.q_tx[MT_TXQ_VO] ||
+               q == dev->phy.q_tx[MT_TXQ_VI] ||
+               q == dev->phy.q_tx[MT_TXQ_BE] ||
+               q == dev->phy.q_tx[MT_TXQ_BK];
+}
+
+static void mt76u_tx_kick(struct mt76_dev *dev, struct mt76_queue *q)
+{
+        /* sl0030: instead of handing every queued URB to the firmware
+         * immediately (which transmits each frame as its own PPDU and
+         * starves aggregation below USB-saturation rates), arm the
+         * coalescing timer for AC queues and let frames accumulate for
+         * sl30_tx_hold_us before one batch submission.
+         */
+        if (sl30_tx_hold_us && mt76u_tx_hold_is_ac(dev, q)) {
+                struct mt76_usb *usb = &dev->usb;
+
+                if (atomic_cmpxchg(&usb->tx_hold_armed, 0, 1) == 0)
+                        hrtimer_start(&usb->tx_hold_timer,
+                                      ktime_set(0, (u64)sl30_tx_hold_us *
+                                                   NSEC_PER_USEC),
+                                      HRTIMER_MODE_REL_SOFT);
+                return;
+        }
+
+        mt76u_tx_submit(dev, q);
+}
+
+/* sl0030: synchronous drain used from the stop/deinit path so no held
+ * frame is left parked in [first, head) while queues are torn down.
+ */
+static void mt76u_tx_hold_cancel(struct mt76_dev *dev)
+{
+        hrtimer_cancel(&dev->usb.tx_hold_timer);
+        atomic_set(&dev->usb.tx_hold_armed, 0);
 }
 
 static void
@@ -1209,6 +1299,9 @@ static void mt76u_free_tx(struct mt76_dev *dev)
 {
         int i;
 
+        /* sl0030: belt-and-braces for direct deinit paths */
+        mt76u_tx_hold_cancel(dev);
+
         mt76_worker_teardown(&dev->usb.status_worker);
 
         for (i = 0; i <= MT_TXQ_PSD; i++) {
@@ -1229,6 +1322,12 @@ static void mt76u_free_tx(struct mt76_dev *dev)
 void mt76u_stop_tx(struct mt76_dev *dev)
 {
         int ret;
+
+        /* sl0030: submit any frames still parked in the hold window so
+         * the drain/wait machinery below sees them, and make sure no
+         * timer fires while the queues are being torn down. */
+        mt76u_tx_hold_cancel(dev);
+        mt76u_tx_hold_flush_acs(dev);
 
         mt76_worker_disable(&dev->usb.status_worker);
 
@@ -1315,6 +1414,12 @@ int __mt76u_init(struct mt76_dev *dev, struct usb_interface *intf,
         int err;
 
         INIT_WORK(&usb->stat_work, mt76u_tx_status_data);
+
+        /* sl0030: AC TX coalescing hold timer (6.18 removed
+         * hrtimer_init; use the 6.15+ hrtimer_setup API) */
+        hrtimer_setup(&usb->tx_hold_timer, mt76u_tx_hold_timer_fn,
+                      CLOCK_MONOTONIC, HRTIMER_MODE_REL_SOFT);
+        atomic_set(&usb->tx_hold_armed, 0);
 
         usb->data_len = usb_maxpacket(udev, usb_sndctrlpipe(udev, 0));
         if (usb->data_len < 32)

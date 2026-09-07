@@ -658,6 +658,8 @@ mt76_txq_schedule_pending_wcid(struct mt76_phy *phy, struct mt76_wcid *wcid,
         struct mt76_dev *dev = phy->dev;
         struct ieee80211_sta *sta;
         struct mt76_queue *q;
+        unsigned long sl30_kick_mask = 0;
+        int sl30_qid;
         struct sk_buff *skb;
         int ret = 0;
 
@@ -696,12 +698,33 @@ mt76_txq_schedule_pending_wcid(struct mt76_phy *phy, struct mt76_wcid *wcid,
                 sta = wcid_to_sta(wcid);
                 spin_lock(&q->lock);
                 __mt76_tx_queue_skb(phy, qid, skb, wcid, sta, NULL);
-                dev->queue_ops->kick(dev, q);
+                sl30_kick_mask |= BIT(qid);
                 spin_unlock(&q->lock);
 
                 spin_lock(&head->lock);
         }
         spin_unlock(&head->lock);
+
+        /* sl0030: kick each touched hardware queue ONCE after the loop.
+         * Kicking inside the loop handed every pending frame to the
+         * bus driver as its own immediate submission, which on USB
+         * means one standalone URB per frame - the firmware then
+         * transmits each as a single-MPDU PPDU. Batching the kick (and
+         * the USB-side coalescing hold) is what lets A-MPDU
+         * aggregation engage below USB-saturation rates.
+         */
+        for (sl30_qid = 0; sl30_qid < __MT_TXQ_MAX; sl30_qid++) {
+                if (!(sl30_kick_mask & BIT(sl30_qid)))
+                        continue;
+
+                q = phy->q_tx[sl30_qid];
+                if (!q)
+                        continue;
+
+                spin_lock(&q->lock);
+                dev->queue_ops->kick(dev, q);
+                spin_unlock(&q->lock);
+        }
 
         return ret;
 }
